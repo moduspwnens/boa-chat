@@ -108,6 +108,7 @@ Resources:
       Path: "/"
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
     Properties:
@@ -126,6 +127,7 @@ Resources:
       Name:
         Ref: AWS::StackName
       Description: REST API for web chats.
+  
   WebChatApiDeployment:
     Type: AWS::ApiGateway::Deployment
     Properties:
@@ -139,6 +141,7 @@ Resources:
     DependsOn:
     - WebChatApiDummyStageLogGroup
     - WebChatApiRoomCreateMethod
+  
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -152,6 +155,7 @@ Resources:
             - DummyStageName
       RetentionInDays:
         Ref: LogRetentionDays
+  
   WebChatApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
@@ -172,6 +176,7 @@ Resources:
         - StageName
     DependsOn:
     - WebChatApiMainStageLogGroup
+  
   WebChatApiMainStageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -244,12 +249,12 @@ Resources:
               
               return {
                   "room-id": new_room_id,
-                  "topic-arn": topic_arn,
                   "message": "Success!"
               }
           
       Runtime: python2.7
       Timeout: '300'
+  
   RoomGeneratorFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -263,6 +268,7 @@ Resources:
           Action:
           - sts:AssumeRole
       Path: "/"
+  
   RoomGeneratorFunctionRoleActions:
     Type: AWS::IAM::Policy
     Properties:
@@ -287,6 +293,7 @@ Resources:
             Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
       Roles:
       - Ref: RoomGeneratorFunctionRole
+  
   RoomGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -389,6 +396,7 @@ Resources:
       - Endpoint:
           Ref: MetricAlarmEmailAddress
         Protocol: email
+  
   LambdaThrottlesAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IncludeMetricAlarmsCondition
@@ -402,6 +410,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
       - Ref: AdminAlarmTopic
+  
   RoomGeneratorErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IncludeMetricAlarmsCondition
@@ -419,6 +428,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
       - Ref: AdminAlarmTopic
+  
   Api5XXErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IncludeMetricAlarmsCondition
@@ -465,6 +475,7 @@ Resources:
           {
               "warming": true
           }
+  
   PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
@@ -583,6 +594,7 @@ Resources:
               
       Runtime: python2.7
       Timeout: '300'
+  
   StackCleanupFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -596,6 +608,7 @@ Resources:
           Action:
           - sts:AssumeRole
       Path: "/"
+  
   StackCleanupFunctionRoleActions:
     Type: AWS::IAM::Policy
     Properties:
@@ -626,6 +639,7 @@ Resources:
           Resource: '*'
       Roles:
       - Ref: StackCleanupFunctionRole
+  
   StackCleanupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -633,6 +647,7 @@ Resources:
         Fn::Sub: /aws/lambda/${StackCleanupFunction}
       RetentionInDays:
         Ref: LogRetentionDays
+  
   StackCleanupInvocation:
     Type: Custom::StackCleanupInvocation
     Properties:
