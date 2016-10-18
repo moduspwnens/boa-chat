@@ -1,0 +1,655 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: An serverless web chat portal.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Configuration
+      Parameters:
+      - MetricAlarmEmailAddress
+      - MaxRequestsPerSecond
+      - PreWarmingEnabled
+      - LogRetentionDays
+    ParameterLabels:
+      MetricAlarmEmailAddress:
+        default: Alarm E-mail Address
+      LogRetentionDays:
+        default: Log Retention (days)
+      PreWarmingEnabled:
+        default: Pre-Warming Enabled
+Parameters:
+  LogRetentionDays:
+    Type: String
+    Default: '14'
+    AllowedValues:
+    - ''
+    - '1'
+    - '3'
+    - '5'
+    - '7'
+    - '14'
+    - '30'
+    - '60'
+    - '90'
+    - '120'
+    - '150'
+    - '180'
+    - '365'
+    - '400'
+    - '545'
+    - '731'
+    - '1827'
+    - '3653'
+  MetricAlarmEmailAddress:
+    Type: String
+    Description: In case of errors. Leave blank to disable.
+  PreWarmingEnabled:
+    Type: String
+    Description: Ping resources each minute to keep initial response times fast.
+    Default: 'Yes'
+    AllowedValues:
+    - 'Yes'
+    - 'No'
+Mappings:
+  StaticVariables:
+    Main:
+      ApiGatewayErrorMappingTemplate: |-
+        #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+        #set ($bodyObj = $util.parseJson($input.body))
+        {
+            "type": "$errorMessageObj.errorType",
+            "message": "$errorMessageObj.message"
+        }
+      DummyStageName: DummyStage
+      PreWarmScheduleExpression: rate(1 minute)
+      StageName: v1
+Conditions:
+  IncludeMetricAlarmsCondition:
+    Fn::Not:
+    - Fn::Equals:
+      - Ref: MetricAlarmEmailAddress
+      - ''
+  PreWarmingEnabledCondition:
+    Fn::Equals:
+    - Ref: PreWarmingEnabled
+    - 'Yes'
+Resources:
+  
+  #
+  #   S3 Bucket
+  #   
+  #   Shared among various resources.
+  #
+  
+  SharedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName:
+        Fn::Sub: "webchat-sharedbucket-${WebChatApi}"
+  
+  #  
+  #   API Gateway - Global Account resources
+  #  
+  
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - apigateway.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn:
+        Fn::GetAtt:
+        - ApiGatewayCloudWatchRole
+        - Arn
+  
+  #  
+  #   API Gateway - REST API resources
+  #  
+  
+  WebChatApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name:
+        Ref: AWS::StackName
+      Description: REST API for web chats.
+  WebChatApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId:
+        Ref: WebChatApi
+      StageName:
+        Fn::FindInMap:
+        - StaticVariables
+        - Main
+        - DummyStageName
+    DependsOn:
+    - WebChatApiDummyStageLogGroup
+    - WebChatApiRoomCreateMethod
+  WebChatApiDummyStageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub:
+        - API-Gateway-Execution-Logs_${WebChatApi}/${DummyStageName}
+        - DummyStageName:
+            Fn::FindInMap:
+            - StaticVariables
+            - Main
+            - DummyStageName
+      RetentionInDays:
+        Ref: LogRetentionDays
+  WebChatApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId:
+        Ref: WebChatApiDeployment
+      MethodSettings:
+      - ResourcePath: ''
+        HttpMethod: "*/*"
+        DataTraceEnabled: true
+        LoggingLevel: INFO
+        MetricsEnabled: true
+      RestApiId:
+        Ref: WebChatApi
+      StageName:
+        Fn::FindInMap:
+        - StaticVariables
+        - Main
+        - StageName
+    DependsOn:
+    - WebChatApiMainStageLogGroup
+  WebChatApiMainStageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub:
+        - API-Gateway-Execution-Logs_${WebChatApi}/${MainStageName}
+        - MainStageName:
+            Fn::FindInMap:
+            - StaticVariables
+            - Main
+            - StageName
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  #  
+  #   Room Generator Function
+  #  
+    
+  RoomGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a unique identifier for a chat room.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - RoomGeneratorFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          
+          import json, uuid, time
+          import boto3
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if "warming" in event and "{}".format(event["warming"]).lower() == "true":
+                  return {
+                      "message": "Warmed!"
+                  }
+              
+              new_room_id = "{}".format(uuid.uuid4())
+              
+              new_topic_name = "web-chat-{}-{}-{}".format(
+                  event["api-id"],
+                  event["stage"],
+                  new_room_id
+              )
+              
+              sns_response = boto3.client("sns").create_topic(
+                  Name = new_topic_name
+              )
+              
+              topic_arn = sns_response["TopicArn"]
+              
+              s3_room_config_object = {
+                  "created": int(time.time()),
+                  "sns-topic-arn": topic_arn
+              }
+              
+              s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
+              
+              boto3.client("s3").put_object(
+                  Bucket = s3_bucket_name,
+                  Key = "room-topics/{}.json".format(new_room_id),
+                  Body = json.dumps(s3_room_config_object, indent=4)
+              )
+              
+              return {
+                  "room-id": new_room_id,
+                  "topic-arn": topic_arn,
+                  "message": "Success!"
+              }
+          
+      Runtime: python2.7
+      Timeout: '300'
+  RoomGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  RoomGeneratorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomGeneratorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
+        - Effect: Allow
+          Action: 
+          - sns:CreateTopic
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+      Roles:
+      - Ref: RoomGeneratorFunctionRole
+  RoomGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomGeneratorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiRoomResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: room
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiRoomCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiRoomResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: |-
+              {
+                  "api-id": "$context.apiId",
+                  "stage": "$context.stage",
+                  "request-body": $input.json("$"),
+                  "warming": "$input.params('warming')"
+              }
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomGeneratorFunctionArn}/invocations
+          - RoomGeneratorFunctionArn:
+              Fn::GetAtt:
+              - RoomGeneratorFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '500'
+      - StatusCode: '504'
+      RequestParameters:
+        method.request.querystring.warming: false
+    DependsOn:
+    - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
+  
+  WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomGeneratorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room
+    DependsOn:
+    - RoomGeneratorFunctionRoleActions
+    - RoomGeneratorFunctionLogGroup
+  
+  
+  #
+  #   CloudWatch Alarms
+  #
+  
+  AdminAlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: IncludeMetricAlarmsCondition
+    Properties:
+      Subscription:
+      - Endpoint:
+          Ref: MetricAlarmEmailAddress
+        Protocol: email
+  LambdaThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IncludeMetricAlarmsCondition
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+      - Ref: AdminAlarmTopic
+  RoomGeneratorErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IncludeMetricAlarmsCondition
+    Properties:
+      Namespace: AWS/Lambda
+      Dimensions:
+      - Name: FunctionName
+        Value:
+          Ref: RoomGeneratorFunction
+      MetricName: Errors
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+      - Ref: AdminAlarmTopic
+  Api5XXErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IncludeMetricAlarmsCondition
+    Properties:
+      Namespace: AWS/ApiGateway
+      Dimensions:
+      - Name: ApiName
+        Value:
+          Ref: AWS::StackName
+      - Name: Stage
+        Value:
+          Ref: WebChatApiStage
+      MetricName: 5XXError
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Average
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+      - Ref: AdminAlarmTopic
+  
+  #
+  #   Pre-Warming
+  #
+  
+  PreWarmApiEventRule:
+    Type: AWS::Events::Rule
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Description: Keeps web chat API Lambda functions warm by invoking them frequently.
+      ScheduleExpression:
+        Fn::FindInMap:
+        - StaticVariables
+        - Main
+        - PreWarmScheduleExpression
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - RoomGeneratorFunction
+          - Arn
+        Id: RoomGeneratorFunction
+        Input: |-
+          {
+              "warming": true
+          }
+  PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomGeneratorFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - RoomGeneratorFunctionRoleActions
+    - RoomGeneratorFunctionLogGroup
+  
+  #
+  #   Stack Cleanup
+  #   
+  #   This function performs basic setup and cleanup functionality when the 
+  #   stack is deleted.
+  #   
+  #   On delete:
+  #     - Clears out shared S3 bucket
+  #     - Deletes SNS topics
+  #
+  
+  StackCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Queues up Lambda function invocations for later execution.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+        - StackCleanupFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+
+          import json
+          import boto3
+          import cfnresponse
+
+          class LambdaHandler(object):
+              
+              def __init__(self, context):
+                  pass
+  
+              def handle_event(self, event, context):
+                  print("Event: {}".format(json.dumps(event)))
+        
+                  request_type = event.get("RequestType")
+        
+                  if request_type == "Delete":
+                      self.handle_cleanup_event(event, context)
+        
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+        
+                  return {}
+    
+              def handle_cleanup_event(self, event, context):
+        
+                  s3_client = boto3.client("s3")
+                  sns_client = boto3.client("sns")
+                  s3_bucket_name = event["ResourceProperties"]["SharedBucket"]
+        
+                  paginator = s3_client.get_paginator("list_objects_v2")
+        
+                  response_iterator = paginator.paginate(
+                      Bucket = s3_bucket_name
+                  )
+        
+                  for each_list_response in response_iterator:
+                    keys_to_delete = []
+          
+                    for each_item in each_list_response.get("Contents", []):
+                        keys_to_delete.append(each_item["Key"])
+          
+                    if len(keys_to_delete) == 0:
+                        print("Last request for objects in {} returned none.".format(
+                            s3_bucket_name
+                        ))
+                        break
+                    
+                    for each_key in keys_to_delete:
+                        if each_key.startswith("room-topics/"):
+                            # This S3 object represents an SNS topic that needs to be deleted.
+                            room_topic_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
+                            sns_topic_arn = room_topic_config["sns-topic-arn"]
+                            sns_client.delete_topic(TopicArn = sns_topic_arn)
+                    
+                    print("Deleting {} object(s) from {}.".format(
+                        len(keys_to_delete),
+                        s3_bucket_name
+                    ))
+          
+                    s3_client.delete_objects(
+                        Bucket = s3_bucket_name,
+                        Delete = {
+                            "Objects": list({"Key": x} for x in keys_to_delete)
+                        }
+                    )
+          
+                    print("Object(s) deleted.")
+
+          handler_object = None
+          def lambda_handler(event, context):
+              global handler_object
+    
+              if handler_object is None:
+                  handler_object = LambdaHandler(context)
+    
+              return handler_object.handle_event(event, context)
+              
+      Runtime: python2.7
+      Timeout: '300'
+  StackCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  StackCleanupFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: StackCleanupFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackCleanupFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:DeleteObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/*
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}
+        - Effect: Allow
+          Action:
+          - sns:DeleteTopic
+          Resource: '*'
+      Roles:
+      - Ref: StackCleanupFunctionRole
+  StackCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${StackCleanupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  StackCleanupInvocation:
+    Type: Custom::StackCleanupInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+        - StackCleanupFunction
+        - Arn
+      SharedBucket:
+        Ref: SharedBucket
+      
+Outputs:
+  WebChatApiHome:
+    Value:
+      Fn::Sub:
+      - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
+      - MainStageName:
+          Fn::FindInMap:
+          - StaticVariables
+          - Main
+          - StageName
