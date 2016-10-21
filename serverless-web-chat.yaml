@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: An serverless web chat portal.
+Description: A serverless web chat portal.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -58,8 +58,7 @@ Mappings:
         #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
         #set ($bodyObj = $util.parseJson($input.body))
         {
-            "type": "$errorMessageObj.errorType",
-            "message": "$errorMessageObj.message"
+            "message": "$util.escapeJavaScript("$errorMessageObj.message")"
         }
       DummyStageName: DummyStage
       PreWarmScheduleExpression: rate(1 minute)
@@ -141,6 +140,9 @@ Resources:
     DependsOn:
     - WebChatApiDummyStageLogGroup
     - WebChatApiRoomCreateMethod
+    - WebChatApiUserIdCreateMethod
+    - WebChatApiRoomMessageGetMethod
+    - WebChatApiRoomMessagePostMethod
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
@@ -166,7 +168,11 @@ Resources:
         HttpMethod: "*/*"
         DataTraceEnabled: true
         LoggingLevel: INFO
-        MetricsEnabled: true
+        MetricsEnabled:
+          Fn::If:
+          - IncludeMetricAlarmsCondition
+          - true
+          - false
       RestApiId:
         Ref: WebChatApi
       StageName:
@@ -190,6 +196,46 @@ Resources:
             - StageName
       RetentionInDays:
         Ref: LogRetentionDays
+  
+  WebChatApiRoomResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: room
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiSingleRoomResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiRoomResource
+      PathPart: '{room-id}'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiSingleRoomMessageResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiSingleRoomResource
+      PathPart: 'message'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiUserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: user
+      RestApiId:
+        Ref: WebChatApi
   
   #  
   #   Room Generator Function
@@ -220,13 +266,11 @@ Resources:
                       "message": "Warmed!"
                   }
               
-              new_room_id = "{}".format(uuid.uuid4())
+              public_api_base = get_public_api_base(event)
               
-              new_topic_name = "web-chat-{}-{}-{}".format(
-                  event["api-id"],
-                  event["stage"],
-                  new_room_id
-              )
+              new_room_id = generate_new_room_id()
+              
+              new_topic_name = generate_room_sns_topic_name(event, new_room_id)
               
               sns_response = boto3.client("sns").create_topic(
                   Name = new_topic_name
@@ -248,9 +292,63 @@ Resources:
               )
               
               return {
-                  "room-id": new_room_id,
-                  "message": "Success!"
+                  "room": "{}{}/{}".format(
+                      public_api_base,
+                      event["resource-path"],
+                      new_room_id
+                  )
               }
+          
+          def generate_room_sns_topic_name(event, room_id):
+              return "web-chat-{}-{}-{}".format(
+                  event["api-id"],
+                  event["stage"],
+                  room_id
+              )
+          
+          def generate_new_room_id():
+              return "{}".format(uuid.uuid4())
+          
+          def get_public_api_base(event):
+              
+              # https://forums.aws.amazon.com/thread.jspa?threadID=241370
+              
+              if event["host"].endswith(".amazonaws.com"):
+                  # Assume this is the default deployment URL.
+                  return "https://{}/{}".format(
+                      event["host"],
+                      event["stage"]
+                  )
+              
+              # The host header indicates this is invoked through a custom domain name.
+              # Look up the base path mapping based on our stage.
+              # Note that this will be imperfect because a stage can have multiple base path mappings.
+              
+              response_iterator = boto3.client("apigateway").get_paginator("get_base_path_mappings").paginate(
+                  domainName = event["host"]
+              )
+              
+              own_mapping = None
+              
+              for each_response in response_iterator:
+                  for each_item in each_response.get("items"):
+                      if each_item["restApiId"] == event["api-id"] and each_item.get("stage", "") in ["", event["stage"]]:
+                          if own_mapping is not None:
+                              raise Exception("Ambiguous base path mapping. Can't determine base path of API.")
+                          own_mapping = each_item
+              
+              if own_mapping is None:
+                  raise Exception("Unable to determine API's public URL.")
+              
+              base_path = own_mapping["basePath"]
+              
+              if own_mapping.get("stage", "") == "":
+                  base_path += "/" + event["stage"]
+              
+              return "https://{}/{}".format(
+                  event["host"],
+                  base_path
+              )
           
       Runtime: python2.7
       Timeout: '300'
@@ -291,6 +389,11 @@ Resources:
           - s3:PutObject
           Resource:
             Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+        - Effect: Allow
+          Action:
+          - apigateway:GET
+          Resource:
+            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
       - Ref: RoomGeneratorFunctionRole
   
@@ -301,17 +404,6 @@ Resources:
         Fn::Sub: /aws/lambda/${RoomGeneratorFunction}
       RetentionInDays:
         Ref: LogRetentionDays
-  
-  WebChatApiRoomResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId:
-        Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
-      PathPart: room
-      RestApiId:
-        Ref: WebChatApi
   
   WebChatApiRoomCreateMethod:
     Type: AWS::ApiGateway::Method
@@ -349,9 +441,10 @@ Resources:
             Fn::Sub: |-
               {
                   "api-id": "$context.apiId",
+                  "host": "$input.params('Host')",
                   "stage": "$context.stage",
                   "request-body": $input.json("$"),
-                  "warming": "$input.params('warming')"
+                  "resource-path": "$context.resourcePath"
               }
         Type: AWS
         Uri:
@@ -366,7 +459,7 @@ Resources:
       - StatusCode: '500'
       - StatusCode: '504'
       RequestParameters:
-        method.request.querystring.warming: false
+        method.request.header.Host: false
     DependsOn:
     - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
   
@@ -382,6 +475,751 @@ Resources:
     DependsOn:
     - RoomGeneratorFunctionRoleActions
     - RoomGeneratorFunctionLogGroup
+  
+  PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomGeneratorFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - RoomGeneratorFunctionRoleActions
+    - RoomGeneratorFunctionLogGroup
+  
+  
+  #  
+  #   User ID Generator Function
+  #  
+    
+  UserIdGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a unique identifier for a user.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - UserIdGeneratorFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          
+          import json, uuid, time
+          import boto3
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if "warming" in event and "{}".format(event["warming"]).lower() == "true":
+                  return {
+                      "message": "Warmed!"
+                  }
+              
+              public_api_base = get_public_api_base(event)
+              
+              new_user_id = generate_new_user_id()
+              
+              return {
+                  "user-id": new_user_id,
+                  "user": "{}{}/{}".format(
+                      public_api_base,
+                      event["resource-path"],
+                      new_user_id
+                  )
+              }
+          
+          def generate_new_user_id():
+              return "{}".format(uuid.uuid4())
+          
+          def get_public_api_base(event):
+              
+              # https://forums.aws.amazon.com/thread.jspa?threadID=241370
+              
+              if event["host"].endswith(".amazonaws.com"):
+                  # Assume this is the default deployment URL.
+                  return "https://{}/{}".format(
+                      event["host"],
+                      event["stage"]
+                  )
+              
+              # The host header indicates this is invoked through a custom domain name.
+              # Look up the base path mapping based on our stage.
+              # Note that this will be imperfect because a stage can have multiple base path mappings.
+              
+              response_iterator = boto3.client("apigateway").get_paginator("get_base_path_mappings").paginate(
+                  domainName = event["host"]
+              )
+              
+              own_mapping = None
+              
+              for each_response in response_iterator:
+                  for each_item in each_response.get("items"):
+                      if each_item["restApiId"] == event["api-id"] and each_item.get("stage", "") in ["", event["stage"]]:
+                          if own_mapping is not None:
+                              raise Exception("Ambiguous base path mapping. Can't determine base path of API.")
+                          own_mapping = each_item
+              
+              if own_mapping is None:
+                  raise Exception("Unable to determine API's public URL.")
+              
+              base_path = own_mapping["basePath"]
+              
+              if own_mapping.get("stage", "") == "":
+                  base_path += "/" + event["stage"]
+              
+              return "https://{}/{}".format(
+                  event["host"],
+                  base_path
+              )
+          
+      Runtime: python2.7
+      Timeout: '300'
+  
+  UserIdGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  UserIdGeneratorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserIdGeneratorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserIdGeneratorFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - apigateway:GET
+          Resource:
+            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+      Roles:
+      - Ref: UserIdGeneratorFunctionRole
+  
+  UserIdGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${UserIdGeneratorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiUserIdCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: |-
+              {
+                  "api-id": "$context.apiId",
+                  "host": "$input.params('Host')",
+                  "stage": "$context.stage",
+                  "request-body": $input.json("$"),
+                  "resource-path": "$context.resourcePath"
+              }
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserIdGeneratorFunctionArn}/invocations
+          - UserIdGeneratorFunctionArn:
+              Fn::GetAtt:
+              - UserIdGeneratorFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '500'
+      - StatusCode: '504'
+      RequestParameters:
+        method.request.header.Host: true
+    DependsOn:
+    - WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission
+  
+  WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserIdGeneratorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user
+    DependsOn:
+    - UserIdGeneratorFunctionRoleActions
+    - UserIdGeneratorFunctionLogGroup
+  
+  PreWarmApiCloudWatchUserIdGeneratorFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserIdGeneratorFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - UserIdGeneratorFunctionRoleActions
+    - UserIdGeneratorFunctionLogGroup
+  
+  
+  
+  #  
+  #   Room Message Poller Function
+  #  
+    
+  RoomMessagePollerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Returns any new messages sent to the requested room.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - RoomMessagePollerFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          
+          import json, time, hashlib, boto3
+          
+          queue_url_cache = {}
+          sqs_client = boto3.client("sqs")
+          s3_client = boto3.client("s3")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if "warming" in event and "{}".format(event["warming"]).lower() == "true":
+                  return {
+                      "message": "Warmed!"
+                  }
+              
+              if event.get("user-id", "") == "":
+                  raise APIGatewayException("URL parameter \"user-id\" is required.", 400)
+              
+              sqs_queue_name = get_queue_name(event)
+              if sqs_queue_name not in queue_url_cache:
+                  create_and_initialize_queue(sqs_queue_name, event)
+              
+              queue_url = queue_url_cache[sqs_queue_name]
+              
+              response = sqs_client.receive_message(
+                  QueueUrl = queue_url,
+                  MaxNumberOfMessages = 10,
+                  WaitTimeSeconds = 20
+              )
+              
+              return {
+                  "messages": list(x["Body"] for x in response.get("Messages", []))
+              }
+          
+          def create_and_initialize_queue(sqs_queue_name, event):
+              s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
+              room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["room-id"]))["Body"].read())
+              sns_topic_arn = room_info_dict["sns-topic-arn"]
+              
+              queue_url = sqs_client.create_queue(
+                  QueueName = sqs_queue_name,
+                  Attributes = get_default_queue_attributes(event, sns_topic_arn)
+              )["QueueUrl"]
+              
+              queue_arn = sqs_client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["QueueArn"])["Attributes"]["QueueArn"]
+              
+              subscribe_response = boto3.client("sns").subscribe(
+                  TopicArn = sns_topic_arn,
+                  Protocol = "sqs",
+                  Endpoint = queue_arn
+              )
+              
+              s3_queue_config_object = {
+                  "created": int(time.time()),
+                  "sqs-queue-url": queue_url,
+                  "sns-subscription-arn": subscribe_response["SubscriptionArn"]
+              }
+          
+              s3_client.put_object(
+                  Bucket = s3_bucket_name,
+                  Key = "room-queues/{}/{}.json".format(
+                      event["room-id"],
+                      event["user-id"]
+                  ),
+                  Body = json.dumps(s3_queue_config_object, indent=4)
+              )
+              
+              queue_url_cache[sqs_queue_name] = queue_url
+          
+          def get_queue_name(event):
+              
+              hash_string_base = "{}-{}-{}-{}".format(
+                  event["api-id"],
+                  event["stage"],
+                  event["room-id"],
+                  event["user-id"]
+              )
+              
+              return "web-chat-{}".format(
+                  hashlib.md5(hash_string_base).hexdigest()
+              )
+          
+          def get_default_queue_attributes(event, sns_topic_arn):
+              
+              statements_list = [
+                  {
+                      "Sid": "AllowSNSRoomTopicSending",
+                      "Effect": "Allow",
+                      "Principal": "*",
+                      "Action": "sqs:SendMessage",
+                      "Resource": "*",
+                      "Condition": {
+                          "ArnEquals": {
+                              "aws:SourceArn": sns_topic_arn
+                          }
+                      }
+                  },
+                  {
+                      "Sid": "AllowRoomPollerActions",
+                      "Effect": "Allow",
+                      "Principal": {
+                          "AWS": event["function-role"]
+                      },
+                      "Action": [
+                          "sqs:ReceiveMessage",
+                          "sqs:DeleteMessage"
+                      ],
+                      "Resource": "*"
+                  },
+                  {
+                      "Sid": "AllowCleanup",
+                      "Effect": "Allow",
+                      "Principal": {
+                          "AWS": event["delete-function-role"]
+                      },
+                      "Action": "sqs:DeleteQueue",
+                      "Resource": "*"
+                  }
+              ]
+              
+              return {
+                  "Policy": json.dumps({
+                      "Version": "2012-10-17",
+                      "Statement": statements_list
+                  })
+              }
+          
+          class APIGatewayException(Exception):
+    
+              def __init__(self, message, http_status_code = 500):
+        
+                  # Encode this exception as a JSON object so it can be decoded by API Gateway.
+                  new_message_object = {
+                      "http-status": http_status_code,
+                      "message": message
+                  }
+                  new_message = json.dumps(new_message_object, separators=(",", ":"))
+                  Exception.__init__(self, new_message)
+          
+      Runtime: python2.7
+      Timeout: '300'
+  
+  RoomMessagePollerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  RoomMessagePollerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomMessagePollerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePollerFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - sqs:CreateQueue
+          - sqs:GetQueueAttributes
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - sns:Subscribe
+          Resource:
+            Fn::Sub:
+            - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
+            - WebChatApiStageName:
+                Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - StageName
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
+        - Effect: Allow
+          Action:
+          - apigateway:GET
+          Resource:
+            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+      Roles:
+      - Ref: RoomMessagePollerFunctionRole
+  
+  RoomMessagePollerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomMessagePollerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiRoomMessageGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomMessageResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json:
+              Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayErrorMappingTemplate
+          SelectionPattern: '.*http-status\":\w*400.*'
+          StatusCode: '400'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: 
+            - |-
+              {
+                  "api-id": "$context.apiId",
+                  "delete-function-role": "${CleanupFunctionRole}",
+                  "function-role": "${PollerFunctionRole}",
+                  "host": "$input.params('Host')",
+                  "request-body": $input.json("$"),
+                  "resource-path": "$context.resourcePath",
+                  "room-id": "$input.params('room-id')",
+                  "stage": "$context.stage",
+                  "user-id": "$input.params('user-id')"
+              }
+            - PollerFunctionRole:
+                Fn::GetAtt:
+                - RoomMessagePollerFunctionRole
+                - Arn
+              CleanupFunctionRole:
+                Fn::GetAtt:
+                - StackCleanupFunctionRole
+                - Arn
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePollerFunctionArn}/invocations
+          - RoomMessagePollerFunctionArn:
+              Fn::GetAtt:
+              - RoomMessagePollerFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '400'
+      - StatusCode: '500'
+      - StatusCode: '504'
+      RequestParameters:
+        method.request.header.Host: true
+        method.request.querystring.user-id: true
+    DependsOn:
+    - WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission
+  
+  WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessagePollerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/GET/room/{room-id}/message
+    DependsOn:
+    - RoomMessagePollerFunctionRoleActions
+    - RoomMessagePollerFunctionLogGroup
+  
+  PreWarmApiCloudWatchRoomMessagePollerFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessagePollerFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - RoomMessagePollerFunctionRoleActions
+    - RoomMessagePollerFunctionLogGroup
+  
+  
+  
+  #  
+  #   Room Message Poster Function
+  #  
+    
+  RoomMessagePosterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Returns any new messages sent to the requested room.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - RoomMessagePosterFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          
+          import json
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if "warming" in event and "{}".format(event["warming"]).lower() == "true":
+                  return {
+                      "message": "Warmed!"
+                  }
+              
+              raise NotImplementedError
+              
+              return {}
+          
+      Runtime: python2.7
+      Timeout: '300'
+  
+  RoomMessagePosterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  RoomMessagePosterFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomMessagePosterFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - apigateway:GET
+          Resource:
+            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+      Roles:
+      - Ref: RoomMessagePosterFunctionRole
+  
+  RoomMessagePosterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomMessagePosterFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiRoomMessagePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomMessageResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: |-
+              {
+                  "api-id": "$context.apiId",
+                  "host": "$input.params('Host')",
+                  "stage": "$context.stage",
+                  "request-body": $input.json("$"),
+                  "resource-path": "$context.resourcePath"
+              }
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePosterFunctionArn}/invocations
+          - RoomMessagePosterFunctionArn:
+              Fn::GetAtt:
+              - RoomMessagePosterFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '500'
+      - StatusCode: '504'
+      RequestParameters:
+        method.request.header.Host: true
+    DependsOn:
+    - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
+  
+  WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessagePosterFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room/{room-id}/message
+    DependsOn:
+    - RoomMessagePosterFunctionRoleActions
+    - RoomMessagePosterFunctionLogGroup
+  
+  PreWarmApiCloudWatchRoomMessagePosterFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessagePosterFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - RoomMessagePosterFunctionRoleActions
+    - RoomMessagePosterFunctionLogGroup
+  
+  
   
   
   #
@@ -475,22 +1313,33 @@ Resources:
           {
               "warming": true
           }
-  
-  PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomGeneratorFunction
-      Principal: events.amazonaws.com
-      SourceArn:
-        Fn::GetAtt:
-        - PreWarmApiEventRule
-        - Arn
-    DependsOn:
-    - RoomGeneratorFunctionRoleActions
-    - RoomGeneratorFunctionLogGroup
+      - Arn:
+          Fn::GetAtt:
+          - UserIdGeneratorFunction
+          - Arn
+        Id: UserIdGeneratorFunction
+        Input: |-
+          {
+              "warming": true
+          }
+      - Arn:
+          Fn::GetAtt:
+          - RoomMessagePollerFunction
+          - Arn
+        Id: RoomMessagePollerFunction
+        Input: |-
+          {
+              "warming": true
+          }
+      - Arn:
+          Fn::GetAtt:
+          - RoomMessagePosterFunction
+          - Arn
+        Id: RoomMessagePosterFunction
+        Input: |-
+          {
+              "warming": true
+          }
   
   #
   #   Stack Cleanup
@@ -518,7 +1367,7 @@ Resources:
           from __future__ import print_function
 
           import json
-          import boto3
+          import boto3, botocore
           import cfnresponse
 
           class LambdaHandler(object):
@@ -542,6 +1391,7 @@ Resources:
         
                   s3_client = boto3.client("s3")
                   sns_client = boto3.client("sns")
+                  sqs_client = boto3.client("sqs")
                   s3_bucket_name = event["ResourceProperties"]["SharedBucket"]
         
                   paginator = s3_client.get_paginator("list_objects_v2")
@@ -568,6 +1418,18 @@ Resources:
                             room_topic_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
                             sns_topic_arn = room_topic_config["sns-topic-arn"]
                             sns_client.delete_topic(TopicArn = sns_topic_arn)
+                        
+                        elif each_key.startswith("room-queues/"):
+                            # This S3 object represents an SQS queue that needs to be deleted.
+                            queue_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
+                            sqs_queue_url = queue_config["sqs-queue-url"]
+                            try:
+                                sqs_client.delete_queue(QueueUrl = sqs_queue_url)
+                            except botocore.exceptions.ClientError as e:
+                                if e.response["Error"]["Code"] == "AWS.SimpleQueueService.NonExistentQueue":
+                                    pass
+                                else:
+                                    raise
                     
                     print("Deleting {} object(s) from {}.".format(
                         len(keys_to_delete),
@@ -636,6 +1498,7 @@ Resources:
         - Effect: Allow
           Action:
           - sns:DeleteTopic
+          - sqs:DeleteQueue
           Resource: '*'
       Roles:
       - Ref: StackCleanupFunctionRole
@@ -657,6 +1520,9 @@ Resources:
         - Arn
       SharedBucket:
         Ref: SharedBucket
+    DependsOn:
+    - StackCleanupFunctionLogGroup
+    - StackCleanupFunctionRoleActions
       
 Outputs:
   WebChatApiHome:
