@@ -77,6 +77,15 @@ def get_default_topic_policy(event, sns_topic_arn):
                 "Resource": sns_topic_arn
             },
             {
+                "Sid": "AllowPublishingByRoomMessagePoster",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": event["publish-function-role"]
+                },
+                "Action": "sns:Publish",
+                "Resource": sns_topic_arn
+            },
+            {
                 "Sid": "AllowCleanup",
                 "Effect": "Allow",
                 "Principal": {

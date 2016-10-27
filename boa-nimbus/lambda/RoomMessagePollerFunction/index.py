@@ -31,8 +31,29 @@ def lambda_handler(event, context):
         WaitTimeSeconds = 20
     )
     
+    receipt_handle_entries_to_delete = []
+    return_messages = []
+    
+    for each_message in response.get("Messages", []):
+        sns_notification = json.loads(each_message["Body"])
+        sns_message = json.loads(sns_notification["Message"])
+        return_messages.append(sns_message)
+        receipt_handle_entries_to_delete.append({
+            "Id": hashlib.md5(sns_notification["Message"]).hexdigest(),
+            "ReceiptHandle": each_message["ReceiptHandle"]
+        })
+    
+    if len(receipt_handle_entries_to_delete) > 0:
+        
+        response = sqs_client.delete_message_batch(
+            QueueUrl = queue_url,
+            Entries = receipt_handle_entries_to_delete
+        )
+        
+        # TODO: Verify successful results.
+    
     return {
-        "messages": list(x["Body"] for x in response.get("Messages", []))
+        "messages": return_messages
     }
 
 def create_and_initialize_queue(sqs_queue_name, event):

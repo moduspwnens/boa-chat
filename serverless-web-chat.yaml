@@ -368,6 +368,7 @@ Resources:
                     "api-id": "$context.apiId",
                     "delete-function-role": "${CleanupFunctionRole}",
                     "host": "$input.params('Host')",
+                    "publish-function-role": "${PosterFunctionRole}",
                     "request-body": $input.json("$"),
                     "resource-path": "$context.resourcePath",
                     "room-id": "$input.params('room-id')",
@@ -375,13 +376,17 @@ Resources:
                     "subscribe-function-role": "${PollerFunctionRole}",
                     "user-id": "$input.params('user-id')"
                 }
-              - PollerFunctionRole:
+              - CleanupFunctionRole:
+                  Fn::GetAtt:
+                  - StackCleanupFunctionRole
+                  - Arn
+                PollerFunctionRole:
                   Fn::GetAtt:
                   - RoomMessagePollerFunctionRole
                   - Arn
-                CleanupFunctionRole:
+                PosterFunctionRole:
                   Fn::GetAtt:
-                  - StackCleanupFunctionRole
+                  - RoomMessagePosterFunctionRole
                   - Arn
         Type: AWS
         Uri:
@@ -641,17 +646,6 @@ Resources:
           Resource: '*'
         - Effect: Allow
           Action:
-          - sns:Subscribe
-          Resource:
-            Fn::Sub:
-            - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
-            - WebChatApiStageName:
-                Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - StageName
-        - Effect: Allow
-          Action:
           - s3:GetObject
           Resource:
             Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
@@ -838,6 +832,11 @@ Resources:
           - logs:PutLogEvents
           Resource:
             Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
       Roles:
       - Ref: RoomMessagePosterFunctionRole
   
@@ -864,6 +863,14 @@ Resources:
         - SelectionPattern: ''
           StatusCode: '200'
         - ResponseTemplates:
+            application/json:
+              Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayErrorMappingTemplate
+          SelectionPattern: '.*http-status\":\w*400.*'
+          StatusCode: '400'
+        - ResponseTemplates:
             application/json: |-
               {
                   "type": "InternalServerError",
@@ -888,7 +895,9 @@ Resources:
                   "host": "$input.params('Host')",
                   "stage": "$context.stage",
                   "request-body": $input.json("$"),
-                  "resource-path": "$context.resourcePath"
+                  "resource-path": "$context.resourcePath",
+                  "room-id": "$input.params('room-id')",
+                  "user-id": "$input.params('user-id')"
               }
         Type: AWS
         Uri:
@@ -900,10 +909,12 @@ Resources:
               - Arn
       MethodResponses:
       - StatusCode: '200'
+      - StatusCode: '400'
       - StatusCode: '500'
       - StatusCode: '504'
       RequestParameters:
         method.request.header.Host: true
+        method.request.querystring.user-id: true
     DependsOn:
     - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
   
