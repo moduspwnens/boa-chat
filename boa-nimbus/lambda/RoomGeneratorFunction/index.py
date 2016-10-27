@@ -4,6 +4,8 @@ import json, uuid, time
 import boto3
 from apigateway_helpers import get_public_api_base
 
+sns_client = boto3.client("sns")
+
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
     
@@ -18,11 +20,17 @@ def lambda_handler(event, context):
     
     new_topic_name = generate_room_sns_topic_name(event, new_room_id)
     
-    sns_response = boto3.client("sns").create_topic(
+    sns_response = sns_client.create_topic(
         Name = new_topic_name
     )
     
     topic_arn = sns_response["TopicArn"]
+    
+    sns_client.set_topic_attributes(
+        TopicArn = topic_arn,
+        AttributeName = "Policy",
+        AttributeValue = get_default_topic_policy(event, topic_arn)
+    )
     
     s3_room_config_object = {
         "created": int(time.time()),
@@ -54,3 +62,28 @@ def generate_room_sns_topic_name(event, room_id):
 
 def generate_new_room_id():
     return "{}".format(uuid.uuid4())
+    
+def get_default_topic_policy(event, sns_topic_arn):
+    return json.dumps({
+        "Version": "2008-10-17",
+        "Statement": [
+            {
+                "Sid": "AllowSubscriptionFromRoomMessagePoller",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": event["subscribe-function-role"]
+                },
+                "Action": "sns:Subscribe",
+                "Resource": sns_topic_arn
+            },
+            {
+                "Sid": "AllowCleanup",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": event["delete-function-role"]
+                },
+                "Action": "sns:DeleteTopic",
+                "Resource": sns_topic_arn
+            }
+        ]
+    })

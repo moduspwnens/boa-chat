@@ -298,6 +298,17 @@ Resources:
           - sns:CreateTopic
           Resource: '*'
         - Effect: Allow
+          Action: 
+          - sns:SetTopicAttributes
+          Resource: 
+            Fn::Sub:
+            - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
+            - WebChatApiStageName:
+                Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - StageName
+        - Effect: Allow
           Action:
           - s3:PutObject
           Resource:
@@ -351,14 +362,27 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: |-
-              {
-                  "api-id": "$context.apiId",
-                  "host": "$input.params('Host')",
-                  "stage": "$context.stage",
-                  "request-body": $input.json("$"),
-                  "resource-path": "$context.resourcePath"
-              }
+            Fn::Sub:
+              - |-
+                {
+                    "api-id": "$context.apiId",
+                    "delete-function-role": "${CleanupFunctionRole}",
+                    "host": "$input.params('Host')",
+                    "request-body": $input.json("$"),
+                    "resource-path": "$context.resourcePath",
+                    "room-id": "$input.params('room-id')",
+                    "stage": "$context.stage",
+                    "subscribe-function-role": "${PollerFunctionRole}",
+                    "user-id": "$input.params('user-id')"
+                }
+              - PollerFunctionRole:
+                  Fn::GetAtt:
+                  - RoomMessagePollerFunctionRole
+                  - Arn
+                CleanupFunctionRole:
+                  Fn::GetAtt:
+                  - StackCleanupFunctionRole
+                  - Arn
         Type: AWS
         Uri:
           Fn::Sub:
@@ -814,11 +838,6 @@ Resources:
           - logs:PutLogEvents
           Resource:
             Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
-        - Effect: Allow
-          Action:
-          - apigateway:GET
-          Resource:
-            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
       - Ref: RoomMessagePosterFunctionRole
   
@@ -1106,11 +1125,6 @@ Resources:
           - s3:ListBucket
           Resource:
             Fn::Sub: arn:aws:s3:::${SharedBucket}
-        - Effect: Allow
-          Action:
-          - sns:DeleteTopic
-          - sqs:DeleteQueue
-          Resource: '*'
       Roles:
       - Ref: StackCleanupFunctionRole
   
