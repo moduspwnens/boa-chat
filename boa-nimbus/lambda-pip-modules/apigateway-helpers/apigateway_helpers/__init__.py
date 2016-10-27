@@ -4,10 +4,12 @@ def get_public_api_base(event):
     
     # https://forums.aws.amazon.com/thread.jspa?threadID=241370
     
-    if event["host"].endswith(".amazonaws.com"):
+    host_header_value = event["request-params"]["header"]["Host"]
+    
+    if host_header_value.endswith(".amazonaws.com"):
         # Assume this is the default deployment URL.
         return "https://{}/{}".format(
-            event["host"],
+            host_header_value,
             event["stage"]
         )
     
@@ -16,7 +18,7 @@ def get_public_api_base(event):
     # Note that this will be imperfect because a stage can have multiple base path mappings.
     
     response_iterator = boto3.client("apigateway").get_paginator("get_base_path_mappings").paginate(
-        domainName = event["host"]
+        domainName = host_header_value
     )
     
     own_mapping = None
@@ -37,6 +39,6 @@ def get_public_api_base(event):
         base_path += "/" + event["stage"]
     
     return "https://{}/{}".format(
-        event["host"],
+        host_header_value,
         base_path
     )

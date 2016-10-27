@@ -1,3 +1,12 @@
+"""RoomMessagePosterFunction
+
+Allows posting a message to a room. Returns the message ID of the posted 
+message.
+
+Expected request time: ~250ms.
+
+"""
+
 from __future__ import print_function
 
 import json
@@ -17,18 +26,18 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    if event.get("user-id", "") == "":
-        raise APIGatewayException("URL parameter \"user-id\" is required.", 400)
-    
     if event["request-body"].get("version", "1") != "1":
         raise APIGatewayException("Unsupported message version: {}".format(event["request-body"]["version"]), 400)
+    
+    if event["request-body"].get("user-id", "") == "":
+        raise APIGatewayException("Value for \"user-id\" must be specified in message.", 400)
     
     sns_topic_arn = get_room_topic_arn(event)
     
     response = sns_client.publish(
         TopicArn = sns_topic_arn,
         Message = json.dumps({
-            "user-id": event["user-id"],
+            "user-id": event["request-body"]["user-id"],
             "message": event["request-body"].get("message", ""),
             "timestamp": int(time.time())
         })
@@ -39,9 +48,11 @@ def lambda_handler(event, context):
     }
 
 def get_room_topic_arn(event):
-    if event["room-id"] not in room_id_topic_arn_map:
-        s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
-        room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["room-id"]))["Body"].read())
-        room_id_topic_arn_map[event["room-id"]] = room_info_dict["sns-topic-arn"]
+    room_id = event["request-params"]["path"]["room-id"]
     
-    return room_id_topic_arn_map[event["room-id"]]
+    if room_id not in room_id_topic_arn_map:
+        s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
+        room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(room_id))["Body"].read())
+        room_id_topic_arn_map[event["request-params"]["path"]["room-id"]] = room_info_dict["sns-topic-arn"]
+    
+    return room_id_topic_arn_map[room_id]

@@ -1,3 +1,10 @@
+"""RoomMessagePollerFunction
+
+Expected request time: ~250ms if message is available
+    The request will stay open for up to 20 seconds waiting for a message.
+
+"""
+
 from __future__ import print_function
 
 import json, time, hashlib
@@ -6,7 +13,6 @@ from apigateway_helpers.exception import APIGatewayException
 
 queue_url_cache = {}
 sqs_client = boto3.client("sqs")
-s3_client = boto3.client("s3")
 
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
@@ -16,14 +22,8 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    if event.get("user-id", "") == "":
-        raise APIGatewayException("URL parameter \"user-id\" is required.", 400)
-    
     sqs_queue_name = get_queue_name(event)
-    if sqs_queue_name not in queue_url_cache:
-        create_and_initialize_queue(sqs_queue_name, event)
-    
-    queue_url = queue_url_cache[sqs_queue_name]
+    queue_url = get_queue_url(sqs_queue_name)
     
     response = sqs_client.receive_message(
         QueueUrl = queue_url,
@@ -31,120 +31,35 @@ def lambda_handler(event, context):
         WaitTimeSeconds = 20
     )
     
-    receipt_handle_entries_to_delete = []
+    receipt_handles = []
     return_messages = []
     
     for each_message in response.get("Messages", []):
         sns_notification = json.loads(each_message["Body"])
         sns_message = json.loads(sns_notification["Message"])
         return_messages.append(sns_message)
-        receipt_handle_entries_to_delete.append({
-            "Id": hashlib.md5(sns_notification["Message"]).hexdigest(),
-            "ReceiptHandle": each_message["ReceiptHandle"]
-        })
-    
-    if len(receipt_handle_entries_to_delete) > 0:
-        
-        response = sqs_client.delete_message_batch(
-            QueueUrl = queue_url,
-            Entries = receipt_handle_entries_to_delete
-        )
-        
-        # TODO: Verify successful results.
+        receipt_handles.append(each_message["ReceiptHandle"])
     
     return {
-        "messages": return_messages
+        "messages": return_messages,
+        "receipt-handles": receipt_handles
     }
-
-def create_and_initialize_queue(sqs_queue_name, event):
-    s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
-    room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["room-id"]))["Body"].read())
-    sns_topic_arn = room_info_dict["sns-topic-arn"]
-    
-    queue_url = sqs_client.create_queue(
-        QueueName = sqs_queue_name,
-        Attributes = get_default_queue_attributes(event, sns_topic_arn)
-    )["QueueUrl"]
-    
-    queue_arn = sqs_client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["QueueArn"])["Attributes"]["QueueArn"]
-    
-    subscribe_response = boto3.client("sns").subscribe(
-        TopicArn = sns_topic_arn,
-        Protocol = "sqs",
-        Endpoint = queue_arn
-    )
-    
-    s3_queue_config_object = {
-        "created": int(time.time()),
-        "sqs-queue-url": queue_url,
-        "sns-subscription-arn": subscribe_response["SubscriptionArn"]
-    }
-
-    s3_client.put_object(
-        Bucket = s3_bucket_name,
-        Key = "room-queues/{}/{}.json".format(
-            event["room-id"],
-            event["user-id"]
-        ),
-        Body = json.dumps(s3_queue_config_object, indent=4)
-    )
-    
-    queue_url_cache[sqs_queue_name] = queue_url
 
 def get_queue_name(event):
     
     hash_string_base = "{}-{}-{}-{}".format(
         event["api-id"],
         event["stage"],
-        event["room-id"],
-        event["user-id"]
+        event["request-params"]["path"]["room-id"],
+        event["request-params"]["path"]["session-id"]
     )
     
     return "web-chat-{}".format(
         hashlib.md5(hash_string_base).hexdigest()
     )
 
-def get_default_queue_attributes(event, sns_topic_arn):
+def get_queue_url(sqs_queue_name):
+    if sqs_queue_name not in queue_url_cache:
+        queue_url_cache[sqs_queue_name] = sqs_client.get_queue_url(QueueName=sqs_queue_name)["QueueUrl"]
     
-    statements_list = [
-        {
-            "Sid": "AllowSNSRoomTopicSending",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "sqs:SendMessage",
-            "Resource": "*",
-            "Condition": {
-                "ArnEquals": {
-                    "aws:SourceArn": sns_topic_arn
-                }
-            }
-        },
-        {
-            "Sid": "AllowRoomPollerActions",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": event["function-role"]
-            },
-            "Action": [
-                "sqs:ReceiveMessage",
-                "sqs:DeleteMessage"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Sid": "AllowCleanup",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": event["delete-function-role"]
-            },
-            "Action": "sqs:DeleteQueue",
-            "Resource": "*"
-        }
-    ]
-    
-    return {
-        "Policy": json.dumps({
-            "Version": "2012-10-17",
-            "Statement": statements_list
-        })
-    }
+    return queue_url_cache[sqs_queue_name]

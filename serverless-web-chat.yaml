@@ -233,6 +233,33 @@ Resources:
       RestApiId:
         Ref: WebChatApi
   
+  WebChatApiSingleRoomSessionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiSingleRoomResource
+      PathPart: 'session'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiSingleRoomSingleSessionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiSingleRoomSessionResource
+      PathPart: '{session-id}'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiSingleRoomSingleSessionMessageResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiSingleRoomSingleSessionResource
+      PathPart: 'message'
+      RestApiId:
+        Ref: WebChatApi
+  
   WebChatApiUserResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -244,6 +271,60 @@ Resources:
       RestApiId:
         Ref: WebChatApi
   
+  #
+  #   SNS Delivery Status Resources
+  #
+  
+  SNSFailureFeedbackRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - sns.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: SNSFailureFeedbackRoleActions
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:PutMetricFilter
+            Resource: '*'
+  
+  SNSSuccessFeedbackRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - sns.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: SNSSuccessFeedbackRoleActions
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:PutMetricFilter
+            Resource: '*'
+    
   #  
   #   Room Generator Function
   #  
@@ -309,6 +390,18 @@ Resources:
                 - Main
                 - StageName
         - Effect: Allow
+          Action: 
+          - logs:CreateLogGroup
+          - logs:PutMetricFilter
+          Resource: 
+            Fn::Sub:
+            - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
+            - WebChatApiStageName:
+                Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - StageName
+        - Effect: Allow
           Action:
           - s3:PutObject
           Resource:
@@ -364,29 +457,50 @@ Resources:
           application/json:
             Fn::Sub:
               - |-
+                #set($allParams = $input.params())
                 {
-                    "api-id": "$context.apiId",
-                    "delete-function-role": "${CleanupFunctionRole}",
-                    "host": "$input.params('Host')",
-                    "publish-function-role": "${PosterFunctionRole}",
                     "request-body": $input.json("$"),
+                    "request-params" : {
+                        #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                        "$type" : {
+                            #foreach($paramName in $params.keySet())
+                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                            #end
+                        }
+                        #if($foreach.hasNext),#end
+                        #end
+                    },
+                    "api-id": "$context.apiId",
                     "resource-path": "$context.resourcePath",
-                    "room-id": "$input.params('room-id')",
                     "stage": "$context.stage",
-                    "subscribe-function-role": "${PollerFunctionRole}",
-                    "user-id": "$input.params('user-id')"
+                    
+                    "delete-function-role": "${CleanupFunctionRoleArn}",
+                    "publish-function-role": "${PosterFunctionRoleArn}",
+                    "subscribe-function-role": "${RoomSessionGeneratorFunctionRoleArn}",
+                    "sns-failure-feedback-role": "${SNSFailureFeedbackRoleArn}",
+                    "sns-success-feedback-role": "${SNSSuccessFeedbackRoleArn}"
                 }
-              - CleanupFunctionRole:
+              - CleanupFunctionRoleArn:
                   Fn::GetAtt:
                   - StackCleanupFunctionRole
                   - Arn
-                PollerFunctionRole:
-                  Fn::GetAtt:
-                  - RoomMessagePollerFunctionRole
-                  - Arn
-                PosterFunctionRole:
+                PosterFunctionRoleArn:
                   Fn::GetAtt:
                   - RoomMessagePosterFunctionRole
+                  - Arn
+                RoomSessionGeneratorFunctionRoleArn:
+                  Fn::GetAtt:
+                  - RoomSessionGeneratorFunctionRole
+                  - Arn
+                SNSFailureFeedbackRoleArn:
+                  Fn::GetAtt:
+                  - SNSFailureFeedbackRole
+                  - Arn
+                SNSSuccessFeedbackRoleArn:
+                  Fn::GetAtt:
+                  - SNSSuccessFeedbackRole
                   - Arn
         Type: AWS
         Uri:
@@ -400,8 +514,6 @@ Resources:
       - StatusCode: '200'
       - StatusCode: '500'
       - StatusCode: '504'
-      RequestParameters:
-        method.request.header.Host: false
     DependsOn:
     - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
   
@@ -535,12 +647,24 @@ Resources:
         RequestTemplates:
           application/json:
             Fn::Sub: |-
+              #set($allParams = $input.params())
               {
-                  "api-id": "$context.apiId",
-                  "host": "$input.params('Host')",
-                  "stage": "$context.stage",
                   "request-body": $input.json("$"),
-                  "resource-path": "$context.resourcePath"
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
+                  "resource-path": "$context.resourcePath",
+                  "stage": "$context.stage"
               }
         Type: AWS
         Uri:
@@ -554,8 +678,6 @@ Resources:
       - StatusCode: '200'
       - StatusCode: '500'
       - StatusCode: '504'
-      RequestParameters:
-        method.request.header.Host: true
     DependsOn:
     - WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission
   
@@ -588,6 +710,202 @@ Resources:
     - UserIdGeneratorFunctionRoleActions
     - UserIdGeneratorFunctionLogGroup
   
+  
+  
+  #  
+  #   Room Session ID Generator Function
+  #  
+    
+  RoomSessionGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a unique identifier for a user.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - RoomSessionGeneratorFunctionRole
+        - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/RoomSessionGeneratorFunction.zip
+          
+      Runtime: python2.7
+      Timeout: '300'
+  
+  RoomSessionGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  RoomSessionGeneratorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomSessionGeneratorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomSessionGeneratorFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - sqs:CreateQueue
+          - sqs:GetQueueAttributes
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
+        - Effect: Allow
+          Action:
+          - apigateway:GET
+          Resource:
+            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+      Roles:
+      - Ref: RoomSessionGeneratorFunctionRole
+  
+  RoomSessionGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomSessionGeneratorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiRoomSessionCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomSessionResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: 
+            - |-
+              #set($allParams = $input.params())
+              {
+                  "request-body": $input.json("$"),
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
+                  "resource-path": "$context.resourcePath",
+                  "stage": "$context.stage",
+                  
+                  "acknowledger-function-role": "${AcknowledgerFunctionRoleArn}",
+                  "delete-function-role": "${StackCleanupFunctionRoleArn}",
+                  "poller-function-role": "${PollerFunctionRoleArn}"
+              }
+            - AcknowledgerFunctionRoleArn:
+                Fn::GetAtt:
+                - RoomMessageAcknowledgerFunctionRole
+                - Arn
+              PollerFunctionRoleArn:
+                Fn::GetAtt:
+                - RoomMessagePollerFunctionRole
+                - Arn
+              StackCleanupFunctionRoleArn:
+                Fn::GetAtt:
+                - StackCleanupFunctionRole
+                - Arn
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomSessionGeneratorFunctionArn}/invocations
+          - RoomSessionGeneratorFunctionArn:
+              Fn::GetAtt:
+              - RoomSessionGeneratorFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '500'
+      - StatusCode: '504'
+    DependsOn:
+    - WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission
+  
+  WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomSessionGeneratorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room/{room-id}/session
+    DependsOn:
+    - RoomSessionGeneratorFunctionRoleActions
+    - RoomSessionGeneratorFunctionLogGroup
+  
+  PreWarmApiCloudWatchRoomSessionGeneratorFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomSessionGeneratorFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule
+        - Arn
+    DependsOn:
+    - RoomSessionGeneratorFunctionRoleActions
+    - RoomSessionGeneratorFunctionLogGroup
   
   
   #  
@@ -639,26 +957,6 @@ Resources:
           - logs:PutLogEvents
           Resource:
             Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePollerFunction}:log-stream:*
-        - Effect: Allow
-          Action:
-          - sqs:CreateQueue
-          - sqs:GetQueueAttributes
-          Resource: '*'
-        - Effect: Allow
-          Action:
-          - s3:GetObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-        - Effect: Allow
-          Action:
-          - s3:PutObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
-        - Effect: Allow
-          Action:
-          - apigateway:GET
-          Resource:
-            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
       - Ref: RoomMessagePollerFunctionRole
   
@@ -675,7 +973,7 @@ Resources:
     Properties:
       AuthorizationType: NONE
       ResourceId:
-        Ref: WebChatApiSingleRoomMessageResource
+        Ref: WebChatApiSingleRoomSingleSessionMessageResource
       RestApiId:
         Ref: WebChatApi
       HttpMethod: GET
@@ -711,27 +1009,26 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: 
-            - |-
+            Fn::Sub: |-
+              #set($allParams = $input.params())
               {
-                  "api-id": "$context.apiId",
-                  "delete-function-role": "${CleanupFunctionRole}",
-                  "function-role": "${PollerFunctionRole}",
-                  "host": "$input.params('Host')",
                   "request-body": $input.json("$"),
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
                   "resource-path": "$context.resourcePath",
-                  "room-id": "$input.params('room-id')",
-                  "stage": "$context.stage",
-                  "user-id": "$input.params('user-id')"
+                  "stage": "$context.stage"
               }
-            - PollerFunctionRole:
-                Fn::GetAtt:
-                - RoomMessagePollerFunctionRole
-                - Arn
-              CleanupFunctionRole:
-                Fn::GetAtt:
-                - StackCleanupFunctionRole
-                - Arn
         Type: AWS
         Uri:
           Fn::Sub:
@@ -745,9 +1042,6 @@ Resources:
       - StatusCode: '400'
       - StatusCode: '500'
       - StatusCode: '504'
-      RequestParameters:
-        method.request.header.Host: true
-        method.request.querystring.user-id: true
     DependsOn:
     - WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission
   
@@ -759,7 +1053,7 @@ Resources:
         Ref: RoomMessagePollerFunction
       Principal: apigateway.amazonaws.com
       SourceArn:
-        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/GET/room/{room-id}/message
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/GET/room/{room-id}/session/{session-id}/message
     DependsOn:
     - RoomMessagePollerFunctionRoleActions
     - RoomMessagePollerFunctionLogGroup
@@ -780,6 +1074,173 @@ Resources:
     - RoomMessagePollerFunctionRoleActions
     - RoomMessagePollerFunctionLogGroup
   
+  
+  
+  #  
+  #   Room Message Acknowledger Function
+  #  
+    
+  RoomMessageAcknowledgerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Returns any new messages sent to the requested room.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+        - RoomMessageAcknowledgerFunctionRole
+        - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/RoomMessageAcknowledgerFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  RoomMessageAcknowledgerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  RoomMessageAcknowledgerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomMessageAcknowledgerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessageAcknowledgerFunction}:log-stream:*
+      Roles:
+      - Ref: RoomMessageAcknowledgerFunctionRole
+  
+  RoomMessageAcknowledgerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomMessageAcknowledgerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiRoomMessageAcknowledgeMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomSingleSessionMessageResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: PUT
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+        - SelectionPattern: ''
+          StatusCode: '200'
+        - ResponseTemplates:
+            application/json:
+              Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayErrorMappingTemplate
+          SelectionPattern: '.*http-status\":\w*400.*'
+          StatusCode: '400'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerError",
+                  "message": "The backend server encountered an internal error."
+              }
+          SelectionPattern: (\n|.)+
+          StatusCode: '500'
+        - ResponseTemplates:
+            application/json: |-
+              {
+                  "type": "InternalServerTimeout",
+                  "message": "The backend server did not respond quickly enough."
+              }
+          SelectionPattern: ".*Task timed out after .*"
+          StatusCode: '504'
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: |-
+              #set($allParams = $input.params())
+              {
+                  "request-body": $input.json("$"),
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
+                  "resource-path": "$context.resourcePath",
+                  "stage": "$context.stage"
+              }
+        Type: AWS
+        Uri:
+          Fn::Sub:
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessageAcknowledgerFunctionArn}/invocations
+          - RoomMessageAcknowledgerFunctionArn:
+              Fn::GetAtt:
+              - RoomMessageAcknowledgerFunction
+              - Arn
+      MethodResponses:
+      - StatusCode: '200'
+      - StatusCode: '400'
+      - StatusCode: '500'
+      - StatusCode: '504'
+    DependsOn:
+    - WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission
+  
+  WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessageAcknowledgerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/PUT/room/{room-id}/session/{session-id}/message
+    DependsOn:
+    - RoomMessageAcknowledgerFunctionRoleActions
+    - RoomMessageAcknowledgerFunctionLogGroup
+  
+  PreWarmApiCloudWatchRoomMessageAcknowledgerFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: RoomMessageAcknowledgerFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - PreWarmApiEventRule2
+        - Arn
+    DependsOn:
+    - RoomMessageAcknowledgerFunctionRoleActions
+    - RoomMessageAcknowledgerFunctionLogGroup
   
   
   #  
@@ -890,14 +1351,24 @@ Resources:
         RequestTemplates:
           application/json:
             Fn::Sub: |-
+              #set($allParams = $input.params())
               {
-                  "api-id": "$context.apiId",
-                  "host": "$input.params('Host')",
-                  "stage": "$context.stage",
                   "request-body": $input.json("$"),
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
                   "resource-path": "$context.resourcePath",
-                  "room-id": "$input.params('room-id')",
-                  "user-id": "$input.params('user-id')"
+                  "stage": "$context.stage"
               }
         Type: AWS
         Uri:
@@ -913,7 +1384,6 @@ Resources:
       - StatusCode: '500'
       - StatusCode: '504'
       RequestParameters:
-        method.request.header.Host: true
         method.request.querystring.user-id: true
     DependsOn:
     - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
@@ -1068,6 +1538,37 @@ Resources:
           {
               "warming": true
           }
+      - Arn:
+          Fn::GetAtt:
+          - RoomSessionGeneratorFunction
+          - Arn
+        Id: RoomSessionGeneratorFunction
+        Input: |-
+          {
+              "warming": true
+          }
+          
+  PreWarmApiEventRule2:
+    Type: AWS::Events::Rule
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Description: Keeps web chat API Lambda functions warm by invoking them frequently.
+      ScheduleExpression:
+        Fn::FindInMap:
+        - StaticVariables
+        - Main
+        - PreWarmScheduleExpression
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - RoomMessageAcknowledgerFunction
+          - Arn
+        Id: RoomMessageAcknowledgerFunction
+        Input: |-
+          {
+              "warming": true
+          }
   
   #
   #   Stack Cleanup
@@ -1125,6 +1626,17 @@ Resources:
           - logs:PutLogEvents
           Resource:
             Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackCleanupFunction}:log-stream:*
+        - Effect: Allow
+          Action:
+          - logs:DeleteLogGroup
+          Resource: 
+            Fn::Sub:
+            - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
+            - WebChatApiStageName:
+                Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - StageName
         - Effect: Allow
           Action:
           - s3:GetObject
