@@ -1,6 +1,8 @@
 from __future__ import print_function
 
-import json, time, hashlib, boto3
+import json, time, hashlib
+import boto3
+from apigateway_helpers.exception import APIGatewayException
 
 queue_url_cache = {}
 sqs_client = boto3.client("sqs")
@@ -125,15 +127,3 @@ def get_default_queue_attributes(event, sns_topic_arn):
             "Statement": statements_list
         })
     }
-
-class APIGatewayException(Exception):
-
-    def __init__(self, message, http_status_code = 500):
-
-        # Encode this exception as a JSON object so it can be decoded by API Gateway.
-        new_message_object = {
-            "http-status": http_status_code,
-            "message": message
-        }
-        new_message = json.dumps(new_message_object, separators=(",", ":"))
-        Exception.__init__(self, new_message)
