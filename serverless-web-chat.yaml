@@ -1153,7 +1153,7 @@ Outputs:
   WebChatApiHome:
     Value:
       Fn::Sub:
-      - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
+      - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}
       - MainStageName:
           Fn::FindInMap:
           - StaticVariables
