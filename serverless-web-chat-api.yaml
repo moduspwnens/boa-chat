@@ -121,7 +121,10 @@ Resources:
           - sts:AssumeRole
       Path: "/"
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+    DependsOn:
+      - WebChatApiDummyStageLogGroup
+      - WebChatApiMainStageLogGroup
   
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
