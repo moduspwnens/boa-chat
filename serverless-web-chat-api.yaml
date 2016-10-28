@@ -1686,22 +1686,13 @@ Resources:
   #   Static Web Content
   #
   
-  WebChatApiStaticResource:
+  WebChatApiStaticProxyResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       ParentId:
         Fn::GetAtt:
         - WebChatApi
         - RootResourceId
-      PathPart: static
-      RestApiId:
-        Ref: WebChatApi
-  
-  WebChatApiStaticProxyResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId:
-        Ref: WebChatApiStaticResource
       PathPart: '{proxy+}'
       RestApiId:
         Ref: WebChatApi
@@ -1719,25 +1710,27 @@ Resources:
       HttpMethod: GET
       Integration:
         Type: HTTP_PROXY
-        IntegrationHttpMethod: GET
         Uri:
           Fn::Sub:
-          - '${StaticHtmlWebsiteUrl}/index.html'
-          - StaticHtmlWebsiteUrl:
-              Fn::ImportValue:
-                Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteUrl'
+            - '${StaticHtmlWebsiteUrl}/'
+            - StaticHtmlWebsiteUrl:
+                Fn::ImportValue:
+                  Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteUrl'
+        IntegrationHttpMethod: ANY
         PassthroughBehavior: WHEN_NO_MATCH
         CacheNamespace:
           Fn::GetAtt:
           - WebChatApi
           - RootResourceId
+        IntegrationResponses:
+          - StatusCode: 200
         RequestParameters:
           integration.request.header.Host: 
             Fn::Sub:
-            - "'${StaticHtmlWebSiteDomainName}'"
-            - StaticHtmlWebSiteDomainName:
-                Fn::ImportValue:
-                  Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteDomainName'
+              - "'${StaticHtmlWebsiteDomainName}'"
+              - StaticHtmlWebsiteDomainName:
+                  Fn::ImportValue:
+                    Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteDomainName'
   
   WebChatApiStaticProxyResourceMethod:
     Type: AWS::ApiGateway::Method
@@ -1752,7 +1745,7 @@ Resources:
         Type: HTTP_PROXY
         Uri:
           Fn::Sub:
-            - '${StaticHtmlWebsiteUrl}/static/{proxy}'
+            - '${StaticHtmlWebsiteUrl}/{proxy}'
             - StaticHtmlWebsiteUrl:
                 Fn::ImportValue:
                   Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteUrl'
