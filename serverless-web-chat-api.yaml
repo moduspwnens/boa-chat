@@ -8,6 +8,7 @@ Metadata:
         default: Configuration
       Parameters:
       - LambdaPackageStackName
+      - StaticHtmlStackName
       - MetricAlarmEmailAddress
       - PreWarmingEnabled
       - LogRetentionDays
@@ -20,6 +21,8 @@ Metadata:
         default: Alarm E-mail Address
       PreWarmingEnabled:
         default: Pre-Warming Enabled
+      StaticHtmlStackName:
+        default: Static Html Stack Name
 Parameters:
   LambdaPackageStackName:
     Type: String
@@ -58,6 +61,11 @@ Parameters:
     AllowedValues:
     - 'Yes'
     - 'No'
+  StaticHtmlStackName:
+    Type: String
+    Default: webchat-static
+    Description: Name of the CloudFormation stack containing deployed static web resources.
+    MinLength: 1
 Mappings:
   StaticVariables:
     Main:
@@ -150,6 +158,8 @@ Resources:
     - WebChatApiUserIdCreateMethod
     - WebChatApiRoomMessageGetMethod
     - WebChatApiRoomMessagePostMethod
+    - WebChatApiHomeGetMethod
+    - WebChatApiStaticProxyResourceMethod
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1666,12 +1676,105 @@ Resources:
         Fn::GetAtt:
         - StackCleanupFunction
         - Arn
-      SharedBucket:
+      Bucket:
         Ref: SharedBucket
     DependsOn:
     - StackCleanupFunctionLogGroup
     - StackCleanupFunctionRoleActions
-      
+
+  #
+  #   Static Web Content
+  #
+  
+  WebChatApiStaticResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: static
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiStaticProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiStaticResource
+      PathPart: '{proxy+}'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiHomeGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri:
+          Fn::Sub:
+          - '${StaticHtmlWebsiteUrl}/index.html'
+          - StaticHtmlWebsiteUrl:
+              Fn::ImportValue:
+                Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteUrl'
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        RequestParameters:
+          integration.request.header.Host: 
+            Fn::Sub:
+            - "'${StaticHtmlWebSiteDomainName}'"
+            - StaticHtmlWebSiteDomainName:
+                Fn::ImportValue:
+                  Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteDomainName'
+  
+  WebChatApiStaticProxyResourceMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiStaticProxyResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: HTTP_PROXY
+        Uri:
+          Fn::Sub:
+            - '${StaticHtmlWebsiteUrl}/static/{proxy}'
+            - StaticHtmlWebsiteUrl:
+                Fn::ImportValue:
+                  Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteUrl'
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Ref: WebChatApiStaticProxyResource
+        CacheKeyParameters:
+          - method.request.path.proxy
+        IntegrationResponses:
+          - StatusCode: 200
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+          integration.request.header.Host: 
+            Fn::Sub:
+              - "'${StaticHtmlWebsiteDomainName}'"
+              - StaticHtmlWebsiteDomainName:
+                  Fn::ImportValue:
+                    Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteDomainName'
+      RequestParameters:
+        method.request.path.proxy: true
+          
 Outputs:
   WebChatApiHome:
     Value:

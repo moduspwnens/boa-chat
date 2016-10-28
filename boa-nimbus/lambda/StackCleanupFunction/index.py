@@ -43,7 +43,7 @@ class LambdaHandler(object):
 
     def handle_cleanup_event(self, event, context):
         
-        s3_bucket_name = event["ResourceProperties"]["SharedBucket"]
+        s3_bucket_name = event["ResourceProperties"]["Bucket"]
 
         paginator = s3_client.get_paginator("list_objects_v2")
 
