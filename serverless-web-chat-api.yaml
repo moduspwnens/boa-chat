@@ -77,6 +77,10 @@ Mappings:
         }
       DummyStageName: DummyStage
       PreWarmScheduleExpression: rate(1 minute)
+      RobotsTxtContent: |-
+        User-Agent: *
+        Disallow: 
+        Allow: /
       StageName: v1
 Conditions:
   IncludeMetricAlarmsCondition:
@@ -163,6 +167,7 @@ Resources:
     - WebChatApiRoomMessagePostMethod
     - WebChatApiHomeGetMethod
     - WebChatApiStaticProxyResourceMethod
+    - WebChatApiRobotsTxtGetMethod
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
@@ -283,6 +288,8 @@ Resources:
       PathPart: user
       RestApiId:
         Ref: WebChatApi
+  
+  
   
   #
   #   SNS Delivery Status Resources
@@ -1818,6 +1825,53 @@ Resources:
                     Fn::Sub: '${StaticHtmlStackName}-S3BucketWebsiteDomainName'
       RequestParameters:
         method.request.path.proxy: true
+  
+  WebChatApiRobotsTxtResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: robots.txt
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiRobotsTxtGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiRobotsTxtResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Content-Type: "'text/plain'"
+            ResponseTemplates:
+              application/json: 
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - RobotsTxtContent
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Content-Type: true
+        
           
 Outputs:
   WebChatApiHome:
