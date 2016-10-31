@@ -554,7 +554,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: RoomGeneratorFunction
       Principal: 
@@ -717,7 +717,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: UserIdGeneratorFunction
       Principal: 
@@ -913,7 +913,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: RoomSessionGeneratorFunction
       Principal: 
@@ -1079,7 +1079,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: RoomMessagePollerFunction
       Principal:
@@ -1246,7 +1246,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: RoomMessageAcknowledgerFunction
       Principal:
@@ -1420,7 +1420,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: PreWarmingEnabledCondition
     Properties:
-      Action: lambda:InvokeAsync
+      Action: lambda:InvokeFunction
       FunctionName:
         Ref: RoomMessagePosterFunction
       Principal:
