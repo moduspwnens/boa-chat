@@ -27,7 +27,18 @@ boa-nimbus deploy --stack-name webchat-lambda-src
 After the command completes successfully: 
 
  * Go to [CloudFormation in the AWS web console](https://console.aws.amazon.com/cloudformation/home).
- * Click the **Create Stack** button and choose to upload the **serverless-web-chat.yaml** template from this directory. 
+ * Click the **Create Stack** button and choose to upload the **serverless-web-chat-html.yaml** template from this directory.
+ * Make note of the stack name you choose.
  * Click through the wizard to launch the stack.
 
-Wait until the stack reaches the **CREATE_COMPLETE** status, select it and click the **Outputs** tab. There's only one, and that's the URL to the base of the API.
+Wait until this final stack reaches the **CREATE_COMPLETE** status, select it and click the **Outputs** tab. There should be one called **S3Bucket**. That's the bucket that needs the static web content.
+
+From the project's root, run:
+
+```
+aws s3 sync web-static/www/ s3://s3-bucket-name
+```
+
+Be sure to replace **s3-bucket-name** with the name of the bucket from the outputs.
+
+Go back to CloudFormation in the AWS web console and create a new stack just like before with the **serverless-web-chat-api.yaml** template. Wait until this final stack reaches the **CREATE_COMPLETE** status, select it and click the **Outputs** tab. There's only one, and that's the URL to the base of the API. Click the link to view the home page.
