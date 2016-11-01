@@ -1435,6 +1435,118 @@ Resources:
   
   
   #
+  #   SWF Setup / Cleanup
+  #   
+  #   Creates / deletes the necessary SWF resources. Necessary until 
+  #   CloudFormation supports SWF resources.
+  #
+  
+  SwfSetupCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Creates / deletes the necessary SWF resources for the stack.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+        - SwfSetupCleanupFunctionRole
+        - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/SwfSetupCleanupFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  SwfSetupCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  SwfWorkflowLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - swf.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  SwfSetupCleanupFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SwfSetupCleanupFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${SwfSetupCleanupFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - swf:RegisterDomain
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - swf:RegisterWorkflowType
+              - swf:DeprecateDomain
+            Resource:
+              Fn::Sub: arn:aws:swf:${AWS::Region}:${AWS::AccountId}:/domain/${AWS::StackName}/*
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource:
+              Fn::GetAtt:
+                - SwfWorkflowLambdaExecutionRole
+                - Arn
+      Roles:
+        - Ref: SwfSetupCleanupFunctionRole
+  
+  SwfSetupCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${SwfSetupCleanupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  SwfSetupCleanupInvocation:
+    Type: Custom::SwfSetupCleanupInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - SwfSetupCleanupFunction
+          - Arn
+      SwfWorkflowLambdaExecutionRoleArn:
+        Fn::GetAtt:
+          - SwfWorkflowLambdaExecutionRole
+          - Arn
+      
+    DependsOn:
+      - SwfSetupCleanupFunctionLogGroup
+      - SwfSetupCleanupFunctionRoleActions
+      - StackCleanupInvocation
+  
+  
+  #
   #   CloudWatch Alarms
   #
   
@@ -1652,7 +1764,7 @@ Resources:
   StackCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Queues up Lambda function invocations for later execution.
+      Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize: 1024
       Role:
