@@ -33,10 +33,26 @@ After the command completes successfully:
 
 Wait until this final stack reaches the **CREATE_COMPLETE** status, select it and click the **Outputs** tab. There should be one called **S3Bucket**. That's the bucket that needs the static web content.
 
-From the project's root, run:
+For the static content, we just need to fetch the dependencies and upload the resulting files to the S3 bucket.
 
 ```
-aws s3 sync web-static/www/ s3://s3-bucket-name
+# Download and install node.js (if it's not installed already).
+# https://nodejs.org/en/download/
+
+# Change working directory to web-static under repository root.
+cd web-static
+
+# Install deployment tools.
+npm install -g grunt grunt-cli gulp bower
+
+# Get all dependencies.
+npm install
+
+# Build all third party packages and put them in the lib directory.
+gulp install
+
+# Upload resources to S3 bucket.
+aws s3 sync www/ s3://s3-bucket-name
 ```
 
 Be sure to replace **s3-bucket-name** with the name of the bucket from the outputs.
