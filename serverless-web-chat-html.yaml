@@ -175,7 +175,7 @@ Resources:
   StackCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Clears out the stack's S3 bucket
+      Description: Clears out the stack's S3 bucket.
       Handler: index.lambda_handler
       MemorySize: 1024
       Role:
