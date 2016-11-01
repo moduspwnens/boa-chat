@@ -1,0 +1,6 @@
+# Used to avoid indexing of site at bucket URL. Overridden by API Gateway 
+# with intended robots.txt content.
+
+User-agent: *
+
+Disallow: /

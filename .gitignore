@@ -87,3 +87,10 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Re-downloadable static web resources
+web-static/node_modules/
+web-static/www/lib/
+web-static/www/css/style.min.css
+web-static/www/css/style.css
+npm-debug.log
