@@ -42,12 +42,11 @@ For the static content, we just need to fetch the dependencies and upload the re
 cd web-static
 
 # Install deployment tools.
-sudo npm install -g grunt grunt-cli gulp bower gulp-bower
+sudo npm install -g grunt grunt-cli gulp bower
 
-# Get all dependencies.
+# Get all dependencies and build all third party packages into lib directory.
 npm install
-
-# Build all third party packages and put them in the lib directory.
+bower install
 gulp install
 
 # Upload resources to S3 bucket.

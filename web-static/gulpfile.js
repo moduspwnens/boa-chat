@@ -7,7 +7,6 @@ var rename = require('gulp-rename');
 var server = require('gulp-server-livereload');
 var install = require("gulp-install");
 var run = require('gulp-run');
-var bower = require('gulp-bower');
 
 var devServerHost = 'localhost';
 
@@ -25,11 +24,6 @@ gulp.task( 'server', ['build'], function() {
       host: devServerHost,
       port: 3000
     }));
-});
-
-gulp.task('bower', function() {
-    return bower()
-      .pipe(gulp.dest(config.bowerDir))
 });
 
 gulp.task('icons', function() {
@@ -153,7 +147,7 @@ gulp.task('require', [], function(done) {
     .on('end', end);
 });
 
-gulp.task('install', ['build', 'bower', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap'], function(done) {
+gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap'], function(done) {
   done()
 });
 
