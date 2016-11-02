@@ -16,6 +16,8 @@
     <link href="lib/bootstrap/css/bootstrap-theme.min.css" rel="stylesheet" />
     <!-- Angular CSP-->
     <link href="lib/angular/css/angular-csp.css" rel="stylesheet" />
+    <!-- Font Awesome CSS -->
+    <link href="lib/font-awesome/css/font-awesome.min.css" rel="stylesheet">
 
     <!-- Custom styles for this template -->
     <link href="css/style.css" rel="stylesheet" />
@@ -28,6 +30,11 @@
 
     <!-- require -->
     <script src="lib/require/require.js"></script>
+    
+    <!-- local -->
+    <script type="text/javascript">
+      var globalProjectName = "AWS Serverless Web Chat";
+    </script>
 
     <!-- angularjs -->
     <link href="lib/angular/css/angular-csp.css" rel="stylesheet" />
@@ -51,7 +58,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#/" ng-bind="title"></a>
+          <a class="navbar-brand" href="#/"><i class="fa fa-home" aria-hidden="true"></i></a>
         </div>
         <script type="text/ng-template" id="nav-item.html">
           <span ng-if="page.name && !page.url">{{page.name}}</span>

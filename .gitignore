@@ -89,6 +89,7 @@ ENV/
 .ropeproject
 
 # Re-downloadable static web resources
+web-static/bower_components/
 web-static/node_modules/
 web-static/www/lib/
 web-static/www/css/style.min.css

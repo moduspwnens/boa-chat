@@ -7,8 +7,13 @@ var rename = require('gulp-rename');
 var server = require('gulp-server-livereload');
 var install = require("gulp-install");
 var run = require('gulp-run');
+var bower = require('gulp-bower');
 
-var devServerHost = 'localhost'; //require('ip').address();
+var devServerHost = 'localhost';
+
+var config = {
+  bowerDir: './bower_components'
+}
 
 gulp.task( 'server', ['build'], function() {
   gulp.src('./www')
@@ -20,6 +25,16 @@ gulp.task( 'server', ['build'], function() {
       host: devServerHost,
       port: 3000
     }));
+});
+
+gulp.task('bower', function() {
+    return bower()
+      .pipe(gulp.dest(config.bowerDir))
+});
+
+gulp.task('icons', function() {
+    return gulp.src(config.bowerDir + '/font-awesome/**/*')
+      .pipe(gulp.dest('./www/lib/font-awesome/'));
 });
 
 gulp.task('less', [], function(done) {
@@ -66,7 +81,6 @@ gulp.task('bootstrap', [], function(done) {
 });
 
 gulp.task('angular-ui-bootstrap-install', function(done) {
-  //~ process.chdir('node_modules/angular-ui-bootstrap');
   return gulp.src(['./node_modules/angular-ui-bootstrap/package.json'])
     .pipe(gulp.dest('./node_modules/angular-ui-bootstrap'))
     .pipe(install())
@@ -139,7 +153,7 @@ gulp.task('require', [], function(done) {
     .on('end', end);
 });
 
-gulp.task('install', ['build', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap'], function(done) {
+gulp.task('install', ['build', 'bower', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap'], function(done) {
   done()
 });
 
