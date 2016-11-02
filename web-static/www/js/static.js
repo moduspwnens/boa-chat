@@ -1,0 +1,1 @@
+var globalProjectName = "AWS Serverless Web Chat";
