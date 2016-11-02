@@ -16,6 +16,7 @@
     "tests"
   ],
   "dependencies": {
-    "font-awesome": "fontawesome#^4.7.0"
+    "font-awesome": "fontawesome#^4.7.0",
+    "ie10-viewport-bug-workaround": "^1.0.2"
   }
 }

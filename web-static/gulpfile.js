@@ -31,6 +31,11 @@ gulp.task('icons', function() {
       .pipe(gulp.dest('./www/lib/font-awesome/'));
 });
 
+gulp.task('ie10-viewport-bug-workaround', function() {
+    return gulp.src(config.bowerDir + '/ie10-viewport-bug-workaround/dist/*')
+      .pipe(gulp.dest('./www/lib/ie10-viewport-bug-workaround/'));
+});
+
 gulp.task('less', [], function(done) {
   gulp.src('./less/style.less')
     .pipe(less())
@@ -147,7 +152,7 @@ gulp.task('require', [], function(done) {
     .on('end', end);
 });
 
-gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap'], function(done) {
+gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap', 'ie10-viewport-bug-workaround'], function(done) {
   done()
 });
 

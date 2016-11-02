@@ -1,5 +1,8 @@
+var app = undefined;
+
 (function() {
-	var app = angular.module('app', ['ui.router', 'navController', 'ui.bootstrap'])
+  
+  app = angular.module('app', ['ui.router', 'navController', 'ui.bootstrap'])
 
 	// define for requirejs loaded modules
 	define('app', [], function() { return app; });
@@ -41,9 +44,7 @@
 			.state('home', {
 				url: "/",
 				templateUrl: viewsPrefix + "home.html",
-				data: {
-					pageTitle: 'Home'
-				}
+        controller: 'homeController'
 			})
 	})
 	.directive('updateTitle', ['$rootScope', '$timeout',
