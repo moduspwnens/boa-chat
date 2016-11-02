@@ -18,7 +18,7 @@ def lambda_handler(event, context):
     
     response_data = {}
     
-    if request_type == "Create":
+    if request_type in ["Create", "Update"]:
         response_data["WebsiteDomain"] = get_domain_from_url(event["ResourceProperties"]["WebsiteUrl"])
     
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, None)

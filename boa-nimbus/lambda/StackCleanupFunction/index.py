@@ -44,6 +44,7 @@ class LambdaHandler(object):
     def handle_cleanup_event(self, event, context):
         
         s3_bucket_name = event["ResourceProperties"]["Bucket"]
+        bucket_content_type = event["ResourceProperties"].get("BucketContentType")
 
         paginator = s3_client.get_paginator("list_objects_v2")
 
@@ -63,31 +64,34 @@ class LambdaHandler(object):
               ))
               break
           
-          for each_key in keys_to_delete:
-              if each_key.startswith("room-topics/"):
-                  # This S3 object represents an SNS topic that needs to be deleted.
-                  room_topic_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
-                  sns_topic_arn = room_topic_config["sns-topic-arn"]
-                  print("Deleting {}.".format(sns_topic_arn))
-                  sns_client.delete_topic(TopicArn = sns_topic_arn)
-                  
-                  log_group_name = room_topic_config["log-group"]
-                  
-                  print("Deleting {}.".format(log_group_name))
-                  logs_client.delete_log_group(logGroupName=log_group_name)
+          if bucket_content_type != "Static Content":
+              # Also delete other resources specified by the S3 objects' contents.
               
-              elif each_key.startswith("room-queues/"):
-                  # This S3 object represents an SQS queue that needs to be deleted.
-                  queue_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
-                  sqs_queue_url = queue_config["sqs-queue-url"]
-                  try:
-                      print("Deleting {}.".format(sqs_queue_url))
-                      sqs_client.delete_queue(QueueUrl = sqs_queue_url)
-                  except botocore.exceptions.ClientError as e:
-                      if e.response["Error"]["Code"] == "AWS.SimpleQueueService.NonExistentQueue":
-                          pass
-                      else:
-                          raise
+              for each_key in keys_to_delete:
+                  if each_key.startswith("room-topics/"):
+                      # This S3 object represents an SNS topic that needs to be deleted.
+                      room_topic_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
+                      sns_topic_arn = room_topic_config["sns-topic-arn"]
+                      print("Deleting {}.".format(sns_topic_arn))
+                      sns_client.delete_topic(TopicArn = sns_topic_arn)
+                  
+                      log_group_name = room_topic_config["log-group"]
+                  
+                      print("Deleting {}.".format(log_group_name))
+                      logs_client.delete_log_group(logGroupName=log_group_name)
+              
+                  elif each_key.startswith("room-queues/"):
+                      # This S3 object represents an SQS queue that needs to be deleted.
+                      queue_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
+                      sqs_queue_url = queue_config["sqs-queue-url"]
+                      try:
+                          print("Deleting {}.".format(sqs_queue_url))
+                          sqs_client.delete_queue(QueueUrl = sqs_queue_url)
+                      except botocore.exceptions.ClientError as e:
+                          if e.response["Error"]["Code"] == "AWS.SimpleQueueService.NonExistentQueue":
+                              pass
+                          else:
+                              raise
           
           print("Deleting {} object(s) from {}.".format(
               len(keys_to_delete),
