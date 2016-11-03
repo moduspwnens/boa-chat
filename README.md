@@ -50,7 +50,7 @@ bower install
 gulp install
 
 # Upload resources to S3 bucket.
-aws s3 sync www/ s3://s3-bucket-name
+aws s3 sync www/ s3://s3-bucket-name --exclude "api/*"
 ```
 
 Be sure to replace **s3-bucket-name** with the name of the bucket from the outputs.
