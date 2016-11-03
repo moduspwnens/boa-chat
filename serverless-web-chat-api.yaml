@@ -157,9 +157,6 @@ Resources:
     - WebChatApiUserIdCreateMethod
     - WebChatApiRoomMessageGetMethod
     - WebChatApiRoomMessagePostMethod
-    - WebChatApiHomeGetMethod
-    - WebChatApiStaticProxyResourceMethod
-    - WebChatApiRobotsTxtGetMethod
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1851,143 +1848,7 @@ Resources:
     DependsOn:
       - StackCleanupFunctionLogGroup
       - StackCleanupFunctionRoleActions
-
-  #
-  #   Static Web Content
-  #
-  
-  WebChatApiStaticProxyResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId:
-        Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
-      PathPart: '{proxy+}'
-      RestApiId:
-        Ref: WebChatApi
-  
-  WebChatApiHomeGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      ResourceId:
-        Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
-      RestApiId:
-        Ref: WebChatApi
-      HttpMethod: GET
-      Integration:
-        Type: HTTP_PROXY
-        Uri:
-          Fn::Sub:
-            - '${StaticHtmlWebsiteUrl}/'
-            - StaticHtmlWebsiteUrl:
-                Fn::GetAtt:
-                  - StaticContentBucket
-                  - WebsiteURL
-        IntegrationHttpMethod: ANY
-        PassthroughBehavior: WHEN_NO_MATCH
-        CacheNamespace:
-          Fn::GetAtt:
-          - WebChatApi
-          - RootResourceId
-        IntegrationResponses:
-          - StatusCode: 200
-        RequestParameters:
-          integration.request.header.Host: 
-            Fn::Sub:
-              - "'${StaticHtmlWebsiteDomainName}'"
-              - StaticHtmlWebsiteDomainName:
-                  Fn::GetAtt:
-                    - S3BucketStaticWebSiteDomainRetrieval
-                    - WebsiteDomain
-  
-  WebChatApiStaticProxyResourceMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      ResourceId:
-        Ref: WebChatApiStaticProxyResource
-      RestApiId:
-        Ref: WebChatApi
-      HttpMethod: GET
-      Integration:
-        Type: HTTP_PROXY
-        Uri:
-          Fn::Sub:
-            - '${StaticHtmlWebsiteUrl}/{proxy}'
-            - StaticHtmlWebsiteUrl:
-                Fn::GetAtt:
-                  - StaticContentBucket
-                  - WebsiteURL
-        IntegrationHttpMethod: ANY
-        PassthroughBehavior: WHEN_NO_MATCH
-        CacheNamespace:
-          Ref: WebChatApiStaticProxyResource
-        CacheKeyParameters:
-          - method.request.path.proxy
-        IntegrationResponses:
-          - StatusCode: 200
-        RequestParameters:
-          integration.request.path.proxy: method.request.path.proxy
-          integration.request.header.Host: 
-            Fn::Sub:
-              - "'${StaticHtmlWebsiteDomainName}'"
-              - StaticHtmlWebsiteDomainName:
-                  Fn::GetAtt:
-                    - S3BucketStaticWebSiteDomainRetrieval
-                    - WebsiteDomain
-      RequestParameters:
-        method.request.path.proxy: true
-  
-  WebChatApiRobotsTxtResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId:
-        Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
-      PathPart: robots.txt
-      RestApiId:
-        Ref: WebChatApi
-  
-  WebChatApiRobotsTxtGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      ResourceId:
-        Ref: WebChatApiRobotsTxtResource
-      RestApiId:
-        Ref: WebChatApi
-      HttpMethod: GET
-      Integration:
-        Type: MOCK
-        IntegrationHttpMethod: ANY
-        PassthroughBehavior: WHEN_NO_MATCH
-        CacheNamespace:
-          Fn::GetAtt:
-          - WebChatApi
-          - RootResourceId
-        IntegrationResponses:
-          - StatusCode: '200'
-            SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Content-Type: "'text/plain'"
-            ResponseTemplates:
-              application/json: 
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - RobotsTxtContent
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Content-Type: true
-    
+      
     
   #
   #   Static Content Bucket
@@ -2020,92 +1881,6 @@ Resources:
             Resource:
               Fn::Sub: arn:aws:s3:::${StaticContentBucket}
   
-  #
-  #   S3 Bucket Web Site Domain Formatter Function
-  #   
-  #   CloudFormation's Fn::GetAtt for an S3Bucket provides two attributes:
-  #     * DomainName - DNS Name of the bucket
-  #     * WebsiteURL - URL of the website endpoint for the bucket
-  #   
-  #   However, we want the domain name of the website endpoint for the bucket.
-  #   It needs to be specified directly for API Gateway to properly proxy 
-  #   requests to it.
-  #   
-  #   This Lambda function simply strips the domain name from the website URL 
-  #   and returns it so it can be exported in the stack's outputs.
-  #
-
-  S3BucketWebSiteDomainFormatterFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Clears out the stack's S3 bucket
-      Handler: index.lambda_handler
-      MemorySize: 128
-      Role:
-        Fn::GetAtt:
-        - S3BucketWebSiteDomainFormatterFunctionRole
-        - Arn
-      Code:
-        S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
-        S3Key: lambda/S3BucketWebSiteDomainFormatterFunction.zip
-      Runtime: python2.7
-      Timeout: '300'
-
-  S3BucketWebSiteDomainFormatterFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
-
-  S3BucketWebSiteDomainFormatterFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: S3BucketWebSiteDomainFormatterFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3BucketWebSiteDomainFormatterFunction}:log-stream:*
-      Roles:
-        - Ref: S3BucketWebSiteDomainFormatterFunctionRole
-
-  S3BucketWebSiteDomainFormatterFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${S3BucketWebSiteDomainFormatterFunction}
-      RetentionInDays:
-        Ref: LogRetentionDays
-
-  S3BucketStaticWebSiteDomainRetrieval:
-    Type: Custom::S3BucketWebSiteDomainRetrieval
-    Properties:
-      ServiceToken:
-        Fn::GetAtt:
-        - S3BucketWebSiteDomainFormatterFunction
-        - Arn
-      WebsiteUrl:
-        Fn::GetAtt:
-          - StaticContentBucket
-          - WebsiteURL
-    DependsOn:
-      - S3BucketWebSiteDomainFormatterFunctionLogGroup
-      - S3BucketWebSiteDomainFormatterFunctionRoleActions
-  
   StaticWebSiteBucketCleanup:
     Type: Custom::StaticWebSiteBucketCleanupInvocation
     Properties:
@@ -2119,18 +1894,134 @@ Resources:
     DependsOn:
       - StackCleanupFunctionLogGroup
       - StackCleanupFunctionRoleActions
+  
+  
+  #
+  #   S3 Object Writer
+  #   
+  #   Generic Lambda function for easily creating / deleting arbitrary text 
+  #   content as an S3 object.
+  #
+  
+  S3ObjectWriterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+        - S3ObjectWriterFunctionRole
+        - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/S3ObjectWriterFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  S3ObjectWriterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  
+  S3ObjectWriterFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3ObjectWriterFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3ObjectWriterFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+          - Effect: Allow
+            Action:
+              - s3:DeleteObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+      Roles:
+      - Ref: S3ObjectWriterFunctionRole
+  
+  S3ObjectWriterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${S3ObjectWriterFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  #
+  #   WebChatApiPointerJsFile
+  #
+  #   Because our web interface is hosted in its own S3 bucket, it will need 
+  #   some way of finding the URL of where the API lives.
+  #   
+  #   This creates a JavaScript file that simply defines a variable that 
+  #   points to the endpoint. Now the web interface can simply include that 
+  #   JavaScript file and reference the variable to know where to make 
+  #   requests.
+  #   
+  #   It also deletes that file on deletion of itself.
+  #
+  
+  
+  WebChatApiPointerJsFileForStaticWebsiteBucket:
+    Type: Custom::WebChatApiPointerJsFile
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - S3ObjectWriterFunction
+          - Arn
+      Bucket:
+        Ref: StaticContentBucket
+      Key: api/endpoint.js
+      Content:
+        Fn::Sub:
+          - |-
+            /*
+                This represents the only pointer the web interface has to the 
+                REST API's endpoint.
+            */
+            var WebChatApiEndpoint = "${RestApiEndpoint}";
+          - RestApiEndpoint:
+              Fn::Sub:
+              - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
+              - MainStageName:
+                  Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - StageName
+      Content-Type: text/javascript
+    DependsOn:
+      - S3ObjectWriterFunctionLogGroup
+      - S3ObjectWriterFunctionRoleActions
         
           
 Outputs:
   StaticContentBucket:
     Value:
       Ref: StaticContentBucket
-  WebChatApiHome:
+  WebChatWebInterfaceHome:
     Value:
-      Fn::Sub:
-      - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
-      - MainStageName:
-          Fn::FindInMap:
-          - StaticVariables
-          - Main
-          - StageName
+      Fn::GetAtt:
+        - StaticContentBucket
+        - WebsiteURL
