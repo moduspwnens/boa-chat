@@ -12,6 +12,8 @@ Metadata:
           - PreWarmingEnabled
           - LogRetentionDays
     ParameterLabels:
+      AdditionalCorsOrigins:
+        default: HTTP CORS Origins Allowed
       LambdaPackageStackName:
         default: Lambda Package Stack Name
       LogRetentionDays:
@@ -21,6 +23,9 @@ Metadata:
       PreWarmingEnabled:
         default: Pre-Warming Enabled
 Parameters:
+  AdditionalCorsOrigins:
+    Type: CommaDelimitedList
+    Description: Comma-separated list of additional domains allowed access to the API. Leave blank for default only.
   LambdaPackageStackName:
     Type: String
     Default: webchat-lambda-src
@@ -67,6 +72,17 @@ Mappings:
         {
             "message": "$util.escapeJavaScript("$errorMessageObj.message")"
         }
+      ApiGatewayServerErrorCatchAllTemplate: |-
+        {
+            "type": "InternalServerError",
+            "message": "The backend server encountered an internal error."
+        }
+      ApiGatewayServerErrorTimeoutTemplate: |-
+        {
+            "type": "InternalServerTimeout",
+            "message": "The backend server did not respond quickly enough."
+        }
+      CorsAllowedHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       DummyStageName: DummyStage
       PreWarmScheduleExpression: rate(1 minute)
       RobotsTxtContent: |-
@@ -74,16 +90,21 @@ Mappings:
         Disallow: 
         Allow: /
       StageName: v1
+      WebChatApiRoomResourceMethods: "'POST,OPTIONS'"
+      WebChatApiSingleRoomMessageResourceMethods: "'POST,OPTIONS'"
+      WebChatApiSingleRoomSessionResourceMethods: "'POST,OPTIONS'"
+      WebChatApiSingleRoomSingleSessionMessageResourceMethods: "'GET,PUT,OPTIONS'"
+      WebChatApiUserResourceMethods: "'POST,OPTIONS'"
 Conditions:
   IncludeMetricAlarmsCondition:
     Fn::Not:
-    - Fn::Equals:
-      - Ref: MetricAlarmEmailAddress
-      - ''
+      - Fn::Equals:
+        - Ref: MetricAlarmEmailAddress
+        - ''
   PreWarmingEnabledCondition:
     Fn::Equals:
-    - Ref: PreWarmingEnabled
-    - 'Yes'
+      - Ref: PreWarmingEnabled
+      - 'Yes'
 Resources:
   
   #
@@ -109,12 +130,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - apigateway.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
@@ -127,8 +148,8 @@ Resources:
     Properties:
       CloudWatchRoleArn:
         Fn::GetAtt:
-        - ApiGatewayCloudWatchRole
-        - Arn
+          - ApiGatewayCloudWatchRole
+          - Arn
   
   #  
   #   API Gateway - REST API resources
@@ -148,27 +169,32 @@ Resources:
         Ref: WebChatApi
       StageName:
         Fn::FindInMap:
-        - StaticVariables
-        - Main
-        - DummyStageName
+          - StaticVariables
+          - Main
+          - DummyStageName
     DependsOn:
-    - WebChatApiDummyStageLogGroup
-    - WebChatApiRoomCreateMethod
-    - WebChatApiUserIdCreateMethod
-    - WebChatApiRoomMessageGetMethod
-    - WebChatApiRoomMessagePostMethod
+      - WebChatApiDummyStageLogGroup
+      - WebChatApiRoomCreateMethod
+      - WebChatApiUserIdCreateMethod
+      - WebChatApiRoomMessageGetMethod
+      - WebChatApiRoomMessagePostMethod
+      - WebChatApiRoomResourceOptions
+      - WebChatApiUserResourceOptions
+      - WebChatApiSingleRoomMessageResourceOptions
+      - WebChatApiSingleRoomSessionResourceOptions
+      - WebChatApiSingleRoomSingleSessionMessageResourceOptions
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
         Fn::Sub:
-        - API-Gateway-Execution-Logs_${WebChatApi}/${DummyStageName}
-        - DummyStageName:
-            Fn::FindInMap:
-            - StaticVariables
-            - Main
-            - DummyStageName
+          - API-Gateway-Execution-Logs_${WebChatApi}/${DummyStageName}
+          - DummyStageName:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - DummyStageName
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -178,36 +204,36 @@ Resources:
       DeploymentId:
         Ref: WebChatApiDeployment
       MethodSettings:
-      - ResourcePath: ''
-        HttpMethod: "*/*"
-        DataTraceEnabled: true
-        LoggingLevel: INFO
-        MetricsEnabled:
-          Fn::If:
-          - IncludeMetricAlarmsCondition
-          - true
-          - false
+        - ResourcePath: ''
+          HttpMethod: "*/*"
+          DataTraceEnabled: true
+          LoggingLevel: INFO
+          MetricsEnabled:
+            Fn::If:
+              - IncludeMetricAlarmsCondition
+              - true
+              - false
       RestApiId:
         Ref: WebChatApi
       StageName:
         Fn::FindInMap:
-        - StaticVariables
-        - Main
-        - StageName
+          - StaticVariables
+          - Main
+          - StageName
     DependsOn:
-    - WebChatApiMainStageLogGroup
+      - WebChatApiMainStageLogGroup
   
   WebChatApiMainStageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
         Fn::Sub:
-        - API-Gateway-Execution-Logs_${WebChatApi}/${MainStageName}
-        - MainStageName:
-            Fn::FindInMap:
-            - StaticVariables
-            - Main
-            - StageName
+          - API-Gateway-Execution-Logs_${WebChatApi}/${MainStageName}
+          - MainStageName:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - StageName
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -216,11 +242,51 @@ Resources:
     Properties:
       ParentId:
         Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
+          - WebChatApi
+          - RootResourceId
       PathPart: room
       RestApiId:
         Ref: WebChatApi
+  
+  WebChatApiRoomResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiRoomResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiRoomResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
   
   WebChatApiSingleRoomResource:
     Type: AWS::ApiGateway::Resource
@@ -240,6 +306,46 @@ Resources:
       RestApiId:
         Ref: WebChatApi
   
+  WebChatApiSingleRoomMessageResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomMessageResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
   WebChatApiSingleRoomSessionResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -248,6 +354,46 @@ Resources:
       PathPart: 'session'
       RestApiId:
         Ref: WebChatApi
+  
+  WebChatApiSingleRoomSessionResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomSessionResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSessionResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
   
   WebChatApiSingleRoomSingleSessionResource:
     Type: AWS::ApiGateway::Resource
@@ -267,16 +413,97 @@ Resources:
       RestApiId:
         Ref: WebChatApi
   
+  WebChatApiSingleRoomSingleSessionMessageResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiSingleRoomSingleSessionMessageResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
   WebChatApiUserResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       ParentId:
         Fn::GetAtt:
-        - WebChatApi
-        - RootResourceId
+          - WebChatApi
+          - RootResourceId
       PathPart: user
       RestApiId:
         Ref: WebChatApi
+  
+  WebChatApiUserResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
   
   
   
@@ -290,24 +517,24 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - sns.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - sns.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
       Policies:
-      - PolicyName: SNSFailureFeedbackRoleActions
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:PutMetricFilter
-            Resource: '*'
+        - PolicyName: SNSFailureFeedbackRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:PutMetricFilter
+                Resource: '*'
   
   SNSSuccessFeedbackRole:
     Type: AWS::IAM::Role
@@ -315,25 +542,27 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - sns.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - sns.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
       Policies:
-      - PolicyName: SNSSuccessFeedbackRoleActions
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            - logs:PutMetricFilter
-            Resource: '*'
-    
+        - PolicyName: SNSSuccessFeedbackRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:PutMetricFilter
+                Resource: '*'
+  
+  
+  
   #  
   #   Room Generator Function
   #  
@@ -346,8 +575,8 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - RoomGeneratorFunctionRole
-        - Arn
+          - RoomGeneratorFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -362,12 +591,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   RoomGeneratorFunctionRoleActions:
@@ -377,51 +606,51 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
-        - Effect: Allow
-          Action: 
-          - sns:CreateTopic
-          Resource: '*'
-        - Effect: Allow
-          Action: 
-          - sns:SetTopicAttributes
-          Resource: 
-            Fn::Sub:
-            - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
-            - WebChatApiStageName:
-                Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - StageName
-        - Effect: Allow
-          Action: 
-          - logs:CreateLogGroup
-          - logs:PutMetricFilter
-          Resource: 
-            Fn::Sub:
-            - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
-            - WebChatApiStageName:
-                Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - StageName
-        - Effect: Allow
-          Action:
-          - s3:PutObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-        - Effect: Allow
-          Action:
-          - apigateway:GET
-          Resource:
-            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
+          - Effect: Allow
+            Action: 
+              - sns:CreateTopic
+            Resource: '*'
+          - Effect: Allow
+            Action: 
+              - sns:SetTopicAttributes
+            Resource: 
+              Fn::Sub:
+                - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
+                - WebChatApiStageName:
+                    Fn::FindInMap:
+                    - StaticVariables
+                    - Main
+                    - StageName
+          - Effect: Allow
+            Action: 
+              - logs:CreateLogGroup
+              - logs:PutMetricFilter
+            Resource: 
+              Fn::Sub:
+                - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
+                - WebChatApiStageName:
+                    Fn::FindInMap:
+                    - StaticVariables
+                    - Main
+                    - StageName
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
-      - Ref: RoomGeneratorFunctionRole
+        - Ref: RoomGeneratorFunctionRole
   
   RoomGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -443,24 +672,69 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiRoomResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseTemplates:
+              application/json: 
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiRoomResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiRoomResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
@@ -493,38 +767,50 @@ Resources:
                 }
               - CleanupFunctionRoleArn:
                   Fn::GetAtt:
-                  - StackCleanupFunctionRole
-                  - Arn
+                    - StackCleanupFunctionRole
+                    - Arn
                 PosterFunctionRoleArn:
                   Fn::GetAtt:
-                  - RoomMessagePosterFunctionRole
-                  - Arn
+                    - RoomMessagePosterFunctionRole
+                    - Arn
                 RoomSessionGeneratorFunctionRoleArn:
                   Fn::GetAtt:
-                  - RoomSessionGeneratorFunctionRole
-                  - Arn
+                    - RoomSessionGeneratorFunctionRole
+                    - Arn
                 SNSFailureFeedbackRoleArn:
                   Fn::GetAtt:
-                  - SNSFailureFeedbackRole
-                  - Arn
+                    - SNSFailureFeedbackRole
+                    - Arn
                 SNSSuccessFeedbackRoleArn:
                   Fn::GetAtt:
-                  - SNSSuccessFeedbackRole
-                  - Arn
+                    - SNSSuccessFeedbackRole
+                    - Arn
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomGeneratorFunctionArn}/invocations
-          - RoomGeneratorFunctionArn:
-              Fn::GetAtt:
-              - RoomGeneratorFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomGeneratorFunctionArn}/invocations
+            - RoomGeneratorFunctionArn:
+                Fn::GetAtt:
+                  - RoomGeneratorFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-    - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
+      - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
   
   WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -536,8 +822,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room
     DependsOn:
-    - RoomGeneratorFunctionRoleActions
-    - RoomGeneratorFunctionLogGroup
+      - RoomGeneratorFunctionRoleActions
+      - RoomGeneratorFunctionLogGroup
   
   PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -548,11 +834,11 @@ Resources:
         Ref: RoomGeneratorFunction
       Principal: 
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
     DependsOn:
-    - RoomGeneratorFunctionRoleActions
-    - RoomGeneratorFunctionLogGroup
+      - RoomGeneratorFunctionRoleActions
+      - RoomGeneratorFunctionLogGroup
   
   
   #  
@@ -567,14 +853,13 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - UserIdGeneratorFunctionRole
-        - Arn
+          - UserIdGeneratorFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/UserIdGeneratorFunction.zip
-          
       Runtime: python2.7
       Timeout: '300'
   
@@ -584,12 +869,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   UserIdGeneratorFunctionRoleActions:
@@ -599,19 +884,19 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserIdGeneratorFunction}:log-stream:*
-        - Effect: Allow
-          Action:
-          - apigateway:GET
-          Resource:
-            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserIdGeneratorFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
-      - Ref: UserIdGeneratorFunctionRole
+        - Ref: UserIdGeneratorFunctionRole
   
   UserIdGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -633,24 +918,71 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
@@ -677,17 +1009,29 @@ Resources:
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserIdGeneratorFunctionArn}/invocations
-          - UserIdGeneratorFunctionArn:
-              Fn::GetAtt:
-              - UserIdGeneratorFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserIdGeneratorFunctionArn}/invocations
+            - UserIdGeneratorFunctionArn:
+                Fn::GetAtt:
+                  - UserIdGeneratorFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-    - WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission
+      - WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission
   
   WebChatApiUserIdCreateMethodUserIdGeneratorLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -699,8 +1043,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user
     DependsOn:
-    - UserIdGeneratorFunctionRoleActions
-    - UserIdGeneratorFunctionLogGroup
+      - UserIdGeneratorFunctionRoleActions
+      - UserIdGeneratorFunctionLogGroup
   
   PreWarmApiCloudWatchUserIdGeneratorFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -711,11 +1055,11 @@ Resources:
         Ref: UserIdGeneratorFunction
       Principal: 
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
     DependsOn:
-    - UserIdGeneratorFunctionRoleActions
-    - UserIdGeneratorFunctionLogGroup
+      - UserIdGeneratorFunctionRoleActions
+      - UserIdGeneratorFunctionLogGroup
   
   
   
@@ -731,14 +1075,13 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - RoomSessionGeneratorFunctionRole
-        - Arn
+          - RoomSessionGeneratorFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/RoomSessionGeneratorFunction.zip
-          
       Runtime: python2.7
       Timeout: '300'
   
@@ -748,12 +1091,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   RoomSessionGeneratorFunctionRoleActions:
@@ -763,34 +1106,34 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomSessionGeneratorFunction}:log-stream:*
-        - Effect: Allow
-          Action:
-          - sqs:CreateQueue
-          - sqs:GetQueueAttributes
-          Resource: '*'
-        - Effect: Allow
-          Action:
-          - s3:GetObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-        - Effect: Allow
-          Action:
-          - s3:PutObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
-        - Effect: Allow
-          Action:
-          - apigateway:GET
-          Resource:
-            Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomSessionGeneratorFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - sqs:CreateQueue
+              - sqs:GetQueueAttributes
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
       Roles:
-      - Ref: RoomSessionGeneratorFunctionRole
+        - Ref: RoomSessionGeneratorFunctionRole
   
   RoomSessionGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -812,78 +1155,135 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSessionResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSessionResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSessionResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
             Fn::Sub: 
-            - |-
-              #set($allParams = $input.params())
-              {
-                  "request-body": $input.json("$"),
-                  "request-params" : {
-                      #foreach($type in $allParams.keySet())
-                      #set($params = $allParams.get($type))
-                      "$type" : {
-                          #foreach($paramName in $params.keySet())
-                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                          #if($foreach.hasNext),#end
-                          #end
-                      }
-                      #if($foreach.hasNext),#end
-                      #end
-                  },
-                  "api-id": "$context.apiId",
-                  "resource-path": "$context.resourcePath",
-                  "stage": "$context.stage",
+              - |-
+                #set($allParams = $input.params())
+                {
+                    "request-body": $input.json("$"),
+                    "request-params" : {
+                        #foreach($type in $allParams.keySet())
+                        #set($params = $allParams.get($type))
+                        "$type" : {
+                            #foreach($paramName in $params.keySet())
+                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                            #if($foreach.hasNext),#end
+                            #end
+                        }
+                        #if($foreach.hasNext),#end
+                        #end
+                    },
+                    "api-id": "$context.apiId",
+                    "resource-path": "$context.resourcePath",
+                    "stage": "$context.stage",
                   
-                  "acknowledger-function-role": "${AcknowledgerFunctionRoleArn}",
-                  "delete-function-role": "${StackCleanupFunctionRoleArn}",
-                  "poller-function-role": "${PollerFunctionRoleArn}"
-              }
-            - AcknowledgerFunctionRoleArn:
-                Fn::GetAtt:
-                - RoomMessageAcknowledgerFunctionRole
-                - Arn
-              PollerFunctionRoleArn:
-                Fn::GetAtt:
-                - RoomMessagePollerFunctionRole
-                - Arn
-              StackCleanupFunctionRoleArn:
-                Fn::GetAtt:
-                - StackCleanupFunctionRole
-                - Arn
+                    "acknowledger-function-role": "${AcknowledgerFunctionRoleArn}",
+                    "delete-function-role": "${StackCleanupFunctionRoleArn}",
+                    "poller-function-role": "${PollerFunctionRoleArn}"
+                }
+              - AcknowledgerFunctionRoleArn:
+                  Fn::GetAtt:
+                    - RoomMessageAcknowledgerFunctionRole
+                    - Arn
+                PollerFunctionRoleArn:
+                  Fn::GetAtt:
+                    - RoomMessagePollerFunctionRole
+                    - Arn
+                StackCleanupFunctionRoleArn:
+                  Fn::GetAtt:
+                    - StackCleanupFunctionRole
+                    - Arn
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomSessionGeneratorFunctionArn}/invocations
-          - RoomSessionGeneratorFunctionArn:
-              Fn::GetAtt:
-              - RoomSessionGeneratorFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomSessionGeneratorFunctionArn}/invocations
+            - RoomSessionGeneratorFunctionArn:
+                Fn::GetAtt:
+                  - RoomSessionGeneratorFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-    - WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission
+      - WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission
   
   WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -895,8 +1295,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room/{room-id}/session
     DependsOn:
-    - RoomSessionGeneratorFunctionRoleActions
-    - RoomSessionGeneratorFunctionLogGroup
+      - RoomSessionGeneratorFunctionRoleActions
+      - RoomSessionGeneratorFunctionLogGroup
   
   PreWarmApiCloudWatchRoomSessionGeneratorFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -907,11 +1307,11 @@ Resources:
         Ref: RoomSessionGeneratorFunction
       Principal: 
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
     DependsOn:
-    - RoomSessionGeneratorFunctionRoleActions
-    - RoomSessionGeneratorFunctionLogGroup
+      - RoomSessionGeneratorFunctionRoleActions
+      - RoomSessionGeneratorFunctionLogGroup
   
   
   #  
@@ -926,8 +1326,8 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - RoomMessagePollerFunctionRole
-        - Arn
+          - RoomMessagePollerFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -942,12 +1342,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   RoomMessagePollerFunctionRoleActions:
@@ -957,14 +1357,14 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePollerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePollerFunction}:log-stream:*
       Roles:
-      - Ref: RoomMessagePollerFunctionRole
+        - Ref: RoomMessagePollerFunctionRole
   
   RoomMessagePollerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -986,32 +1386,92 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json:
-              Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayErrorMappingTemplate
-          SelectionPattern: '.*http-status\":\w*400.*'
-          StatusCode: '400'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\w*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
@@ -1038,18 +1498,34 @@ Resources:
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePollerFunctionArn}/invocations
-          - RoomMessagePollerFunctionArn:
-              Fn::GetAtt:
-              - RoomMessagePollerFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePollerFunctionArn}/invocations
+            - RoomMessagePollerFunctionArn:
+                Fn::GetAtt:
+                  - RoomMessagePollerFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '400'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-    - WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission
+      - WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission
   
   WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1061,8 +1537,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/GET/room/{room-id}/session/{session-id}/message
     DependsOn:
-    - RoomMessagePollerFunctionRoleActions
-    - RoomMessagePollerFunctionLogGroup
+      - RoomMessagePollerFunctionRoleActions
+      - RoomMessagePollerFunctionLogGroup
   
   PreWarmApiCloudWatchRoomMessagePollerFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1073,11 +1549,11 @@ Resources:
         Ref: RoomMessagePollerFunction
       Principal:
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
     DependsOn:
-    - RoomMessagePollerFunctionRoleActions
-    - RoomMessagePollerFunctionLogGroup
+      - RoomMessagePollerFunctionRoleActions
+      - RoomMessagePollerFunctionLogGroup
   
   
   
@@ -1093,8 +1569,8 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - RoomMessageAcknowledgerFunctionRole
-        - Arn
+          - RoomMessageAcknowledgerFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -1109,12 +1585,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   RoomMessageAcknowledgerFunctionRoleActions:
@@ -1124,14 +1600,14 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessageAcknowledgerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessageAcknowledgerFunction}:log-stream:*
       Roles:
-      - Ref: RoomMessageAcknowledgerFunctionRole
+        - Ref: RoomMessageAcknowledgerFunctionRole
   
   RoomMessageAcknowledgerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1153,32 +1629,92 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json:
-              Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayErrorMappingTemplate
-          SelectionPattern: '.*http-status\":\w*400.*'
-          StatusCode: '400'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\w*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
@@ -1205,18 +1741,34 @@ Resources:
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessageAcknowledgerFunctionArn}/invocations
-          - RoomMessageAcknowledgerFunctionArn:
-              Fn::GetAtt:
-              - RoomMessageAcknowledgerFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessageAcknowledgerFunctionArn}/invocations
+            - RoomMessageAcknowledgerFunctionArn:
+                Fn::GetAtt:
+                  - RoomMessageAcknowledgerFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '400'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-    - WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission
+      - WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission
   
   WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1228,8 +1780,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/PUT/room/{room-id}/session/{session-id}/message
     DependsOn:
-    - RoomMessageAcknowledgerFunctionRoleActions
-    - RoomMessageAcknowledgerFunctionLogGroup
+      - RoomMessageAcknowledgerFunctionRoleActions
+      - RoomMessageAcknowledgerFunctionLogGroup
   
   PreWarmApiCloudWatchRoomMessageAcknowledgerFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1240,11 +1792,11 @@ Resources:
         Ref: RoomMessageAcknowledgerFunction
       Principal:
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
     DependsOn:
-    - RoomMessageAcknowledgerFunctionRoleActions
-    - RoomMessageAcknowledgerFunctionLogGroup
+      - RoomMessageAcknowledgerFunctionRoleActions
+      - RoomMessageAcknowledgerFunctionLogGroup
   
   
   #  
@@ -1259,14 +1811,13 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - RoomMessagePosterFunctionRole
-        - Arn
+          - RoomMessagePosterFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/RoomMessagePosterFunction.zip
-          
       Runtime: python2.7
       Timeout: '300'
   
@@ -1276,12 +1827,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   RoomMessagePosterFunctionRoleActions:
@@ -1291,19 +1842,19 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
-        - Effect: Allow
-          Action:
-          - s3:GetObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
       Roles:
-      - Ref: RoomMessagePosterFunctionRole
+        - Ref: RoomMessagePosterFunctionRole
   
   RoomMessagePosterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1325,32 +1876,92 @@ Resources:
       Integration:
         IntegrationHttpMethod: POST
         IntegrationResponses:
-        - SelectionPattern: ''
-          StatusCode: '200'
-        - ResponseTemplates:
-            application/json:
-              Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayErrorMappingTemplate
-          SelectionPattern: '.*http-status\":\w*400.*'
-          StatusCode: '400'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerError",
-                  "message": "The backend server encountered an internal error."
-              }
-          SelectionPattern: (\n|.)+
-          StatusCode: '500'
-        - ResponseTemplates:
-            application/json: |-
-              {
-                  "type": "InternalServerTimeout",
-                  "message": "The backend server did not respond quickly enough."
-              }
-          SelectionPattern: ".*Task timed out after .*"
-          StatusCode: '504'
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\w*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern: (\n|.)+
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
@@ -1377,20 +1988,36 @@ Resources:
         Type: AWS
         Uri:
           Fn::Sub:
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePosterFunctionArn}/invocations
-          - RoomMessagePosterFunctionArn:
-              Fn::GetAtt:
-              - RoomMessagePosterFunction
-              - Arn
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePosterFunctionArn}/invocations
+            - RoomMessagePosterFunctionArn:
+                Fn::GetAtt:
+                  - RoomMessagePosterFunction
+                  - Arn
       MethodResponses:
-      - StatusCode: '200'
-      - StatusCode: '400'
-      - StatusCode: '500'
-      - StatusCode: '504'
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
       RequestParameters:
         method.request.querystring.user-id: true
     DependsOn:
-    - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
+      - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
   
   WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1402,8 +2029,8 @@ Resources:
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/room/{room-id}/message
     DependsOn:
-    - RoomMessagePosterFunctionRoleActions
-    - RoomMessagePosterFunctionLogGroup
+      - RoomMessagePosterFunctionRoleActions
+      - RoomMessagePosterFunctionLogGroup
   
   PreWarmApiCloudWatchRoomMessagePosterFunctionLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1417,10 +2044,92 @@ Resources:
           - PreWarmerFunctionRole
           - Arn
     DependsOn:
-    - RoomMessagePosterFunctionRoleActions
-    - RoomMessagePosterFunctionLogGroup
+      - RoomMessagePosterFunctionRoleActions
+      - RoomMessagePosterFunctionLogGroup
   
   
+  
+  
+  #
+  #   CORS Origin Combiner Function
+  #   
+  #   Returns an appropriate value for an API Gateway header mapping for the 
+  #   Access-Control-Allowed-Origin header.
+  #
+  
+  CorsOriginCombinerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - CorsOriginCombinerFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/CorsOriginCombinerFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  CorsOriginCombinerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  CorsOriginCombinerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CorsOriginCombinerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CorsOriginCombinerFunction}:log-stream:*
+      Roles:
+        - Ref: CorsOriginCombinerFunctionRole
+  
+  CorsOriginCombinerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${CorsOriginCombinerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  CorsOriginCombinerInvocation:
+    Type: Custom::CorsOriginCombinerInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - CorsOriginCombinerFunction
+          - Arn
+      AdditionalCorsOrigins:
+        Ref: AdditionalCorsOrigins
+      BucketWebsiteUrl:
+        Fn::GetAtt:
+          - StaticContentBucket
+          - WebsiteURL
+    DependsOn:
+      - CorsOriginCombinerFunctionLogGroup
+      - CorsOriginCombinerFunctionRoleActions
+      
   
   
   #
@@ -1438,8 +2147,8 @@ Resources:
       MemorySize: 1024
       Role:
         Fn::GetAtt:
-        - SwfSetupCleanupFunctionRole
-        - Arn
+          - SwfSetupCleanupFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -1454,12 +2163,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   SwfWorkflowLambdaExecutionRole:
@@ -1468,12 +2177,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - swf.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - swf.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   SwfSetupCleanupFunctionRoleActions:
@@ -1528,7 +2237,6 @@ Resources:
         Fn::GetAtt:
           - SwfWorkflowLambdaExecutionRole
           - Arn
-      
     DependsOn:
       - SwfSetupCleanupFunctionLogGroup
       - SwfSetupCleanupFunctionRoleActions
@@ -1544,9 +2252,9 @@ Resources:
     Condition: IncludeMetricAlarmsCondition
     Properties:
       Subscription:
-      - Endpoint:
-          Ref: MetricAlarmEmailAddress
-        Protocol: email
+        - Endpoint:
+            Ref: MetricAlarmEmailAddress
+          Protocol: email
   
   LambdaThrottlesAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1560,7 +2268,7 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
-      - Ref: AdminAlarmTopic
+        - Ref: AdminAlarmTopic
   
   RoomGeneratorErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1568,9 +2276,9 @@ Resources:
     Properties:
       Namespace: AWS/Lambda
       Dimensions:
-      - Name: FunctionName
-        Value:
-          Ref: RoomGeneratorFunction
+        - Name: FunctionName
+          Value:
+            Ref: RoomGeneratorFunction
       MetricName: Errors
       EvaluationPeriods: 1
       Period: 60
@@ -1578,7 +2286,7 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
-      - Ref: AdminAlarmTopic
+        - Ref: AdminAlarmTopic
   
   Api5XXErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1586,12 +2294,12 @@ Resources:
     Properties:
       Namespace: AWS/ApiGateway
       Dimensions:
-      - Name: ApiName
-        Value:
-          Ref: AWS::StackName
-      - Name: Stage
-        Value:
-          Ref: WebChatApiStage
+        - Name: ApiName
+          Value:
+            Ref: AWS::StackName
+        - Name: Stage
+          Value:
+            Ref: WebChatApiStage
       MetricName: 5XXError
       EvaluationPeriods: 1
       Period: 60
@@ -1599,7 +2307,7 @@ Resources:
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       AlarmActions:
-      - Ref: AdminAlarmTopic
+        - Ref: AdminAlarmTopic
   
   
   #
@@ -1617,8 +2325,8 @@ Resources:
       MemorySize: 128
       Role:
         Fn::GetAtt:
-        - PreWarmerFunctionRole
-        - Arn
+          - PreWarmerFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -1633,12 +2341,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   PreWarmerFunctionRoleActions:
@@ -1648,14 +2356,14 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Resource:
-            Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${PreWarmerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${PreWarmerFunction}:log-stream:*
       Roles:
-      - Ref: PreWarmerFunctionRole
+        - Ref: PreWarmerFunctionRole
   
   PreWarmerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1675,11 +2383,11 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn:
         Fn::GetAtt:
-        - PreWarmApiEventRule
-        - Arn
+          - PreWarmApiEventRule
+          - Arn
     DependsOn:
-    - PreWarmerFunctionRoleActions
-    - PreWarmerFunctionLogGroup
+      - PreWarmerFunctionRoleActions
+      - PreWarmerFunctionLogGroup
   
   PreWarmApiEventRule:
     Type: AWS::Events::Rule
@@ -1758,8 +2466,8 @@ Resources:
       MemorySize: 1024
       Role:
         Fn::GetAtt:
-        - StackCleanupFunctionRole
-        - Arn
+          - StackCleanupFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -1774,12 +2482,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   StackCleanupFunctionRoleActions:
@@ -1825,7 +2533,7 @@ Resources:
               - Fn::Sub: arn:aws:s3:::${SharedBucket}
               - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
       Roles:
-      - Ref: StackCleanupFunctionRole
+        - Ref: StackCleanupFunctionRole
   
   StackCleanupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1859,6 +2567,8 @@ Resources:
   StaticContentBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName:
+        Fn::Sub: "webchat-staticbucket-${WebChatApi}"
       WebsiteConfiguration:
         ErrorDocument: error.html
         IndexDocument: index.html
@@ -1911,8 +2621,8 @@ Resources:
       MemorySize: 1024
       Role:
         Fn::GetAtt:
-        - S3ObjectWriterFunctionRole
-        - Arn
+          - S3ObjectWriterFunctionRole
+          - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
@@ -1927,12 +2637,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   
   S3ObjectWriterFunctionRoleActions:
@@ -1959,7 +2669,7 @@ Resources:
             Resource:
               Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
       Roles:
-      - Ref: S3ObjectWriterFunctionRole
+        - Ref: S3ObjectWriterFunctionRole
   
   S3ObjectWriterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2002,14 +2712,19 @@ Resources:
                 REST API's endpoint.
             */
             var WebChatApiEndpoint = "${RestApiEndpoint}";
+            var CorsOriginList = "${CorsOriginList}";
           - RestApiEndpoint:
               Fn::Sub:
-              - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
-              - MainStageName:
-                  Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - StageName
+                - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
+                - MainStageName:
+                    Fn::FindInMap:
+                    - StaticVariables
+                    - Main
+                    - StageName
+            CorsOriginList:
+              Fn::GetAtt:
+                - CorsOriginCombinerInvocation
+                - CorsOriginList
       Content-Type: text/javascript
     DependsOn:
       - S3ObjectWriterFunctionLogGroup
