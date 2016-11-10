@@ -29,6 +29,7 @@ import time
 import hashlib
 import boto3
 from apigateway_helpers import get_public_api_base
+from apigateway_helpers.exception import APIGatewayException
 
 sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")

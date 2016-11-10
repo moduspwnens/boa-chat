@@ -1172,6 +1172,29 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\w*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomSessionResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
           - StatusCode: '500'
             SelectionPattern: (\n|.)+
             ResponseTemplates:
@@ -1268,6 +1291,11 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Methods: false
