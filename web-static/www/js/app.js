@@ -2,7 +2,7 @@ var app = undefined;
 
 (function() {
   
-  app = angular.module('app', ['ui.router', 'navController', 'ui.bootstrap'])
+  app = angular.module('app', ['ui.router', 'navController', 'ui.bootstrap', 'webchatService'])
 
 	// define for requirejs loaded modules
 	define('app', [], function() { return app; });
@@ -45,6 +45,11 @@ var app = undefined;
 				url: "/",
 				templateUrl: viewsPrefix + "home.html",
         controller: 'homeController'
+			})
+			.state('room', {
+				url: "/room/:roomId",
+				templateUrl: viewsPrefix + "room.html",
+        controller: 'roomController'
 			})
 	})
 	.directive('updateTitle', ['$rootScope', '$timeout',

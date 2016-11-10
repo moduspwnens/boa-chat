@@ -1,9 +1,9 @@
-
+<!-- Main jumbotron for a primary marketing message or call to action -->
     <div class="jumbotron">
       <div class="container">
         <h1 ng-bind="title"></h1>
         <div class="new-chat-room-button-wrapper">
-          <a class="btn btn-primary btn-lg" href="#" role="button" ng-disabled="createRoomButtonDisabled" ng-click="createChatRoomButtonClicked()" disabled>New Chat Room</a>
+          <a class="btn btn-primary btn-lg" role="button" ng-click="postMessageButtonClicked()" ng-disabled="postMessageButtonDisabled" disabled>Post Message</a>
         </div>
         <p></p>
       </div>
