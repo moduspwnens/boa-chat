@@ -27,13 +27,14 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
+    receipt_handles = None
+    
     try:
-        if len(event["request-body"]["receipt-handles"]) == 0:
+        receipt_handles = event["request-body"]["receipt-handles"]
+        if len(receipt_handles) == 0:
             raise Exception
     except:
-        APIGatewayException("Value for \"receipt-handles\" must be an array including at least one string.", 400)
-    
-    receipt_handles = event["request-body"]["receipt-handles"]
+        raise APIGatewayException("Value for \"receipt-handles\" must be an array including at least one string.", 400)
     
     sqs_queue_name = get_queue_name(event)
     queue_url = get_queue_url(sqs_queue_name)
