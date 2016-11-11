@@ -66,11 +66,12 @@ Parameters:
 Mappings:
   StaticVariables:
     Main:
+      ApiGatewayCatchAllErrorSelectionPattern: '((.*http-status\":\s*500.*)|^(?!.*http-status).+)'
       ApiGatewayErrorMappingTemplate: |-
         #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
         #set ($bodyObj = $util.parseJson($input.body))
         {
-            "message": "$util.escapeJavaScript("$errorMessageObj.message")"
+            "message": "$util.escapeJavaScript($errorMessageObj.message).replaceAll("\\'","'")"
         }
       ApiGatewayServerErrorCatchAllTemplate: |-
         {
@@ -690,7 +691,11 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseTemplates:
               application/json: 
                 Fn::FindInMap:
@@ -936,7 +941,11 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseTemplates:
               application/json:
                 Fn::FindInMap:
@@ -1173,7 +1182,7 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\w*400.*'
+            SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1196,7 +1205,11 @@ Resources:
                   - Main
                   - ApiGatewayErrorMappingTemplate
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseTemplates:
               application/json:
                 Fn::FindInMap:
@@ -1432,7 +1445,7 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\w*400.*'
+            SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1455,7 +1468,11 @@ Resources:
                   - Main
                   - ApiGatewayErrorMappingTemplate
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern: 
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1675,7 +1692,7 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\w*400.*'
+            SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1698,7 +1715,11 @@ Resources:
                 - Main
                 - ApiGatewayErrorMappingTemplate
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1922,7 +1943,30 @@ Resources:
                   - Main
                   - CorsAllowedHeaders
           - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\w*400.*'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiSingleRoomMessageResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '403'
+            SelectionPattern: '.*http-status\":\s*403.*'
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -1945,7 +1989,11 @@ Resources:
                   - Main
                   - ApiGatewayErrorMappingTemplate
           - StatusCode: '500'
-            SelectionPattern: (\n|.)+
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:
                 Fn::GetAtt:
@@ -2028,6 +2076,11 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: false
             method.response.header.Access-Control-Allow-Headers: false
         - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '403'
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Methods: false

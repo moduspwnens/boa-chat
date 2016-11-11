@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="" />
-    <meta name="author" content="" />
+    <meta name="description" content="A web-based chat service." />
+    <meta name="author" content="Benn Linger" />
     <link rel="icon" href="favicon.ico" />
 
     <title update-title></title>
@@ -46,7 +46,7 @@
     <script src="lib/angular/js/angular-ui-router.js"></script>
     <script src="lib/angular/js/angular-ui-bootstrap-tpls.js"></script>
 
-    <!-- your app's js -->
+    <!-- app js -->
     <script src="js/app.js"></script>
     <script src="js/webchat-service.js"></script>
     <script src="js/nav-controller.js"></script>
@@ -88,9 +88,16 @@
 
     <div class="ui-view-container">
       <div ui-view>
-        <!-- default content can go here but there will be a flicker on some pages loading -->
+        
       </div>
     </div>
+    
+    <div class="container">
+
+      <footer>
+        <p>&copy; 2016 Benn Linger. <a href="https://github.com/moduspwnens/aws-serverless-web-chat">View source on GitHub</a>.</p>
+      </footer>
+    </div> <!-- /container -->
 
 
     <!-- Bootstrap core JavaScript

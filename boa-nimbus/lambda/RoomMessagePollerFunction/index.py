@@ -37,6 +37,7 @@ def lambda_handler(event, context):
     for each_message in response.get("Messages", []):
         sns_notification = json.loads(each_message["Body"])
         sns_message = json.loads(sns_notification["Message"])
+        sns_message["message-id"] = sns_notification["MessageId"]
         return_messages.append(sns_message)
         receipt_handles.append(each_message["ReceiptHandle"])
     

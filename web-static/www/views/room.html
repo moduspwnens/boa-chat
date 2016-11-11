@@ -1,18 +1,21 @@
-<!-- Main jumbotron for a primary marketing message or call to action -->
-    <div class="jumbotron">
-      <div class="container">
-        <h1 ng-bind="title"></h1>
-        <div class="new-chat-room-button-wrapper">
-          <a class="btn btn-primary btn-lg" role="button" ng-click="postMessageButtonClicked()" ng-disabled="postMessageButtonDisabled" disabled>Post Message</a>
+<div class="container webchat-room-wrapper">
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="webchat-event" ng-repeat="event in roomChatEvents">
+                <div class="author">{{event["user-id"]}}</div>
+                <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
+            </div>
         </div>
-        <p></p>
-      </div>
     </div>
-
-    <div class="container">
-
-      <footer>
-        <p>&copy; 2016 Benn Linger. <a href="https://github.com/moduspwnens/aws-serverless-web-chat">View source on GitHub</a>.</p>
-      </footer>
-    </div> <!-- /container -->
-
+    
+    <div class="row message-send-form-wrapper-row">
+        <div class="col-md-12">
+            <form ng-submit="messageSendFormSubmitted()">
+                <div class="form-group">
+                    <input type="text" id="message-input" class="form-control" placeholder="{{messageInputTextPlaceholder}}" ng-model="messageInputText" disabled ng-disabled="messageInputDisabled">
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

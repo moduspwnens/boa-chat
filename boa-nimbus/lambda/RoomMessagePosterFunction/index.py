@@ -12,6 +12,7 @@ from __future__ import print_function
 import json
 import time
 import boto3
+import botocore
 from apigateway_helpers.exception import APIGatewayException
 
 s3_client = boto3.client("s3")
@@ -32,7 +33,14 @@ def lambda_handler(event, context):
     if event["request-body"].get("user-id", "") == "":
         raise APIGatewayException("Value for \"user-id\" must be specified in message.", 400)
     
-    sns_topic_arn = get_room_topic_arn(event)
+    try:
+        sns_topic_arn = get_room_topic_arn(event)
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'AccessDenied':
+            room_id = event["request-params"]["path"]["room-id"]
+            raise APIGatewayException("Room \"{}\" either doesn't exist or you don't have access to it.".format(room_id), 403)
+        else:
+            raise
     
     response = sns_client.publish(
         TopicArn = sns_topic_arn,
