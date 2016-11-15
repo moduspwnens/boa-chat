@@ -30,8 +30,6 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    raise Exception("Test message")
-    
     login_token = event["request-params"]["querystring"].get("token", "")
     
     if login_token == "":
