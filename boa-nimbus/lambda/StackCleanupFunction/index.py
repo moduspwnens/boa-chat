@@ -23,6 +23,7 @@ s3_client = boto3.client("s3")
 sns_client = boto3.client("sns")
 sqs_client = boto3.client("sqs")
 logs_client = boto3.client("logs")
+apig_client = boto3.client("apigateway")
 
 class LambdaHandler(object):
     
@@ -92,6 +93,19 @@ class LambdaHandler(object):
                               pass
                           else:
                               raise
+                  
+                  elif each_key.startswith("user-api-keys/"):
+                      
+                      api_key_config = json.loads(s3_client.get_object(Bucket = s3_bucket_name, Key = each_key)["Body"].read())
+                      
+                      try:
+                          apig_client.delete_api_key(
+                              apiKey = api_key_config["api-key-id"]
+                          )
+                      except botocore.exceptions.ClientError as e:
+                          if e.response["Error"]["Code"] != "NotFoundException":
+                              raise
+                      
           
           print("Deleting {} object(s) from {}.".format(
               len(keys_to_delete),

@@ -46,6 +46,11 @@ var app = undefined;
 				templateUrl: viewsPrefix + "home.html",
         controller: 'homeController'
 			})
+			.state('login', {
+				url: "/login",
+				templateUrl: viewsPrefix + "login.html",
+        controller: 'loginController'
+			})
 			.state('room', {
 				url: "/room/:roomId",
 				templateUrl: viewsPrefix + "room.html",

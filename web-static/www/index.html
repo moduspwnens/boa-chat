@@ -51,6 +51,7 @@
     <script src="js/webchat-service.js"></script>
     <script src="js/nav-controller.js"></script>
     <script src="js/home.js"></script>
+    <script src="js/login.js"></script>
     <script src="js/room.js"></script>
   </head>
 
@@ -82,6 +83,9 @@
             <li ng-repeat="page in pages" ng-class="{active: isUrl(page.url)}" ng-include="'nav-item.html'">
             </li>
           </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="#/login">Log in</a></li>
+          </ul>
         </div><!--/.nav-collapse -->
       </div>
     </nav>
@@ -93,7 +97,6 @@
     </div>
     
     <div class="container">
-
       <footer>
         <p>&copy; 2016 Benn Linger. <a href="https://github.com/moduspwnens/aws-serverless-web-chat">View source on GitHub</a>.</p>
       </footer>
