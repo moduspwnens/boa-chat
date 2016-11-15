@@ -3175,6 +3175,11 @@ Resources:
               - logs:PutLogEvents
             Resource:
               Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiUsagePlanLinkerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - apigateway:PATCH
+            Resource:
+              Fn::Sub: arn:aws:apigateway:us-east-1::/usageplans/${WebChatApiBasicUsagePlan}
       Roles:
         - Ref: ApiUsagePlanLinkerFunctionRole
   
