@@ -105,6 +105,7 @@ Mappings:
       WebChatApiSingleRoomMessageResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSessionResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSingleSessionMessageResourceMethods: "'GET,PUT,OPTIONS'"
+      WebChatApiUserCredentialsResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserLoginRequestResourceMethods: "'GET,POST,OPTIONS'"
       WebChatApiUserResourceMethods: "'POST,OPTIONS'"
       
@@ -204,6 +205,7 @@ Resources:
       - WebChatApiUserIdCreateMethod
       - WebChatApiUserLoginRequestCreateMethod
       - WebChatApiUserLoginRequestGetMethod
+      - WebChatApiUserCredentialsCreateMethod
       - WebChatApiRoomMessageGetMethod
       - WebChatApiRoomMessagePostMethod
       - WebChatApiRoomResourceOptions
@@ -574,6 +576,55 @@ Resources:
                   - StaticVariables
                   - Main
                   - WebChatApiUserLoginRequestResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
+  WebChatApiUserCredentialsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiUserResource
+      PathPart: credentials
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiUserLoginRequestResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserCredentialsResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
               method.response.header.Access-Control-Allow-Headers:
                 Fn::FindInMap:
                   - StaticVariables
@@ -1454,7 +1505,7 @@ Resources:
   
   
   #  
-  #   User Login Request Handler Function
+  #   User Login Response Handler Function
   #  
     
   UserLoginResponseHandlerFunction:
@@ -1763,6 +1814,295 @@ Resources:
     DependsOn:
       - UserLoginResponseHandlerFunctionRoleActions
       - UserLoginResponseHandlerFunctionLogGroup
+  
+  
+  
+  #  
+  #   User Credentials Generator Function
+  #  
+    
+  UserCredentialsGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a unique identifier for a user.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - UserCredentialsGeneratorFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/UserCredentialsGeneratorFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  UserCredentialsGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  UserCredentialsGeneratorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserCredentialsGeneratorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserCredentialsGeneratorFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/api-key-user/*
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}
+      Roles:
+        - Ref: UserCredentialsGeneratorFunctionRole
+  
+  UserCredentialsGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${UserCredentialsGeneratorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiUserCredentialsCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: true
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserCredentialsResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '403'
+            SelectionPattern: '.*http-status\":\s*403.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::Sub: |-
+              #set($allParams = $input.params())
+              {
+                  "request-body": $input.json("$"),
+                  "request-params" : {
+                      #foreach($type in $allParams.keySet())
+                      #set($params = $allParams.get($type))
+                      "$type" : {
+                          #foreach($paramName in $params.keySet())
+                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                          #if($foreach.hasNext),#end
+                          #end
+                      }
+                      #if($foreach.hasNext),#end
+                      #end
+                  },
+                  "api-id": "$context.apiId",
+                  "resource-path": "$context.resourcePath",
+                  "stage": "$context.stage",
+                  
+                  "api-key": "$context.identity.apiKey",
+                  "shared-bucket": "${SharedBucket}"
+              }
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserCredentialsGeneratorFunctionArn}/invocations
+            - UserCredentialsGeneratorFunctionArn:
+                Fn::GetAtt:
+                  - UserCredentialsGeneratorFunction
+                  - Arn
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '403'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+    DependsOn:
+      - WebChatApiUserCredentialsCreateMethodUserCredentialsGeneratorLambdaPermission
+  
+  WebChatApiUserCredentialsCreateMethodUserCredentialsGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserCredentialsGeneratorFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/credentials
+    DependsOn:
+      - UserCredentialsGeneratorFunctionRoleActions
+      - UserCredentialsGeneratorFunctionLogGroup
+  
+  PreWarmApiCloudWatchUserCredentialsGeneratorFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserCredentialsGeneratorFunction
+      Principal: 
+        Fn::GetAtt:
+          - PreWarmerFunctionRole
+          - Arn
+    DependsOn:
+      - UserCredentialsGeneratorFunctionRoleActions
+      - UserCredentialsGeneratorFunctionLogGroup
   
   
   
@@ -3079,6 +3419,7 @@ Resources:
                         "${UserIdGeneratorFunctionArn}",
                         "${UserLoginRequestHandlerFunctionArn}",
                         "${UserLoginResponseHandlerFunctionArn}",
+                        "${UserCredentialsGeneratorFunctionArn}",
                         "${RoomSessionGeneratorFunctionArn}",
                         "${RoomMessagePollerFunctionArn}",
                         "${RoomMessageAcknowledgerFunctionArn}",
@@ -3103,6 +3444,10 @@ Resources:
                 UserLoginResponseHandlerFunctionArn:
                   Fn::GetAtt:
                     - UserLoginResponseHandlerFunction
+                    - Arn
+                UserCredentialsGeneratorFunctionArn:
+                  Fn::GetAtt:
+                    - UserCredentialsGeneratorFunction
                     - Arn
                 RoomSessionGeneratorFunctionArn:
                   Fn::GetAtt:

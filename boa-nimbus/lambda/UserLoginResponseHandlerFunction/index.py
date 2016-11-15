@@ -118,6 +118,7 @@ def lambda_handler(event, context):
         )
         
         user_api_key_id = response["id"]
+        user_api_key_value = response["value"]
         
         response = apig_client.create_usage_plan_key(
             usagePlanId = event["usage-plan-id"],
@@ -127,7 +128,7 @@ def lambda_handler(event, context):
         
         s3_client.put_object(
             Bucket = s3_bucket_name,
-            Key = "api-key-user/{}.json".format(user_api_key_id),
+            Key = "api-key-user/{}.json".format(user_api_key_value),
             Body = json.dumps({
                 "user-id": user_id
             }),
