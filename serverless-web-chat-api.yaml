@@ -165,6 +165,21 @@ Resources:
       Path: "/"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+      Policies:
+        - PolicyName: DenyCreatingOwnLogGroups
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Deny
+                Action:
+                  - logs:CreateLogGroup
+                Resource:
+                  - Fn::GetAtt:
+                     - WebChatApiMainStageLogGroup
+                     - Arn
+                  - Fn::GetAtt:
+                     - WebChatApiDummyStageLogGroup
+                     - Arn
     DependsOn:
       - WebChatApiDummyStageLogGroup
       - WebChatApiMainStageLogGroup
