@@ -27,6 +27,7 @@ import json
 import uuid
 import time
 import hashlib
+import base64
 import boto3
 from apigateway_helpers import get_public_api_base
 from apigateway_helpers.exception import APIGatewayException

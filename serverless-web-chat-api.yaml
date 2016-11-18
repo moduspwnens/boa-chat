@@ -77,10 +77,9 @@ Mappings:
     Main:
       ApiGatewayCatchAllErrorSelectionPattern: '((.*http-status\":\s*500.*)|^(?!.*http-status)(\n|.)+)'
       ApiGatewayErrorMappingTemplate: |-
-        #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
-        #set ($bodyObj = $util.parseJson($input.body))
+        #set ($errorMessageObj = $util.parseJson($util.base64Decode($input.body)))
         {
-            "message": "$util.escapeJavaScript($errorMessageObj.message).replaceAll("\\'","'")"
+            "message": "$util.escapeJavaScript($util.parseJson($errorMessageObj.errorMessage).message).replaceAll("\\'","'")"
         }
       ApiGatewayServerErrorCatchAllTemplate: |-
         {
@@ -92,6 +91,8 @@ Mappings:
             "type": "InternalServerTimeout",
             "message": "The backend server did not respond quickly enough."
         }
+      ApiGatewaySuccessMappingTemplate: |-
+        $util.base64Decode($input.body)
       CorsAllowedHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       DummyStageName: DummyStage
       PreWarmScheduleExpression: rate(1 minute)
@@ -174,9 +175,13 @@ Resources:
                 Action:
                   - logs:CreateLogGroup
                 Resource:
-                  - Fn::GetAtt:
-                     - WebChatApiDummyStageLogGroup
-                     - Arn
+                  Fn::Sub:
+                    - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:API-Gateway-Execution-Logs_${WebChatApi}/${DummyStageName}
+                    - DummyStageName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - DummyStageName
     DependsOn:
       - WebChatApiDummyStageLogGroup
       - WebChatApiMainStageLogGroup
@@ -213,17 +218,7 @@ Resources:
     DependsOn:
       - WebChatApiDummyStageLogGroup
       - WebChatApiRoomCreateMethod
-      - WebChatApiUserRegistrationCreateMethod
-      - WebChatApiUserRegistrationAliasVerificationCreateMethod
-      - WebChatApiUserLoginCreateMethod
-      - WebChatApiRoomMessageGetMethod
-      - WebChatApiRoomMessagePostMethod
-      - WebChatApiRoomResourceOptions
-      - WebChatApiUserLoginResourceOptions
-      - WebChatApiUserRegistrationResourceOptions
-      - WebChatApiSingleRoomMessageResourceOptions
-      - WebChatApiSingleRoomSessionResourceOptions
-      - WebChatApiSingleRoomSingleSessionMessageResourceOptions
+      - ApiGatewayBinaryContentEnablerInvocation
   
   WebChatApiDummyStageLogGroup:
     Type: AWS::Logs::LogGroup
@@ -845,6 +840,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '500'
             SelectionPattern:
               Fn::FindInMap:
@@ -902,7 +903,7 @@ Resources:
               - |-
                 #set($allParams = $input.params())
                 {
-                    "request-body": $input.json("$"),
+                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                     "request-params" : {
                         #foreach($type in $allParams.keySet())
                         #set($params = $allParams.get($type))
@@ -1091,6 +1092,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -1194,7 +1201,7 @@ Resources:
               - |-
                 #set($allParams = $input.params())
                 {
-                    "request-body": $input.json("$"),
+                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                     "request-params" : {
                         #foreach($type in $allParams.keySet())
                         #set($params = $allParams.get($type))
@@ -1383,6 +1390,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -1486,7 +1499,7 @@ Resources:
               - |-
                 #set($allParams = $input.params())
                 {
-                    "request-body": $input.json("$"),
+                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                     "request-params" : {
                         #foreach($type in $allParams.keySet())
                         #set($params = $allParams.get($type))
@@ -1685,6 +1698,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -1811,7 +1830,7 @@ Resources:
               - |-
                 #set($allParams = $input.params())
                 {
-                    "request-body": $input.json("$"),
+                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                     "request-params" : {
                         #foreach($type in $allParams.keySet())
                         #set($params = $allParams.get($type))
@@ -2030,6 +2049,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -2110,7 +2135,7 @@ Resources:
               - |-
                 #set($allParams = $input.params())
                 {
-                    "request-body": $input.json("$"),
+                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                     "request-params" : {
                         #foreach($type in $allParams.keySet())
                         #set($params = $allParams.get($type))
@@ -2293,6 +2318,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -2372,7 +2403,7 @@ Resources:
             Fn::Sub: |-
               #set($allParams = $input.params())
               {
-                  "request-body": $input.json("$"),
+                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                   "request-params" : {
                       #foreach($type in $allParams.keySet())
                       #set($params = $allParams.get($type))
@@ -2540,6 +2571,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -2619,7 +2656,7 @@ Resources:
             Fn::Sub: |-
               #set($allParams = $input.params())
               {
-                  "request-body": $input.json("$"),
+                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                   "request-params" : {
                       #foreach($type in $allParams.keySet())
                       #set($params = $allParams.get($type))
@@ -2791,6 +2828,12 @@ Resources:
                   - StaticVariables
                   - Main
                   - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
           - StatusCode: '400'
             SelectionPattern: '.*http-status\":\s*400.*'
             ResponseParameters:
@@ -2893,7 +2936,7 @@ Resources:
             Fn::Sub: |-
               #set($allParams = $input.params())
               {
-                  "request-body": $input.json("$"),
+                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
                   "request-params" : {
                       #foreach($type in $allParams.keySet())
                       #set($params = $allParams.get($type))
@@ -3367,6 +3410,126 @@ Resources:
     DependsOn:
       - ApiUsagePlanLinkerFunctionLogGroup
       - ApiUsagePlanLinkerFunctionRoleActions
+  
+  
+  
+  #
+  #   API Gateway Binary Content Enabler
+  #   
+  #   Adds:
+  #     * Content types to REST API's binary content types
+  #     * Sets CONVERT_TO_TEXT on the contentHandling property of integration(s)
+  #   
+  #   Necessary until CloudFormation supports these natively.
+  #
+  
+  ApiGatewayBinaryContentEnablerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Links an API Gateway usage plan to a REST API / stage.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+          - ApiGatewayBinaryContentEnablerFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/ApiGatewayBinaryContentEnablerFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  ApiGatewayBinaryContentEnablerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ApiGatewayBinaryContentEnablerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ApiGatewayBinaryContentEnablerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiGatewayBinaryContentEnablerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              - Fn::Sub:
+                  - arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/resources
+                  - RestApiId:
+                      Ref: WebChatApi
+              - Fn::Sub:
+                  - arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/resources/*
+                  - RestApiId:
+                      Ref: WebChatApi
+          - Effect: Allow
+            Action:
+              - apigateway:PATCH
+            Resource:
+              - Fn::Sub:
+                  - arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}
+                  - RestApiId:
+                      Ref: WebChatApi
+              - Fn::Sub:
+                  - arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/resources/*
+                  - RestApiId:
+                      Ref: WebChatApi
+      Roles:
+        - Ref: ApiGatewayBinaryContentEnablerFunctionRole
+  
+  ApiGatewayBinaryContentEnablerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ApiGatewayBinaryContentEnablerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  ApiGatewayBinaryContentEnablerInvocation:
+    Type: Custom::ApiGatewayBinaryContentEnablerInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - ApiGatewayBinaryContentEnablerFunction
+          - Arn
+      RestApi:
+        Ref: WebChatApi
+    DependsOn:
+      - ApiGatewayBinaryContentEnablerFunctionLogGroup
+      - ApiGatewayBinaryContentEnablerFunctionRoleActions
+      - WebChatApiUserRegistrationCreateMethod
+      - WebChatApiUserRegistrationAliasVerificationCreateMethod
+      - WebChatApiUserLoginCreateMethod
+      - WebChatApiRoomMessageGetMethod
+      - WebChatApiRoomMessagePostMethod
+      - WebChatApiRoomResourceOptions
+      - WebChatApiUserLoginResourceOptions
+      - WebChatApiUserRegistrationResourceOptions
+      - WebChatApiSingleRoomMessageResourceOptions
+      - WebChatApiSingleRoomSessionResourceOptions
+      - WebChatApiSingleRoomSingleSessionMessageResourceOptions
+      - WebChatApiHomeGetMethod
+      - WebChatApiStaticProxyResourceMethod
+      - WebChatApiRobotsTxtGetMethod
+  
   
   
   #
@@ -4021,55 +4184,125 @@ Resources:
         Ref: LogRetentionDays
   
   #
-  #   WebChatApiPointerJsFile
-  #
-  #   Because our web interface is hosted in its own S3 bucket, it will need 
-  #   some way of finding the URL of where the API lives.
-  #   
-  #   This creates a JavaScript file that simply defines a variable that 
-  #   points to the endpoint. Now the web interface can simply include that 
-  #   JavaScript file and reference the variable to know where to make 
-  #   requests.
-  #   
-  #   It also deletes that file on deletion of itself.
+  #   Static Web Content
   #
   
-  
-  WebChatApiPointerJsFileForStaticWebsiteBucket:
-    Type: Custom::WebChatApiPointerJsFile
+  WebChatApiStaticProxyResource:
+    Type: AWS::ApiGateway::Resource
     Properties:
-      ServiceToken:
+      ParentId:
         Fn::GetAtt:
-          - S3ObjectWriterFunction
-          - Arn
-      Bucket:
-        Ref: StaticContentBucket
-      Key: api/endpoint.js
-      Content:
-        Fn::Sub:
-          - |-
-            /*
-                This represents the only pointer the web interface has to the 
-                REST API's endpoint.
-            */
-            var WebChatApiEndpoint = "${RestApiEndpoint}";
-            var CorsOriginList = "${CorsOriginList}";
-          - RestApiEndpoint:
-              Fn::Sub:
-                - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
-                - MainStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
-            CorsOriginList:
-              Fn::GetAtt:
-                - CorsOriginCombinerInvocation
-                - CorsOriginList
-      Content-Type: text/javascript
-    DependsOn:
-      - S3ObjectWriterFunctionLogGroup
-      - S3ObjectWriterFunctionRoleActions
+        - WebChatApi
+        - RootResourceId
+      PathPart: '{proxy+}'
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiHomeGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: HTTP_PROXY
+        Uri:
+          Fn::Sub:
+            - '${StaticHtmlWebsiteUrl}/'
+            - StaticHtmlWebsiteUrl:
+                Fn::GetAtt:
+                  - StaticContentBucket
+                  - WebsiteURL
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        IntegrationResponses:
+          - StatusCode: 200
+  
+  WebChatApiStaticProxyResourceMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiStaticProxyResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: HTTP_PROXY
+        Uri:
+          Fn::Sub:
+            - '${StaticHtmlWebsiteUrl}/{proxy}'
+            - StaticHtmlWebsiteUrl:
+                Fn::GetAtt:
+                  - StaticContentBucket
+                  - WebsiteURL
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Ref: WebChatApiStaticProxyResource
+        CacheKeyParameters:
+          - method.request.path.proxy
+        IntegrationResponses:
+          - StatusCode: 200
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+      RequestParameters:
+        method.request.path.proxy: true
+  
+  WebChatApiRobotsTxtResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: robots.txt
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiRobotsTxtGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiRobotsTxtResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Content-Type: "'text/plain'"
+            ResponseTemplates:
+              application/json: 
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - RobotsTxtContent
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Content-Type: true
         
           
 Outputs:
@@ -4085,8 +4318,3 @@ Outputs:
   StaticContentBucket:
     Value:
       Ref: StaticContentBucket
-  WebInterfaceHome:
-    Value:
-      Fn::GetAtt:
-        - StaticContentBucket
-        - WebsiteURL

@@ -5,36 +5,12 @@ angular.module('webchatService', [])
   
   var webchatService = {};
   
-  /*
-    isCorsConfigured
+  var WebChatApiEndpoint = "";
   
-    Used to verify that the CORS-allowed Origin allows the web site from 
-    which the browser is currently accessing it.
-  */
-  var isCorsConfigured = function() {
-    var corsOriginsArray = CorsOriginList.split(",");
-    
-    var actualOrigin = location.protocol + "//" + location.hostname;
-    
-    for (var i = 0; i < corsOriginsArray.length; i++) {
-      var eachOrigin = corsOriginsArray[i];
-      if (eachOrigin == "*") {
-        return true;
-      }
-      else if (eachOrigin == actualOrigin) {
-        return true;
-      }
-    }
-    return false;
-  }
-  
-  var createRoomEndpoint = WebChatApiEndpoint + "room"
+  var createRoomEndpoint = WebChatApiEndpoint + "room";
   
   webchatService.createNewRoom = function() {
     return $q(function(resolve, reject) {
-      if (!isCorsConfigured()) {
-        reject('cors');
-      }
       
       $http({
         method: 'POST',
@@ -53,9 +29,6 @@ angular.module('webchatService', [])
     var createRoomSessionEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/session';
     
     return $q(function(resolve, reject) {
-      if (!isCorsConfigured()) {
-        reject('cors');
-      }
       
       $http({
         method: 'POST',
