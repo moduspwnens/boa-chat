@@ -55,6 +55,8 @@ def lambda_handler(event, context):
             raise APIGatewayException("Token provided is expired, invalid, or already used.", 400)
         elif e.response['Error']['Code'] == 'CodeMismatchException':
             raise APIGatewayException("Token provided is incorrect.", 400)
+        elif e.response['Error']['Code'] == 'ExpiredCodeException':
+            raise APIGatewayException("Invalid token provided. Please request another.", 400)
         raise
     
     return {

@@ -92,7 +92,10 @@ def lambda_handler(event, context):
         response = cognito_idp_client.create_user_pool_client(
             UserPoolId = user_pool_id,
             ClientName = "default-web",
-            GenerateSecret = True
+            GenerateSecret = True,
+            ExplicitAuthFlows = [
+                "ADMIN_NO_SRP_AUTH"
+            ]
         )
         
         user_pool_client_id = response["UserPoolClient"]["ClientId"]

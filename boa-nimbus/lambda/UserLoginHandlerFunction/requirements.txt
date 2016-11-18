@@ -1,2 +1,3 @@
 zbase32==1.1.5
 boa-nimbus/lambda-pip-modules/apigateway-helpers
+boa-nimbus/lambda-pip-modules/cognito-helpers
