@@ -4111,31 +4111,30 @@ Resources:
   
   
   #
-  #   S3 Object Writer
+  #   S3 Static Web Content Deployer
   #   
-  #   Generic Lambda function for easily creating / deleting arbitrary text 
-  #   content as an S3 object.
+  #   Used to deploy the static web content at stack creation.
   #
   
-  S3ObjectWriterFunction:
+  S3StaticWebContentDeployerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
       MemorySize: 1024
       Role:
         Fn::GetAtt:
-          - S3ObjectWriterFunctionRole
+          - S3StaticWebContentDeployerFunctionRole
           - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
-        S3Key: lambda/S3ObjectWriterFunction.zip
+        S3Key: lambda/S3StaticWebContentDeployerFunction.zip
       Runtime: python2.7
       Timeout: '300'
   
-  S3ObjectWriterFunctionRole:
+  S3StaticWebContentDeployerFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -4149,10 +4148,10 @@ Resources:
               - sts:AssumeRole
       Path: "/"
   
-  S3ObjectWriterFunctionRoleActions:
+  S3StaticWebContentDeployerFunctionRoleActions:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: S3ObjectWriterFunctionRoleActions
+      PolicyName: S3StaticWebContentDeployerFunctionRoleActions
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -4161,27 +4160,51 @@ Resources:
               - logs:CreateLogStream
               - logs:PutLogEvents
             Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3ObjectWriterFunction}:log-stream:*
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3StaticWebContentDeployerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              Fn::Sub: 
+                - arn:aws:s3:::${S3Bucket}/web-static.zip
+                - S3Bucket:
+                    Fn::ImportValue:
+                      Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
           - Effect: Allow
             Action:
               - s3:PutObject
             Resource:
               Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
-          - Effect: Allow
-            Action:
-              - s3:DeleteObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
       Roles:
-        - Ref: S3ObjectWriterFunctionRole
+        - Ref: S3StaticWebContentDeployerFunctionRole
   
-  S3ObjectWriterFunctionLogGroup:
+  S3StaticWebContentDeployerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${S3ObjectWriterFunction}
+        Fn::Sub: /aws/lambda/${S3StaticWebContentDeployerFunction}
       RetentionInDays:
         Ref: LogRetentionDays
+  
+  S3StaticWebContentDeployerInvocation:
+    Type: Custom::S3StaticWebContentDeployerInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - S3StaticWebContentDeployerFunction
+          - Arn
+      Source:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: web-static.zip
+      Target:
+        S3Bucket:
+          Ref: StaticContentBucket
+        S3KeyPrefix: ""
+    DependsOn:
+      - S3StaticWebContentDeployerFunctionLogGroup
+      - S3StaticWebContentDeployerFunctionRoleActions
   
   #
   #   Static Web Content
@@ -4306,7 +4329,7 @@ Resources:
         
           
 Outputs:
-  RestApiEndpoint:
+  WebChatHome:
     Value:
       Fn::Sub:
         - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
@@ -4315,6 +4338,3 @@ Outputs:
             - StaticVariables
             - Main
             - StageName
-  StaticContentBucket:
-    Value:
-      Ref: StaticContentBucket
