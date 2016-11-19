@@ -1025,11 +1025,11 @@ Resources:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientId
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientSecret
       Runtime: python2.7
       Timeout: '300'
@@ -1300,11 +1300,11 @@ Resources:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientId
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientSecret
       Runtime: python2.7
       Timeout: '300'
@@ -1575,19 +1575,19 @@ Resources:
         Variables:
           COGNITO_USER_POOL_ID:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolId
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientId
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoUserPoolClientSecret
           COGNITO_IDENTITY_POOL_ID:
             Fn::GetAtt:
-              - CognitoUserPoolResourceInvocation
+              - CognitoSharedResourceInvocation
               - CognitoIdentityPoolId
       Runtime: python2.7
       Timeout: '300'
@@ -1627,7 +1627,7 @@ Resources:
                 - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
                 - CognitoUserPoolId:
                     Fn::GetAtt:
-                      - CognitoUserPoolResourceInvocation
+                      - CognitoSharedResourceInvocation
                       - CognitoUserPoolId
       Roles:
         - Ref: UserLoginHandlerFunctionRole
@@ -3418,7 +3418,7 @@ Resources:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
                   Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
+                    - CognitoSharedResourceInvocation
                     - CognitoIdentityPoolId
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': authenticated
@@ -3440,7 +3440,7 @@ Resources:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
                   Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
+                    - CognitoSharedResourceInvocation
                     - CognitoIdentityPoolId
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': unauthenticated
@@ -3448,13 +3448,13 @@ Resources:
   
   
   #
-  #   Cognito User Pool Resource Function
+  #   Cognito Shared Resource Function
   #   
   #   Used as a CloudFormation custom resource to create / update / delete 
-  #   the Cognito User Pool.
+  #   the Cognito User Pool, Pool Client, and Identity Pool.
   #
   
-  CognitoUserPoolResourceFunction:
+  CognitoSharedResourceFunction:
     Type: AWS::Lambda::Function
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
@@ -3462,17 +3462,17 @@ Resources:
       MemorySize: 1024
       Role:
         Fn::GetAtt:
-          - CognitoUserPoolResourceFunctionRole
+          - CognitoSharedResourceFunctionRole
           - Arn
       Code:
         S3Bucket:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
-        S3Key: lambda/CognitoUserPoolResourceFunction.zip
+        S3Key: lambda/CognitoSharedResourceFunction.zip
       Runtime: python2.7
       Timeout: '300'
   
-  CognitoUserPoolResourceFunctionRole:
+  CognitoSharedResourceFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -3486,10 +3486,10 @@ Resources:
               - sts:AssumeRole
       Path: "/"
   
-  CognitoUserPoolResourceFunctionRoleActions:
+  CognitoSharedResourceFunctionRoleActions:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: CognitoUserPoolResourceFunctionRoleActions
+      PolicyName: CognitoSharedResourceFunctionRoleActions
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -3498,7 +3498,7 @@ Resources:
               - logs:CreateLogStream
               - logs:PutLogEvents
             Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CognitoUserPoolResourceFunction}:log-stream:*
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CognitoSharedResourceFunction}:log-stream:*
           - Effect: Allow
             Action:
               - cognito-idp:CreateUserPool
@@ -3533,22 +3533,22 @@ Resources:
             Resource:
               Fn::Sub: arn:aws:s3:::${SharedBucket}
       Roles:
-        - Ref: CognitoUserPoolResourceFunctionRole
+        - Ref: CognitoSharedResourceFunctionRole
   
-  CognitoUserPoolResourceFunctionLogGroup:
+  CognitoSharedResourceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${CognitoUserPoolResourceFunction}
+        Fn::Sub: /aws/lambda/${CognitoSharedResourceFunction}
       RetentionInDays:
         Ref: LogRetentionDays
   
-  CognitoUserPoolResourceInvocation:
-    Type: Custom::CognitoUserPoolResourceInvocation
+  CognitoSharedResourceInvocation:
+    Type: Custom::CognitoSharedResourceInvocation
     Properties:
       ServiceToken:
         Fn::GetAtt:
-          - CognitoUserPoolResourceFunction
+          - CognitoSharedResourceFunction
           - Arn
       PostConfirmationTriggerFunctionArn:
         Fn::GetAtt:
@@ -3557,8 +3557,8 @@ Resources:
       SharedBucket:
         Ref: SharedBucket
     DependsOn:
-      - CognitoUserPoolResourceFunctionLogGroup
-      - CognitoUserPoolResourceFunctionRoleActions
+      - CognitoSharedResourceFunctionLogGroup
+      - CognitoSharedResourceFunctionRoleActions
       - StackCleanupInvocation
   
   
@@ -3675,7 +3675,7 @@ Resources:
           - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
           - CognitoUserPoolId:
               Fn::GetAtt:
-                - CognitoUserPoolResourceInvocation
+                - CognitoSharedResourceInvocation
                 - CognitoUserPoolId
     DependsOn:
       - RoomMessagePosterFunctionRoleActions
@@ -3772,7 +3772,7 @@ Resources:
                 - arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}
                 - CognitoIdentityPoolId:
                     Fn::GetAtt:
-                      - CognitoUserPoolResourceInvocation
+                      - CognitoSharedResourceInvocation
                       - CognitoIdentityPoolId
       Roles:
         - Ref: CognitoIdentityPoolRoleLinkerFunctionRole
@@ -3794,7 +3794,7 @@ Resources:
           - Arn
       IdentityPoolId:
         Fn::GetAtt:
-          - CognitoUserPoolResourceInvocation
+          - CognitoSharedResourceInvocation
           - CognitoIdentityPoolId
       UserRoles:
         AuthenticatedUserRole:

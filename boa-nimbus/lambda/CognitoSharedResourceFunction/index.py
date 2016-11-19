@@ -1,4 +1,4 @@
-"""CognitoUserPoolResourceFunction
+"""CognitoSharedResourceFunction
 
 Used as a CloudFormation custom resource to create / update / delete:
  * Cognito User Pool
