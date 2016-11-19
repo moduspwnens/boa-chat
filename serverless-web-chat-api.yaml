@@ -81,6 +81,26 @@ Mappings:
         {
             "message": "$util.escapeJavaScript($util.parseJson($errorMessageObj.errorMessage).message).replaceAll("\\'","'")"
         }
+      ApiGatewayDefaultLambdaIntegrationBodyMapping: |-
+        #set($allParams = $input.params())
+        {
+            "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
+            "request-params" : {
+                #foreach($type in $allParams.keySet())
+                #set($params = $allParams.get($type))
+                "$type" : {
+                    #foreach($paramName in $params.keySet())
+                    "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
+                    #if($foreach.hasNext),#end
+                    #end
+                }
+                #if($foreach.hasNext),#end
+                #end
+            },
+            "api-id": "$context.apiId",
+            "resource-path": "$context.resourcePath",
+            "stage": "$context.stage"
+        }
       ApiGatewayServerErrorCatchAllTemplate: |-
         {
             "type": "InternalServerError",
@@ -733,6 +753,28 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/RoomGeneratorFunction.zip
+      Environment:
+        Variables:
+          DELETE_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - StackCleanupFunctionRole
+              - Arn
+          PUBLISH_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - RoomMessagePosterFunctionRole
+              - Arn
+          SUBSCRIBE_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - RoomSessionGeneratorFunctionRole
+              - Arn
+          SNS_FAILURE_FEEDBACK_ROLE:
+            Fn::GetAtt:
+              - SNSFailureFeedbackRole
+              - Arn
+          SNS_SUCCESS_FEEDBACK_ROLE:
+            Fn::GetAtt:
+              - SNSSuccessFeedbackRole
+              - Arn
       Runtime: python2.7
       Timeout: '300'
   
@@ -899,53 +941,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub:
-              - |-
-                #set($allParams = $input.params())
-                {
-                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                    "request-params" : {
-                        #foreach($type in $allParams.keySet())
-                        #set($params = $allParams.get($type))
-                        "$type" : {
-                            #foreach($paramName in $params.keySet())
-                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                            #if($foreach.hasNext),#end
-                            #end
-                        }
-                        #if($foreach.hasNext),#end
-                        #end
-                    },
-                    "api-id": "$context.apiId",
-                    "resource-path": "$context.resourcePath",
-                    "stage": "$context.stage",
-                    
-                    "delete-function-role": "${CleanupFunctionRoleArn}",
-                    "publish-function-role": "${PosterFunctionRoleArn}",
-                    "subscribe-function-role": "${RoomSessionGeneratorFunctionRoleArn}",
-                    "sns-failure-feedback-role": "${SNSFailureFeedbackRoleArn}",
-                    "sns-success-feedback-role": "${SNSSuccessFeedbackRoleArn}"
-                }
-              - CleanupFunctionRoleArn:
-                  Fn::GetAtt:
-                    - StackCleanupFunctionRole
-                    - Arn
-                PosterFunctionRoleArn:
-                  Fn::GetAtt:
-                    - RoomMessagePosterFunctionRole
-                    - Arn
-                RoomSessionGeneratorFunctionRoleArn:
-                  Fn::GetAtt:
-                    - RoomSessionGeneratorFunctionRole
-                    - Arn
-                SNSFailureFeedbackRoleArn:
-                  Fn::GetAtt:
-                    - SNSFailureFeedbackRole
-                    - Arn
-                SNSSuccessFeedbackRoleArn:
-                  Fn::GetAtt:
-                    - SNSSuccessFeedbackRole
-                    - Arn
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -1022,6 +1021,16 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/UserRegistrationRequestHandlerFunction.zip
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_CLIENT_ID:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientId
+          COGNITO_USER_POOL_CLIENT_SECRET:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientSecret
       Runtime: python2.7
       Timeout: '300'
   
@@ -1197,43 +1206,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub:
-              - |-
-                #set($allParams = $input.params())
-                {
-                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                    "request-params" : {
-                        #foreach($type in $allParams.keySet())
-                        #set($params = $allParams.get($type))
-                        "$type" : {
-                            #foreach($paramName in $params.keySet())
-                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                            #if($foreach.hasNext),#end
-                            #end
-                        }
-                        #if($foreach.hasNext),#end
-                        #end
-                    },
-                    "api-id": "$context.apiId",
-                    "resource-path": "$context.resourcePath",
-                    "stage": "$context.stage",
-                    
-                    "cognito-user-pool-id": "${CognitoUserPoolId}",
-                    "cognito-user-pool-client-id": "${CognitoUserPoolClientId}",
-                    "cognito-user-pool-client-secret": "${CognitoUserPoolClientSecret}"
-                }
-              - CognitoUserPoolId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolId
-                CognitoUserPoolClientId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientId
-                CognitoUserPoolClientSecret:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientSecret
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -1320,6 +1296,16 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/UserRegistrationAliasVerificationHandlerFunction.zip
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_CLIENT_ID:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientId
+          COGNITO_USER_POOL_CLIENT_SECRET:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientSecret
       Runtime: python2.7
       Timeout: '300'
   
@@ -1495,43 +1481,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub:
-              - |-
-                #set($allParams = $input.params())
-                {
-                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                    "request-params" : {
-                        #foreach($type in $allParams.keySet())
-                        #set($params = $allParams.get($type))
-                        "$type" : {
-                            #foreach($paramName in $params.keySet())
-                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                            #if($foreach.hasNext),#end
-                            #end
-                        }
-                        #if($foreach.hasNext),#end
-                        #end
-                    },
-                    "api-id": "$context.apiId",
-                    "resource-path": "$context.resourcePath",
-                    "stage": "$context.stage",
-                  
-                    "cognito-user-pool-id": "${CognitoUserPoolId}",
-                    "cognito-user-pool-client-id": "${CognitoUserPoolClientId}",
-                    "cognito-user-pool-client-secret": "${CognitoUserPoolClientSecret}"
-                }
-              - CognitoUserPoolId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolId
-                CognitoUserPoolClientId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientId
-                CognitoUserPoolClientSecret:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientSecret
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -1618,6 +1571,24 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/UserLoginHandlerFunction.zip
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_ID:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolId
+          COGNITO_USER_POOL_CLIENT_ID:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientId
+          COGNITO_USER_POOL_CLIENT_SECRET:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoUserPoolClientSecret
+          COGNITO_IDENTITY_POOL_ID:
+            Fn::GetAtt:
+              - CognitoUserPoolResourceInvocation
+              - CognitoIdentityPoolId
       Runtime: python2.7
       Timeout: '300'
   
@@ -1826,48 +1797,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: 
-              - |-
-                #set($allParams = $input.params())
-                {
-                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                    "request-params" : {
-                        #foreach($type in $allParams.keySet())
-                        #set($params = $allParams.get($type))
-                        "$type" : {
-                            #foreach($paramName in $params.keySet())
-                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                            #if($foreach.hasNext),#end
-                            #end
-                        }
-                        #if($foreach.hasNext),#end
-                        #end
-                    },
-                    "api-id": "$context.apiId",
-                    "resource-path": "$context.resourcePath",
-                    "stage": "$context.stage",
-                  
-                    "cognito-user-pool-id": "${CognitoUserPoolId}",
-                    "cognito-user-pool-client-id": "${CognitoUserPoolClientId}",
-                    "cognito-user-pool-client-secret": "${CognitoUserPoolClientSecret}",
-                    "cognito-identity-pool-id": "${CognitoIdentityPoolId}"
-                }
-              - CognitoUserPoolId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolId
-                CognitoUserPoolClientId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientId
-                CognitoUserPoolClientSecret:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoUserPoolClientSecret
-                CognitoIdentityPoolId:
-                  Fn::GetAtt:
-                    - CognitoUserPoolResourceInvocation
-                    - CognitoIdentityPoolId
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -1941,7 +1874,7 @@ Resources:
   
   
   #  
-  #   Room Session ID Generator Function
+  #   Room Session Generator Function
   #  
     
   RoomSessionGeneratorFunction:
@@ -1959,6 +1892,20 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/RoomSessionGeneratorFunction.zip
+      Environment:
+        Variables:
+          ACKNOWLEDGER_FUNCTION_ROLE:
+            Fn::GetAtt:
+              - RoomMessageAcknowledgerFunctionRole
+              - Arn
+          POLLER_FUNCTION_ROLE:
+            Fn::GetAtt:
+              - RoomMessagePollerFunctionRole
+              - Arn
+          QUEUE_DELETE_FUNCTION_ROLE:
+            Fn::GetAtt:
+              - StackCleanupFunctionRole
+              - Arn
       Runtime: python2.7
       Timeout: '300'
   
@@ -2131,43 +2078,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: 
-              - |-
-                #set($allParams = $input.params())
-                {
-                    "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                    "request-params" : {
-                        #foreach($type in $allParams.keySet())
-                        #set($params = $allParams.get($type))
-                        "$type" : {
-                            #foreach($paramName in $params.keySet())
-                            "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                            #if($foreach.hasNext),#end
-                            #end
-                        }
-                        #if($foreach.hasNext),#end
-                        #end
-                    },
-                    "api-id": "$context.apiId",
-                    "resource-path": "$context.resourcePath",
-                    "stage": "$context.stage",
-                  
-                    "acknowledger-function-role": "${AcknowledgerFunctionRoleArn}",
-                    "delete-function-role": "${StackCleanupFunctionRoleArn}",
-                    "poller-function-role": "${PollerFunctionRoleArn}"
-                }
-              - AcknowledgerFunctionRoleArn:
-                  Fn::GetAtt:
-                    - RoomMessageAcknowledgerFunctionRole
-                    - Arn
-                PollerFunctionRoleArn:
-                  Fn::GetAtt:
-                    - RoomMessagePollerFunctionRole
-                    - Arn
-                StackCleanupFunctionRoleArn:
-                  Fn::GetAtt:
-                    - StackCleanupFunctionRole
-                    - Arn
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -2400,26 +2314,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: |-
-              #set($allParams = $input.params())
-              {
-                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                  "request-params" : {
-                      #foreach($type in $allParams.keySet())
-                      #set($params = $allParams.get($type))
-                      "$type" : {
-                          #foreach($paramName in $params.keySet())
-                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                          #if($foreach.hasNext),#end
-                          #end
-                      }
-                      #if($foreach.hasNext),#end
-                      #end
-                  },
-                  "api-id": "$context.apiId",
-                  "resource-path": "$context.resourcePath",
-                  "stage": "$context.stage"
-              }
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -2653,26 +2551,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: |-
-              #set($allParams = $input.params())
-              {
-                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                  "request-params" : {
-                      #foreach($type in $allParams.keySet())
-                      #set($params = $allParams.get($type))
-                      "$type" : {
-                          #foreach($paramName in $params.keySet())
-                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                          #if($foreach.hasNext),#end
-                          #end
-                      }
-                      #if($foreach.hasNext),#end
-                      #end
-                  },
-                  "api-id": "$context.apiId",
-                  "resource-path": "$context.resourcePath",
-                  "stage": "$context.stage"
-              }
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:
@@ -2933,26 +2815,10 @@ Resources:
         PassthroughBehavior: NEVER
         RequestTemplates:
           application/json:
-            Fn::Sub: |-
-              #set($allParams = $input.params())
-              {
-                  "request-body": #if($input.body == "{}")$input.body#{else}$util.base64Decode($input.json("$"))#end,
-                  "request-params" : {
-                      #foreach($type in $allParams.keySet())
-                      #set($params = $allParams.get($type))
-                      "$type" : {
-                          #foreach($paramName in $params.keySet())
-                          "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                          #if($foreach.hasNext),#end
-                          #end
-                      }
-                      #if($foreach.hasNext),#end
-                      #end
-                  },
-                  "api-id": "$context.apiId",
-                  "resource-path": "$context.resourcePath",
-                  "stage": "$context.stage"
-              }
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
         Type: AWS
         Uri:
           Fn::Sub:

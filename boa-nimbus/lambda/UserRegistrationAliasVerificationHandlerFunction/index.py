@@ -7,6 +7,7 @@ logged-in user.
 
 from __future__ import print_function
 
+import os
 import json
 import uuid
 import time
@@ -38,8 +39,8 @@ def lambda_handler(event, context):
     if user_id == "":
         raise APIGatewayException("Value for \"user-id\" must be specified in URL.", 400)
     
-    client_id = event["cognito-user-pool-client-id"]
-    client_secret = event["cognito-user-pool-client-secret"]
+    client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
+    client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     
     try:
         cognito_client.confirm_sign_up(

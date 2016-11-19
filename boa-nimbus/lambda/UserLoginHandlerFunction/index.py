@@ -35,9 +35,9 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    user_pool_id = event["cognito-user-pool-id"]
-    user_pool_client_id = event["cognito-user-pool-client-id"]
-    user_pool_client_secret = event["cognito-user-pool-client-secret"]
+    user_pool_id = os.environ["COGNITO_USER_POOL_ID"]
+    user_pool_client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
+    user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     
     email_address = event["request-body"].get("email-address", "")
     
@@ -81,7 +81,7 @@ def lambda_handler(event, context):
         user_pool_id
     )
     
-    identity_pool_id = event["cognito-identity-pool-id"]
+    identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
     
     print("Fetching identity id.")
     

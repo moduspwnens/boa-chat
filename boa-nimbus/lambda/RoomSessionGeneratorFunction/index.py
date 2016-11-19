@@ -23,6 +23,7 @@ Expected request time: ~1100ms.
 
 from __future__ import print_function
 
+import os
 import json
 import uuid
 import time
@@ -73,7 +74,7 @@ def create_and_initialize_queue(event, sqs_queue_name, session_id):
     
     queue_url = sqs_client.create_queue(
         QueueName = sqs_queue_name,
-        Attributes = get_default_queue_attributes(event, sns_topic_arn)
+        Attributes = get_default_queue_attributes(sns_topic_arn)
     )["QueueUrl"]
     
     queue_arn = sqs_client.get_queue_attributes(QueueUrl=queue_url, AttributeNames=["QueueArn"])["Attributes"]["QueueArn"]
@@ -113,7 +114,7 @@ def get_queue_name(event, session_id):
         hashlib.md5(hash_string_base).hexdigest()
     )
 
-def get_default_queue_attributes(event, sns_topic_arn):
+def get_default_queue_attributes(sns_topic_arn):
     
     return {
         "Policy": json.dumps({
@@ -135,7 +136,7 @@ def get_default_queue_attributes(event, sns_topic_arn):
                     "Sid": "AllowRoomAcknowledgerActions",
                     "Effect": "Allow",
                     "Principal": {
-                        "AWS": event["acknowledger-function-role"]
+                        "AWS": os.environ["ACKNOWLEDGER_FUNCTION_ROLE"]
                     },
                     "Action": [
                         "sqs:GetQueueUrl",
@@ -147,7 +148,7 @@ def get_default_queue_attributes(event, sns_topic_arn):
                     "Sid": "AllowRoomPollerActions",
                     "Effect": "Allow",
                     "Principal": {
-                        "AWS": event["poller-function-role"]
+                        "AWS": os.environ["POLLER_FUNCTION_ROLE"]
                     },
                     "Action": [
                         "sqs:GetQueueUrl",
@@ -159,7 +160,7 @@ def get_default_queue_attributes(event, sns_topic_arn):
                     "Sid": "AllowCleanup",
                     "Effect": "Allow",
                     "Principal": {
-                        "AWS": event["delete-function-role"]
+                        "AWS": os.environ["QUEUE_DELETE_FUNCTION_ROLE"]
                     },
                     "Action": "sqs:DeleteQueue",
                     "Resource": "*"

@@ -48,8 +48,8 @@ def lambda_handler(event, context):
     
     topic_attributes_to_set = [
         ("Policy", get_default_topic_policy(event, topic_arn)),
-        ("SQSFailureFeedbackRoleArn", event["sns-failure-feedback-role"]),
-        ("SQSSuccessFeedbackRoleArn", event["sns-success-feedback-role"])
+        ("SQSFailureFeedbackRoleArn", os.environ["SNS_FAILURE_FEEDBACK_ROLE"]),
+        ("SQSSuccessFeedbackRoleArn", os.environ["SNS_SUCCESS_FEEDBACK_ROLE"])
     ]
     
     for each_topic_attribute_tuple in topic_attributes_to_set:
@@ -137,7 +137,7 @@ def get_default_topic_policy(event, sns_topic_arn):
                 "Sid": "AllowSubscriptionFromRoomSessionGenerator",
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": event["subscribe-function-role"]
+                    "AWS": os.environ["SUBSCRIBE_ROOM_TOPIC_ROLE"]
                 },
                 "Action": "sns:Subscribe",
                 "Resource": sns_topic_arn
@@ -146,7 +146,7 @@ def get_default_topic_policy(event, sns_topic_arn):
                 "Sid": "AllowPublishingByRoomMessagePoster",
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": event["publish-function-role"]
+                    "AWS": os.environ["PUBLISH_ROOM_TOPIC_ROLE"]
                 },
                 "Action": "sns:Publish",
                 "Resource": sns_topic_arn
@@ -155,7 +155,7 @@ def get_default_topic_policy(event, sns_topic_arn):
                 "Sid": "AllowCleanup",
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": event["delete-function-role"]
+                    "AWS": os.environ["DELETE_ROOM_TOPIC_ROLE"]
                 },
                 "Action": "sns:DeleteTopic",
                 "Resource": sns_topic_arn

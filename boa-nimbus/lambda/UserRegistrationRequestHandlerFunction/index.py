@@ -7,6 +7,7 @@ that allows the user to click it to verify their e-mail address.
 
 from __future__ import print_function
 
+import os
 import json
 import uuid
 import time
@@ -42,8 +43,8 @@ def lambda_handler(event, context):
     
     new_username = "{}".format(uuid.uuid4())
     
-    client_id = event["cognito-user-pool-client-id"]
-    client_secret = event["cognito-user-pool-client-secret"]
+    client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
+    client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     
     cognito_client.sign_up(
         ClientId = client_id,
