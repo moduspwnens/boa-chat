@@ -98,6 +98,8 @@ Mappings:
                 #end
             },
             "api-id": "$context.apiId",
+            "cognito-identity-id": "$context.identity.cognitoIdentityId",
+            "cognito-identity-pool-id": "$context.identity.cognitoIdentityPoolId",
             "resource-path": "$context.resourcePath",
             "stage": "$context.stage"
         }
@@ -743,7 +745,7 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a chat room.
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - RoomGeneratorFunctionRole
@@ -856,7 +858,8 @@ Resources:
   WebChatApiRoomCreateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      ApiKeyRequired: True
+      AuthorizationType: AWS_IAM
       ResourceId:
         Ref: WebChatApiRoomResource
       RestApiId:
@@ -1003,7 +1006,7 @@ Resources:
   
   
   #  
-  #   User Login Request Handler Function
+  #   User Registration Request Handler Function
   #  
     
   UserRegistrationRequestHandlerFunction:
@@ -1919,7 +1922,7 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - RoomSessionGeneratorFunctionRole
@@ -2007,7 +2010,8 @@ Resources:
   WebChatApiRoomSessionCreateMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      ApiKeyRequired: True
+      AuthorizationType: AWS_IAM
       ResourceId:
         Ref: WebChatApiSingleRoomSessionResource
       RestApiId:
@@ -2243,7 +2247,8 @@ Resources:
   WebChatApiRoomMessageGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      ApiKeyRequired: True
+      AuthorizationType: AWS_IAM
       ResourceId:
         Ref: WebChatApiSingleRoomSingleSessionMessageResource
       RestApiId:
@@ -2480,7 +2485,8 @@ Resources:
   WebChatApiRoomMessageAcknowledgeMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      ApiKeyRequired: True
+      AuthorizationType: AWS_IAM
       ResourceId:
         Ref: WebChatApiSingleRoomSingleSessionMessageResource
       RestApiId:
@@ -2662,7 +2668,7 @@ Resources:
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - RoomMessagePosterFunctionRole
@@ -2721,7 +2727,8 @@ Resources:
   WebChatApiRoomMessagePostMethod:
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: NONE
+      ApiKeyRequired: True
+      AuthorizationType: AWS_IAM
       ResourceId:
         Ref: WebChatApiSingleRoomMessageResource
       RestApiId:
@@ -3460,6 +3467,55 @@ Resources:
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': authenticated
       Path: "/"
+  
+  CognitoAuthenticatedUserRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CognitoAuthenticatedUserRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - execute-api:invoke
+            Resource:
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room/*/session
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room/*/message
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/GET/room/*/session/*/message
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/PUT/room/*/session/*/message
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
+      Roles:
+        - Ref: CognitoAuthenticatedUserRole
   
   CognitoUnauthenticatedUserRole:
     Type: AWS::IAM::Role

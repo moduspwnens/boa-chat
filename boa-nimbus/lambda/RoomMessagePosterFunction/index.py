@@ -27,11 +27,11 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
+    cognito_identity_id = event["cognito-identity-id"]
+    user_id = cognito_identity_id.split(":")[1]
+    
     if event["request-body"].get("version", "1") != "1":
         raise APIGatewayException("Unsupported message version: {}".format(event["request-body"]["version"]), 400)
-    
-    if event["request-body"].get("user-id", "") == "":
-        raise APIGatewayException("Value for \"user-id\" must be specified in message.", 400)
     
     try:
         sns_topic_arn = get_room_topic_arn(event)
@@ -45,7 +45,7 @@ def lambda_handler(event, context):
     response = sns_client.publish(
         TopicArn = sns_topic_arn,
         Message = json.dumps({
-            "user-id": event["request-body"]["user-id"],
+            "user-id": user_id,
             "message": event["request-body"].get("message", ""),
             "timestamp": int(time.time())
         })
