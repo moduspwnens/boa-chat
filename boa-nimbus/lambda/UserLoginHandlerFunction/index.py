@@ -139,6 +139,6 @@ def lambda_handler(event, context):
         "api-key": user_api_key,
         "access-key-id": aws_access_key_id,
         "secret-access-key": aws_secret_access_key,
-        "aws-session-token": aws_session_token,
+        "session-token": aws_session_token,
         "expiration": expiration_timestamp_seconds - int(time.time())
     }
