@@ -77,6 +77,17 @@ def lambda_handler(event, context):
                     "DeveloperOnlyAttribute": False,
                     "Mutable": True,
                     "Required": False
+                },
+                {
+                    "Name": "api_key",
+                    "AttributeDataType": "String",
+                    "StringAttributeConstraints": {
+                        "MinLength": "30",
+                        "MaxLength": "30"
+                    },
+                    "DeveloperOnlyAttribute": False,
+                    "Mutable": True,
+                    "Required": False
                 }
             ]
         }

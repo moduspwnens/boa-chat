@@ -1589,6 +1589,12 @@ Resources:
             Fn::GetAtt:
               - CognitoSharedResourceInvocation
               - CognitoIdentityPoolId
+          SHARED_BUCKET:
+            Ref: SharedBucket
+          STACK_NAME:
+            Ref: AWS::StackName
+          USAGE_PLAN_ID:
+            Ref: WebChatApiBasicUsagePlan
       Runtime: python2.7
       Timeout: '300'
   
@@ -1624,6 +1630,37 @@ Resources:
               - cognito-idp:AdminInitiateAuth
             Resource:
               Fn::Sub: 
+                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+                - CognitoUserPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoUserPoolId
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/user-api-keys/*
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}
+          - Effect: Allow
+            Action:
+              - apigateway:POST
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
+          - Effect: Allow
+            Action:
+              - apigateway:POST
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminUpdateUserAttributes
+            Resource:
+              Fn::Sub:
                 - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
                 - CognitoUserPoolId:
                     Fn::GetAtt:
@@ -3571,13 +3608,6 @@ Resources:
   
   CognitoUserPostConfirmationTriggerFunction:
     Type: AWS::Lambda::Function
-    Metadata:
-      SharedBucket:
-        Ref: SharedBucket
-      StackName:
-        Ref: AWS::StackName
-      UsagePlanId:
-        Ref: WebChatApiBasicUsagePlan
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
@@ -3591,6 +3621,14 @@ Resources:
           Fn::ImportValue:
             Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
         S3Key: lambda/CognitoUserPostConfirmationTriggerFunction.zip
+      Environment:
+        Variables:
+          SHARED_BUCKET:
+            Ref: SharedBucket
+          STACK_NAME:
+            Ref: AWS::StackName
+          USAGE_PLAN_ID:
+            Ref: WebChatApiBasicUsagePlan
       Runtime: python2.7
       Timeout: '300'
   
@@ -3634,16 +3672,6 @@ Resources:
               Fn::Sub: arn:aws:s3:::${SharedBucket}
           - Effect: Allow
             Action:
-              - iam:GetRolePolicy
-            Resource:
-              Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/${CognitoUserPostConfirmationTriggerFunctionRole}
-          - Effect: Allow
-            Action:
-              - cloudformation:DescribeStackResource
-            Resource:
-              Ref: AWS::StackId
-          - Effect: Allow
-            Action:
               - apigateway:POST
             Resource:
               Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
@@ -3652,6 +3680,16 @@ Resources:
               - apigateway:POST
             Resource:
               Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminUpdateUserAttributes
+            Resource:
+              Fn::Sub:
+                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+                - CognitoUserPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoUserPoolId
       Roles:
         - Ref: CognitoUserPostConfirmationTriggerFunctionRole
   

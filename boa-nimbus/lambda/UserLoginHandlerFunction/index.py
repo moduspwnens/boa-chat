@@ -17,6 +17,7 @@ import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
 from cognito_helpers import generate_cognito_sign_up_secret_hash
+from project_local.generate_api_key import create_api_key_for_user_if_not_exists
 
 cognito_idp_client = boto3.client("cognito-idp")
 cognito_identity_client = boto3.client("cognito-identity")
@@ -38,6 +39,9 @@ def lambda_handler(event, context):
     user_pool_id = os.environ["COGNITO_USER_POOL_ID"]
     user_pool_client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
+    s3_bucket_name = os.environ["SHARED_BUCKET"]
+    stack_name = os.environ["STACK_NAME"]
+    usage_plan_id = os.environ["USAGE_PLAN_ID"]
     
     email_address = event["request-body"].get("email-address", "")
     
@@ -76,6 +80,29 @@ def lambda_handler(event, context):
     cognito_access_token = response["AuthenticationResult"]["AccessToken"]
     cognito_access_token_type = response["AuthenticationResult"]["TokenType"]
     
+    response = cognito_idp_client.get_user(
+        AccessToken = cognito_access_token
+    )
+    
+    user_id = response["Username"]
+    
+    user_api_key = None
+    
+    for each_attribute_pair in response["UserAttributes"]:
+        if each_attribute_pair["Name"] == "custom:api_key":
+            user_api_key = each_attribute_pair["Value"]
+            break
+    
+    if user_api_key is None:
+        user_api_key = create_api_key_for_user_if_not_exists(
+            user_id = user_id, 
+            email_address = email_address,
+            user_pool_id = user_pool_id,
+            stack_name = stack_name,
+            usage_plan_id = usage_plan_id,
+            s3_bucket_name = s3_bucket_name
+        )
+    
     cognito_user_pool_provider_name = "cognito-idp.{}.amazonaws.com/{}".format(
         os.environ["AWS_DEFAULT_REGION"],
         user_pool_id
@@ -109,6 +136,7 @@ def lambda_handler(event, context):
     expiration_timestamp_seconds = calendar.timegm(response["Credentials"]["Expiration"].timetuple())
     
     return {
+        "api-key": user_api_key,
         "access-key-id": aws_access_key_id,
         "secret-access-key": aws_secret_access_key,
         "aws-session-token": aws_session_token,
