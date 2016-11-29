@@ -189,22 +189,6 @@ Resources:
       Path: "/"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-      Policies:
-        - PolicyName: DenyCreatingOwnDummyLogGroup
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Deny
-                Action:
-                  - logs:CreateLogGroup
-                Resource:
-                  Fn::Sub:
-                    - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:API-Gateway-Execution-Logs_${WebChatApi}/${DummyStageName}
-                    - DummyStageName:
-                        Fn::FindInMap:
-                          - StaticVariables
-                          - Main
-                          - DummyStageName
     DependsOn:
       - WebChatApiDummyStageLogGroup
       - WebChatApiMainStageLogGroup
