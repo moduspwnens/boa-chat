@@ -1,11 +1,26 @@
 'use strict';
 
-angular.module('webchatService', [])
-.factory('webchatService', function($http, $q, $cookieStore) {
+angular.module('webchatService', ['webchatApiEndpoint'])
+.factory('webchatService', function($http, $q, $cookieStore, WebChatApiEndpoint) {
   
   var webchatService = {};
   
-  var WebChatApiEndpoint = "";
+  webchatService.getApiSettings = function() {
+    var apiSettingsEndpoint = WebChatApiEndpoint + 'api.json';
+    
+    return $q(function(resolve, reject) {
+      $http({
+        url: apiSettingsEndpoint
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject["user-id"]);
+      })
+      .error(function(angResponseObject, errorCode) {
+        console.log(arguments);
+        reject("Other");
+      })
+    });
+  }
   
   webchatService.registerUser = function(emailAddress, password) {
     var registerEndpoint = WebChatApiEndpoint + 'user/register';

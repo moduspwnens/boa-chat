@@ -6,22 +6,58 @@
 //
 
 angular
-.module('authInterceptor', [])
-.factory('AwsAuthInterceptor', function ($cookieStore) {
+.module('authInterceptor', ['webchatApiEndpoint'])
+.factory('AwsAuthInterceptor', function ($q, $cookieStore, WebChatApiEndpoint) {
     
-  var apiSignatureSettings = WebChatApiSettings["aws-v4-sig"];
+  var defaultAuthConfig = {};
+  
+  var noSignSuffixes = [".html", ".js", ".css", ".woff2"];
+  
+  /*
+    endsWith function for string, in case browser doesn't have native method.
+  */
+  var endsWith = function(str, suffix) {
+      return str.indexOf(suffix, str.length - suffix.length) !== -1;
+  }
+  
+  /*
+      Need to fetch API signature settings.
+  
+      Only explicitly necessary due to the AWS region string being required 
+      for AWS v4 signatures.
+  */
+  var signatureConfigRequestPath = WebChatApiEndpoint + "api";
+  
+  var getSignatureConfigSettings = function() {
+    return $q(function(resolve, reject) {
+      
+      if (defaultAuthConfig.hasOwnProperty("region") && defaultAuthConfig.hasOwnProperty("service")) {
+        resolve(true);
+      }
+      
+      var xmlHttp = new XMLHttpRequest();
+      xmlHttp.addEventListener("loadend", function() {
+        if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
+          var responseObject = JSON.parse(xmlHttp.responseText);
+          
+          defaultAuthConfig["region"] = responseObject["aws-v4-sig"]["region"]
+          defaultAuthConfig["service"] = responseObject["aws-v4-sig"]["service"]
+          
+          resolve(true);
+        }
+        else {
+          console.log(xmlHttp);
+          reject("Other");
+        }
+      })
+      
+      xmlHttp.open("GET", signatureConfigRequestPath, true);
+      xmlHttp.send();
+    });
+  }
+  
+  var signRequestWithConfig = function(config) {
     
-  var defaultAuthConfig = {
-      region: apiSignatureSettings["region"],
-      service: apiSignatureSettings["service"]
-  };
-  return {
-      request: onRequest
-  };
-
-
-  function onRequest(config) {
-
     var retrievedCredentialSet = $cookieStore.get("credentials");
 
     if (angular.isUndefined(retrievedCredentialSet)) {
@@ -66,9 +102,47 @@ angular
         config.headers["x-api-key"] = apiKey;
       }
     }
-
+    
     return config;
+    
   }
+
+  function onRequest(config) {
+    
+    var shouldSign = true;
+    
+    var deferred = $q.defer();
+    
+    for (var i = 0; i < noSignSuffixes.length; i++) {
+      var eachSuffix = noSignSuffixes[i];
+      if (endsWith(config.url, eachSuffix)) {
+        shouldSign = false;
+        break;
+      }
+    }
+    
+    if (shouldSign) {
+      getSignatureConfigSettings()
+        .then(function() {
+          deferred.resolve(signRequestWithConfig(config));
+        })
+        .catch(function() {
+          deferred.reject(...arguments);
+        })
+    }
+    else {
+      // This is just a request for static web resources. No need to sign.
+      deferred.resolve(config);
+    }
+    
+    return deferred.promise;
+    
+  }
+  
+  return {
+      request: onRequest
+  };
+  
 })
 .config(function ($httpProvider) {
     $httpProvider.interceptors.push('AwsAuthInterceptor');
