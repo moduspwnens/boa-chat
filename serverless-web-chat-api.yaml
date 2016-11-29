@@ -123,6 +123,7 @@ Mappings:
         Disallow: 
         Allow: /
       StageName: v1
+      WebChatApiGlobalSettingsResourceMethods: "'GET,OPTIONS'"
       WebChatApiRoomResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomMessageResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSessionResourceMethods: "'POST,OPTIONS'"
@@ -719,6 +720,20 @@ Resources:
           - StatusCode: '200'
             SelectionPattern: ''
             ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiGlobalSettingsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
               method.response.header.Content-Type: "'application/json'"
             ResponseTemplates:
               application/json: 
@@ -734,7 +749,50 @@ Resources:
       MethodResponses:
         - StatusCode: '200'
           ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
             method.response.header.Content-Type: true
+    
+  WebChatApiGlobalSettingsResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiGlobalSettingsResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiGlobalSettingsResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
   
   
   #
@@ -3482,6 +3540,8 @@ Resources:
     DependsOn:
       - ApiGatewayBinaryContentEnablerFunctionLogGroup
       - ApiGatewayBinaryContentEnablerFunctionRoleActions
+      - WebChatApiGlobalSettingsGetMethod
+      - WebChatApiGlobalSettingsResourceOptions
       - WebChatApiUserRegistrationCreateMethod
       - WebChatApiUserRegistrationAliasVerificationCreateMethod
       - WebChatApiUserLoginCreateMethod
