@@ -14,6 +14,9 @@ angular.module('webchatService', [])
       $http({
         method: 'POST',
         url: registerEndpoint,
+        headers: {
+          "content-type": "application/json"
+        },
         data: {
           "email-address": emailAddress,
           "password": password
@@ -97,7 +100,8 @@ angular.module('webchatService', [])
       
       $http({
         method: 'POST',
-        url: createRoomEndpoint
+        url: createRoomEndpoint,
+        data: ""
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject);
@@ -108,7 +112,7 @@ angular.module('webchatService', [])
     });
   }
   
-  webchatService.createNewRoomSession = function(roomId, userId) {
+  webchatService.createNewRoomSession = function(roomId) {
     var createRoomSessionEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/session';
     
     return $q(function(resolve, reject) {
@@ -116,9 +120,7 @@ angular.module('webchatService', [])
       $http({
         method: 'POST',
         url: createRoomSessionEndpoint,
-        data: {
-          'user-id': userId
-        }
+        data: ""
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject);
@@ -129,7 +131,7 @@ angular.module('webchatService', [])
     });
   }
   
-  webchatService.postNewRoomMessage = function(roomId, userId, message) {
+  webchatService.postNewRoomMessage = function(roomId, message) {
     var postNewRoomMessageEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/message';
     
     return $q(function(resolve, reject) {
@@ -138,8 +140,7 @@ angular.module('webchatService', [])
         url: postNewRoomMessageEndpoint,
         data: {
           'version': '1',
-          'message': message,
-          'user-id': userId
+          'message': message
         }
       })
       .success(function(angResponseObject) {

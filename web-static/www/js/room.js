@@ -7,7 +7,7 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
   $scope.messageInputTextPlaceholder = "Joining room...";
   
   var roomId = $stateParams.roomId;
-  var userId = "benntest";
+  var userId = "Me";
   
   var unsentMessageIdIndex = 0;
   var sentUnsentMessageIdMap = {};
@@ -61,7 +61,7 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     }, 0);
   }
   
-  webchatService.createNewRoomSession(roomId, userId)
+  webchatService.createNewRoomSession(roomId)
     .then(function(angResponseObject) {
       var sessionUrl = angResponseObject.session;
       
@@ -103,7 +103,7 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     
     var postRoomId = roomId;
     
-    webchatService.postNewRoomMessage(postRoomId, userId, messageText)
+    webchatService.postNewRoomMessage(postRoomId, messageText)
       .then(function(messageId) {
         sentUnsentMessageIdMap[messageId] = unsentMessage;
       })

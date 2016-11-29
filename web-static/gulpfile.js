@@ -146,6 +146,16 @@ gulp.task('angular-cookies', function() {
       .pipe(gulp.dest('./www/lib/angular-cookies/'));
 });
 
+gulp.task('crypto-js', function() {
+    return gulp.src(config.bowerDir + '/crypto-js/*.js')
+      .pipe(gulp.dest('./www/lib/crypto-js/'));
+});
+
+gulp.task('aws-sign-web', function() {
+    return gulp.src(config.bowerDir + '/aws-sign-web/aws-sign-web*.js')
+      .pipe(gulp.dest('./www/lib/aws-sign-web/'));
+});
+
 gulp.task('require', [], function(done) {
   var ends = 1;
   function end() {
@@ -157,7 +167,7 @@ gulp.task('require', [], function(done) {
     .on('end', end);
 });
 
-gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap', 'ie10-viewport-bug-workaround'], function(done) {
+gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap', 'ie10-viewport-bug-workaround', 'angular-cookies', 'crypto-js', 'aws-sign-web'], function(done) {
   done()
 });
 

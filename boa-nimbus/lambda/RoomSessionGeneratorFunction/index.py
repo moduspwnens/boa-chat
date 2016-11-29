@@ -46,9 +46,6 @@ def lambda_handler(event, context):
     
     public_api_base = get_public_api_base(event)
     
-    if event["request-body"].get("user-id", "") == "":
-        raise APIGatewayException("Value for \"user-id\" must be specified in message.", 400)
-    
     session_id = generate_new_session_id()
     
     sqs_queue_name = get_queue_name(event, session_id)
@@ -89,7 +86,7 @@ def create_and_initialize_queue(event, sqs_queue_name, session_id):
         "created": int(time.time()),
         "sqs-queue-url": queue_url,
         "sns-subscription-arn": subscribe_response["SubscriptionArn"],
-        "user-id": event["request-body"]["user-id"]
+        "user-id": event["cognito-identity-pool-id"]
     }
 
     s3_client.put_object(

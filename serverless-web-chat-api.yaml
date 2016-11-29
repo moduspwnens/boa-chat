@@ -681,6 +681,112 @@ Resources:
   
   
   #
+  #   API Global Settings Resource
+  #
+  #   One returns JavaScript (to avoid having to use JSONP for web browsers), 
+  #   and the other uses plain JSON.
+  #
+  
+  WebChatApiGlobalSettingsJsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: api.js
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiGlobalSettingsJsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiGlobalSettingsJsResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Content-Type: "'text/javascript'"
+            ResponseTemplates:
+              application/json: 
+                Fn::Sub: |-
+                  var WebChatApiSettings = {
+                    "aws-v4-sig": {
+                      "region": "${AWS::Region}",
+                      "service": "execute-api"
+                    }
+                  };
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Content-Type: true
+  
+  WebChatApiGlobalSettingsJsonResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+        - WebChatApi
+        - RootResourceId
+      PathPart: api.json
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiGlobalSettingsJsonGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiGlobalSettingsJsonResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: GET
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: ANY
+        PassthroughBehavior: WHEN_NO_MATCH
+        CacheNamespace:
+          Fn::GetAtt:
+          - WebChatApi
+          - RootResourceId
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Content-Type: "'application/json'"
+            ResponseTemplates:
+              application/json: 
+                Fn::Sub: |-
+                  {
+                    "aws-v4-sig": {
+                      "region": "${AWS::Region}",
+                      "service": "execute-api"
+                    }
+                  }
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Content-Type: true
+  
+  
+  #
   #   SNS Delivery Status Resources
   #
   
