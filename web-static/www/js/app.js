@@ -2,7 +2,7 @@ var app = undefined;
 
 (function() {
   
-  app = angular.module('app', ['ui.router', 'navController', 'ui.bootstrap', 'webchatService'])
+  app = angular.module('app', ['ngCookies', 'ui.router', 'navController', 'ui.bootstrap', 'webchatService'])
 
 	// define for requirejs loaded modules
 	define('app', [], function() { return app; });
@@ -46,10 +46,25 @@ var app = undefined;
 				templateUrl: viewsPrefix + "home.html",
         controller: 'homeController'
 			})
+			.state('register', {
+				url: "/register",
+				templateUrl: viewsPrefix + "register.html",
+        controller: 'registerController'
+			})
 			.state('login', {
 				url: "/login",
 				templateUrl: viewsPrefix + "login.html",
         controller: 'loginController'
+			})
+			.state('logout', {
+				url: "/logout",
+				templateUrl: viewsPrefix + "logout.html",
+        controller: 'logoutController'
+			})
+			.state('forgot', {
+				url: "/forgot",
+				templateUrl: viewsPrefix + "forgot.html",
+        controller: 'forgotController'
 			})
 			.state('room', {
 				url: "/room/:roomId",

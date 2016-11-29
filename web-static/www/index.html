@@ -35,11 +35,6 @@
     
     <!-- local -->
     <script src="js/static.js"></script>
-    
-    <script type="text/javascript">
-      var WebChatApiEndpoint = "";
-      var CorsOriginList = "*";
-    </script>
 
     <!-- angularjs -->
     <link href="lib/angular/css/angular-csp.css" rel="stylesheet" />
@@ -47,13 +42,17 @@
     <script src="lib/angular/js/angular-animate.js"></script>
     <script src="lib/angular/js/angular-ui-router.js"></script>
     <script src="lib/angular/js/angular-ui-bootstrap-tpls.js"></script>
+    <script src="lib/angular-cookies/angular-cookies.js"></script>
 
     <!-- app js -->
     <script src="js/app.js"></script>
     <script src="js/webchat-service.js"></script>
     <script src="js/nav-controller.js"></script>
     <script src="js/home.js"></script>
+    <script src="js/register.js"></script>
+    <script src="js/forgot.js"></script>
     <script src="js/login.js"></script>
+    <script src="js/logout.js"></script>
     <script src="js/room.js"></script>
   </head>
 
@@ -86,7 +85,18 @@
             </li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
-            <li><a href="#/login">Log in</a></li>
+            <li ng-show="!webchatService.isUserLoggedIn()"><a href="#/login">Log in</a></li>
+            <li ng-show="webchatService.isUserLoggedIn()">
+              <a class="dropdown-toggle" data-toggle="dropdown" role="button">
+                <span ng-bind="webchatService.getCurrentUserCredentials().emailAddress"></span>
+                <span class="caret"></span>
+              </a>
+              <ul class="dropdown-menu">
+                <!--<li><a href="#/profile">Profile</a></li>-->
+                <li><a href="#/logout">Log out</a></li>
+              </ul>
+            </li>
+            
           </ul>
         </div><!--/.nav-collapse -->
       </div>
@@ -103,6 +113,8 @@
         <p>&copy; 2016 Benn Linger. <a href="https://github.com/moduspwnens/aws-serverless-web-chat">View source on GitHub</a>.</p>
       </footer>
     </div> <!-- /container -->
+    
+    <span class="glyphicon glyphicon-refresh preload-hide"></span>
 
 
     <!-- Bootstrap core JavaScript

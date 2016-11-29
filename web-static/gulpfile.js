@@ -141,6 +141,11 @@ gulp.task('angular', [], function(done) {
     .on('end', end);
 });
 
+gulp.task('angular-cookies', function() {
+    return gulp.src(config.bowerDir + '/angular-cookies/angular-cookies*.js')
+      .pipe(gulp.dest('./www/lib/angular-cookies/'));
+});
+
 gulp.task('require', [], function(done) {
   var ends = 1;
   function end() {

@@ -17,6 +17,7 @@
   ],
   "dependencies": {
     "font-awesome": "fontawesome#^4.7.0",
-    "ie10-viewport-bug-workaround": "^1.0.2"
+    "ie10-viewport-bug-workaround": "^1.0.2",
+    "angular-cookies": "^1.5.9"
   }
 }

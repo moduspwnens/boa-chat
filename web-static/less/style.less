@@ -85,3 +85,46 @@ footer {
 .password-field-wrapper {
   margin-bottom: 10px;
 }
+
+.glyphicon.spinning {
+  animation: spin 1s infinite linear;
+  -webkit-animation: spin2 1s infinite linear;
+}
+
+@keyframes spin {
+  from { transform: scale(1) rotate(0deg); }
+  to { transform: scale(1) rotate(360deg); }
+}
+
+@-webkit-keyframes spin2 {
+  from { -webkit-transform: rotate(0deg); }
+  to { -webkit-transform: rotate(360deg); }
+}
+
+button.btn-lg {
+  position: relative;
+}
+
+button.btn-lg .glyphicon.spinning {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  margin-top: -9px;
+}
+
+.preload-hide {
+  opacity: 0;
+}
+
+.log-out-status-message {
+  text-align: center;
+}
+
+.form-signin.form-forgot-password {
+  text-align: center;
+  padding-top: 0px;
+}
+
+.forgot-password-link {
+  cursor: pointer;
+}

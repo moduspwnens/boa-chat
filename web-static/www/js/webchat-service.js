@@ -1,11 +1,94 @@
 'use strict';
 
 angular.module('webchatService', [])
-.factory('webchatService', function($http, $q) {
+.factory('webchatService', function($http, $q, $cookieStore) {
   
   var webchatService = {};
   
   var WebChatApiEndpoint = "";
+  
+  webchatService.registerUser = function(emailAddress, password) {
+    var registerEndpoint = WebChatApiEndpoint + 'user/register';
+    
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'POST',
+        url: registerEndpoint,
+        data: {
+          "email-address": emailAddress,
+          "password": password
+        }
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject["user-id"]);
+      })
+      .error(function(angResponseObject, errorCode) {
+        console.log(arguments);
+        reject("Other");
+      })
+    });
+  }
+  
+  webchatService.getCurrentUserCredentials = function() {
+    return $cookieStore.get("credentials");
+  }
+  
+  webchatService.isUserLoggedIn = function() {
+    var returnValue = (webchatService.getCurrentUserCredentials() !== undefined);
+    return returnValue;
+  }
+  
+  webchatService.logIn = function(emailAddress, password) {
+    var loginEndpoint = WebChatApiEndpoint + 'user/login';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'POST',
+        url: loginEndpoint,
+        data: {
+          "email-address": emailAddress,
+          "password": password
+        }
+      })
+      .success(function(angResponseObject) {
+        
+        var expirationSeconds = angResponseObject.expiration;
+        
+        // Assume it expires a little early to enforce early credential refresh.
+        expirationSeconds *= 0.9;
+        
+        var expirationDateTime = new Date();
+        expirationDateTime.setSeconds(expirationDateTime.getSeconds() + expirationSeconds);
+        
+        var cookieStoreObject = angResponseObject;
+        cookieStoreObject.expiration = expirationDateTime;
+        cookieStoreObject.emailAddress = emailAddress;
+        
+        $cookieStore.put("credentials", cookieStoreObject);
+        
+        resolve(angResponseObject);
+      })
+      .error(function(angResponseObject, errorCode) {
+        console.log(arguments);
+        if (errorCode == 404) {
+          reject("UserNotFound");
+        }
+        else if (errorCode == 403 && angResponseObject.message == "Password entered is not correct.") {
+          reject("PasswordIncorrect");
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
+  webchatService.logOut = function() {
+    return $q(function(resolve, reject) {
+      $cookieStore.put("credentials", undefined);
+      
+      resolve();
+    });
+  }
   
   var createRoomEndpoint = WebChatApiEndpoint + "room";
   

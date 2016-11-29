@@ -1,34 +1,37 @@
 'use strict';
 
-app.controller('loginController', function($scope, $http, $state, webchatService) {
+app.controller('loginController', function($scope, $http, $state, $cookieStore, webchatService) {
   
-  $scope.formMode = "login";
+  $scope.$state = $state;
   
-  $scope.mainFormSubmitted = function() {
-    if ( $scope.formMode == "login" ) {
-      console.log("log in");
-      console.log($scope.email);
-      console.log($scope.password);
-    }
-    else {
-      console.log("create account");
-      console.log($scope.email);
-      console.log($scope.password);
-      console.log($scope.passwordConfirm);
-    }
-  }
-  
-  var updateFormSettingsToMatchFormMode = function() {
-    if ($scope.formMode == "login") {
-      $scope.title = "Log In";
-      $scope.mainActionButtonTitle = "Log in";
-      $scope.secondaryButtonTitle = "Create account";
-    }
-    else {
-      $scope.title = "Create account";
-      $scope.mainActionButtonTitle = "Create account";
-      $scope.secondaryButtonTitle = "Back to log in";
-    }
+  $scope.loginFormSubmitted = function() {
+    console.log("Attempting login.");
+    
+    $scope.ajaxOperationInProgress = true;
+    
+    webchatService.logIn($scope.email, $scope.password)
+      .then(function(response) {
+        $scope.ajaxOperationInProgress = false;
+        
+        console.log("Login successful.");
+        
+        $state.go('home');
+      })
+      .catch(function(errorReason) {
+        $scope.ajaxOperationInProgress = false;
+        
+        if (errorReason == "UserNotFound") {
+          alert("No user found with the given e-mail address." + "\n\n" + "Note that the e-mail address must be confirmed to log in.");
+          focusEmailField();
+        }
+        else if (errorReason == "PasswordIncorrect") {
+          alert("The password entered is not correct.");
+        }
+        else {
+          alert("An unexpected error occurred when trying to log in.");
+          focusEmailField();
+        }
+      })
   }
   
   var focusEmailField = function() {
@@ -37,16 +40,4 @@ app.controller('loginController', function($scope, $http, $state, webchatService
     }, 0);
   }
   
-  $scope.switchFormTypeButtonClicked = function() {
-    if ($scope.formMode == "login") {
-      $scope.formMode = "create";
-    }
-    else {
-      $scope.formMode = "login";
-    }
-    updateFormSettingsToMatchFormMode();
-    focusEmailField();
-  }
-  
-  updateFormSettingsToMatchFormMode();
 });

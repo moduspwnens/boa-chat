@@ -1,6 +1,8 @@
 angular.module('navController', [])
-	.controller('nav', function($scope, $state) {
+	.controller('nav', function($scope, $state, webchatService) {
 		$scope.title = 'Home';
+    
+    $scope.webchatService = webchatService;
 
 		// returns true if the current router url matches the passed in url
 		// so views can set 'active' on links easily

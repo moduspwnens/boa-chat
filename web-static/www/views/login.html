@@ -1,22 +1,22 @@
 <div class="container">
-  <form class="form-signin" ng-submit="mainFormSubmitted()">
-    <h2 class="form-signin-heading" ng-bind="title"></h2>
+  <form class="form-signin" ng-submit="loginFormSubmitted()">
+    <h2 class="form-signin-heading">Log In</h2>
     <label for="inputEmail" class="sr-only">Email address</label>
     <input type="email" id="inputEmail" class="form-control" placeholder="Email address" ng-model="email" required autofocus>
     <div class="password-field-wrapper">
-    <label for="inputPassword" class="sr-only">Password</label>
-    <input type="password" id="inputPassword" class="form-control" placeholder="Password" ng-model="password" required ng-class="{'pre-confirm': formMode == 'create'}">
-    <label for="inputPasswordConfirm" class="sr-only" ng-show="formMode == 'create'">Confirm Password</label>
-    <input type="password" id="inputPasswordConfirm" class="form-control" placeholder="Confirm Password" ng-model="passwordConfirm" ng-required="formMode == 'create'" ng-show="formMode == 'create'">
+      <label for="inputPassword" class="sr-only">Password</label>
+      <input type="password" id="inputPassword" class="form-control" placeholder="Password" ng-model="password" required ng-class="{'pre-confirm': formMode == 'create'}">
+      <label for="inputPasswordConfirm" class="sr-only" ng-show="formMode == 'create'">Confirm Password</label>
+      <input type="password" id="inputPasswordConfirm" class="form-control" placeholder="Confirm Password" ng-model="passwordConfirm" ng-required="formMode == 'create'" ng-show="formMode == 'create'">
     </div>
-    <button class="btn btn-lg btn-primary btn-block" type="submit" ng-bind="mainActionButtonTitle"></button>
+    <button class="btn btn-lg btn-primary btn-block" type="submit" ng-disabled="ajaxOperationInProgress">Log in<span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span></button>
   </form>
   
-  <div class="form-signin" style="text-align: center; padding-top: 0px;">
-    <a href="#">Forgot your password?</a>
+  <div class="form-signin form-forgot-password">
+    <a class="forgot-password-link" ng-click="$state.go('forgot')">Forgot your password?</a>
   </div>
   
-  <form class="form-signin" ng-submit="switchFormTypeButtonClicked()">
-    <button class="btn btn-lg btn-default btn-block" type="submit" ng-bind="secondaryButtonTitle"></button>
+  <form class="form-signin" ng-submit="$state.go('register')">
+    <button class="btn btn-lg btn-default btn-block" type="submit" ng-disabled="ajaxOperationInProgress">Create account</button>
   </form>
 </div>
