@@ -9,6 +9,7 @@ Expected request time: ~250ms.
 
 from __future__ import print_function
 
+import os
 import json
 import time
 import boto3
@@ -17,6 +18,7 @@ from apigateway_helpers.exception import APIGatewayException
 
 s3_client = boto3.client("s3")
 sns_client = boto3.client("sns")
+cognito_sync_client = boto3.client("cognito-sync")
 room_id_topic_arn_map = {}
 
 def lambda_handler(event, context):
@@ -28,7 +30,6 @@ def lambda_handler(event, context):
         }
     
     cognito_identity_id = event["cognito-identity-id"]
-    user_id = cognito_identity_id.split(":")[1]
     
     if event["request-body"].get("version", "1") != "1":
         raise APIGatewayException("Unsupported message version: {}".format(event["request-body"]["version"]), 400)
@@ -42,10 +43,26 @@ def lambda_handler(event, context):
         else:
             raise
     
+    user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
+    identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
+    
+    response = cognito_sync_client.list_records(
+        IdentityPoolId = identity_pool_id,
+        IdentityId = cognito_identity_id,
+        DatasetName = user_profile_dataset_name
+    )
+    
+    author_name = cognito_identity_id
+    for each_record in response["Records"]:
+        if each_record["Key"] == "email-address":
+            author_name = each_record["Value"]
+            break
+    
     response = sns_client.publish(
         TopicArn = sns_topic_arn,
         Message = json.dumps({
-            "user-id": user_id,
+            "identity-id": cognito_identity_id,
+            "author-name": author_name,
             "message": event["request-body"].get("message", ""),
             "timestamp": int(time.time())
         })

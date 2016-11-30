@@ -3,7 +3,7 @@
     <div class="row">
         <div class="col-md-12">
             <div class="webchat-event" ng-repeat="event in roomChatEvents">
-                <div class="author">{{event["user-id"]}}</div>
+                <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
                 <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
             </div>
         </div>

@@ -21,6 +21,7 @@ from project_local.generate_api_key import create_api_key_for_user_if_not_exists
 
 cognito_idp_client = boto3.client("cognito-idp")
 cognito_identity_client = boto3.client("cognito-identity")
+cognito_sync_client = boto3.client("cognito-sync")
 
 def lambda_handler(event, context):
     
@@ -39,6 +40,8 @@ def lambda_handler(event, context):
     user_pool_id = os.environ["COGNITO_USER_POOL_ID"]
     user_pool_client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
+    user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
+    identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
     s3_bucket_name = os.environ["SHARED_BUCKET"]
     stack_name = os.environ["STACK_NAME"]
     usage_plan_id = os.environ["USAGE_PLAN_ID"]
@@ -133,8 +136,6 @@ def lambda_handler(event, context):
         user_pool_id
     )
     
-    identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
-    
     print("Fetching identity id.")
     
     response = cognito_identity_client.get_id(
@@ -145,6 +146,48 @@ def lambda_handler(event, context):
     )
     
     identity_id = response["IdentityId"]
+    
+    response = cognito_sync_client.list_records(
+        IdentityPoolId = identity_pool_id,
+        IdentityId = identity_id,
+        DatasetName = user_profile_dataset_name
+    )
+    
+    sync_session_token = response["SyncSessionToken"]
+    
+    records_to_replace = {
+        "api-key": user_api_key,
+        "email-address": user_email,
+        "user-id": user_id
+    }
+    
+    for each_record in response["Records"]:
+        if each_record["Key"] in records_to_replace and each_record["Value"] == records_to_replace[each_record["Key"]]:
+            del records_to_replace[each_record["Key"]]
+    
+    record_patch_list = []
+    
+    for each_key in records_to_replace.keys():
+        each_value = records_to_replace[each_key]
+        record_patch_list.append({
+            "Op": "replace",
+            "Key": each_key,
+            "Value": each_value,
+            "SyncCount": 0
+        })
+    
+    if len(record_patch_list) > 0:
+        print("Updating identity {} records: {}".format(
+            user_profile_dataset_name,
+            json.dumps(records_to_replace)
+        ))
+        response = cognito_sync_client.update_records(
+            IdentityPoolId = identity_pool_id,
+            IdentityId = identity_id,
+            DatasetName = user_profile_dataset_name,
+            RecordPatches = record_patch_list,
+            SyncSessionToken = sync_session_token
+        )
     
     print("Fetching credentials.")
     

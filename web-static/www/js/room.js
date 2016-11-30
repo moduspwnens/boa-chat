@@ -6,6 +6,8 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
   $scope.messageInputDisabled = true;
   $scope.messageInputTextPlaceholder = "Joining room...";
   
+  $scope.identityIdAuthorNameMap = {};
+  
   var roomId = $stateParams.roomId;
   var userId = "Me";
   
@@ -41,6 +43,8 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
         unpostUnsentMessage(unsentMessage);
         delete sentUnsentMessageIdMap[eachMessage["message-id"]];
       }
+      
+      $scope.identityIdAuthorNameMap[eachMessage["identity-id"]] = eachMessage["author-name"];
       
       $scope.roomChatEvents.push(eachMessage);
       $scope.roomChatEvents.sort(roomChatEventComparator);
@@ -81,7 +85,8 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     var unsentMessageObject = {
       "message-id": unsentMessageIdIndex,
       "timestamp": Math.floor(Date.now() / 1000),
-      "user-id": userId,
+      "identity-id": userId,
+      "author-name": userId,
       "message": messageText,
       "unsent": true
     };

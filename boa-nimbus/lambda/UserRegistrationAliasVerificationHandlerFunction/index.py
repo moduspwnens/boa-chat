@@ -20,7 +20,8 @@ from cognito_helpers import generate_cognito_sign_up_secret_hash
 
 s3_client = boto3.client("s3")
 apig_client = boto3.client("apigateway")
-cognito_client = boto3.client("cognito-idp")
+
+cognito_idp_client = boto3.client("cognito-idp")
 
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
@@ -43,7 +44,7 @@ def lambda_handler(event, context):
     client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     
     try:
-        cognito_client.confirm_sign_up(
+        cognito_idp_client.confirm_sign_up(
             ClientId = client_id,
             SecretHash = generate_cognito_sign_up_secret_hash(user_id, client_id, client_secret),
             Username = user_id,
@@ -59,6 +60,8 @@ def lambda_handler(event, context):
         elif e.response['Error']['Code'] == 'ExpiredCodeException':
             raise APIGatewayException("Invalid token provided. Please request another.", 400)
         raise
+    
+    
     
     return {
         "message": "E-mail address confirmed successfully."
