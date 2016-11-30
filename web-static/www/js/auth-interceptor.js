@@ -31,17 +31,28 @@ angular
   var getSignatureConfigSettings = function() {
     return $q(function(resolve, reject) {
       
-      if (defaultAuthConfig.hasOwnProperty("region") && defaultAuthConfig.hasOwnProperty("service")) {
+      // Load config from cookie if it already exists.
+      var v4SignatureConfig = $cookieStore.get("aws-v4-sig");
+      
+      if (!angular.isUndefined(v4SignatureConfig)) {
+        defaultAuthConfig["region"] = v4SignatureConfig["region"];
+        defaultAuthConfig["service"] = v4SignatureConfig["service"];
         resolve(true);
+        return;
       }
       
+      // Fetch config from API.
       var xmlHttp = new XMLHttpRequest();
       xmlHttp.addEventListener("loadend", function() {
         if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
           var responseObject = JSON.parse(xmlHttp.responseText);
           
-          defaultAuthConfig["region"] = responseObject["aws-v4-sig"]["region"]
-          defaultAuthConfig["service"] = responseObject["aws-v4-sig"]["service"]
+          var v4SignatureConfig = responseObject["aws-v4-sig"];
+          
+          defaultAuthConfig["region"] = v4SignatureConfig["region"];
+          defaultAuthConfig["service"] = v4SignatureConfig["service"];
+          
+          $cookieStore.put("aws-v4-sig", v4SignatureConfig);
           
           resolve(true);
         }
