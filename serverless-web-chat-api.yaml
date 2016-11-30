@@ -129,6 +129,7 @@ Mappings:
       WebChatApiSingleRoomSessionResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSingleSessionMessageResourceMethods: "'GET,PUT,OPTIONS'"
       WebChatApiUserLoginResourceMethods: "'POST,OPTIONS'"
+      WebChatApiUserCredentialRefreshResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserRegisterResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserRegistrationVerifyResourceMethods: "'GET,OPTIONS'"
       
@@ -646,6 +647,55 @@ Resources:
                   - StaticVariables
                   - Main
                   - WebChatApiUserLoginResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
+  WebChatApiUserCredentialRefreshResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiUserResource
+      PathPart: refresh
+      RestApiId:
+        Ref: WebChatApi
+  
+  WebChatApiUserCredentialRefreshResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserCredentialRefreshResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
               method.response.header.Access-Control-Allow-Headers:
                 Fn::FindInMap:
                   - StaticVariables
@@ -1980,7 +2030,7 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: false
             method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-      - WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission
+      - WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission  
   
   WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -1991,6 +2041,223 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn:
         Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/login
+    DependsOn:
+      - UserLoginHandlerFunctionRoleActions
+      - UserLoginHandlerFunctionLogGroup
+  
+  WebChatApiUserCredentialRefreshCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: true
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserCredentialRefreshResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '403'
+            SelectionPattern: '.*http-status\":\s*403.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '404'
+            SelectionPattern: '.*http-status\":\s*404.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+          - StatusCode: '504'
+            SelectionPattern: ".*Task timed out after .*"
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorTimeoutTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserCredentialRefreshResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserLoginHandlerFunctionArn}/invocations
+            - UserLoginHandlerFunctionArn:
+                Fn::GetAtt:
+                  - UserLoginHandlerFunction
+                  - Arn
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '403'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '404'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '504'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+    DependsOn:
+      - WebChatApiUserCredentialRefreshCreateMethodUserLoginHandlerLambdaPermission
+  
+  WebChatApiUserCredentialRefreshCreateMethodUserLoginHandlerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserLoginHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/refresh
     DependsOn:
       - UserLoginHandlerFunctionRoleActions
       - UserLoginHandlerFunctionLogGroup
@@ -2009,6 +2276,8 @@ Resources:
     DependsOn:
       - UserLoginHandlerFunctionRoleActions
       - UserLoginHandlerFunctionLogGroup
+  
+  
   
   
   
@@ -3529,11 +3798,13 @@ Resources:
       - WebChatApiUserRegistrationCreateMethod
       - WebChatApiUserRegistrationAliasVerificationCreateMethod
       - WebChatApiUserLoginCreateMethod
+      - WebChatApiUserCredentialRefreshCreateMethod
       - WebChatApiRoomMessageGetMethod
       - WebChatApiRoomMessagePostMethod
       - WebChatApiRoomResourceOptions
       - WebChatApiUserLoginResourceOptions
       - WebChatApiUserRegistrationResourceOptions
+      - WebChatApiUserCredentialRefreshResourceOptions
       - WebChatApiSingleRoomMessageResourceOptions
       - WebChatApiSingleRoomSessionResourceOptions
       - WebChatApiSingleRoomSingleSessionMessageResourceOptions

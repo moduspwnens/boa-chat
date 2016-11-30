@@ -58,7 +58,12 @@ angular
   
   var signRequestWithConfig = function(config) {
     
-    var retrievedCredentialSet = $cookieStore.get("credentials");
+    var retrievedCredentialSet = undefined;
+    
+    var userLoginObject = $cookieStore.get("login");
+    if (!angular.isUndefined(userLoginObject)) {
+      retrievedCredentialSet = userLoginObject.credentials;
+    }
 
     if (angular.isUndefined(retrievedCredentialSet)) {
       //console.log("No existing credentials found. Not signing request.");
@@ -96,13 +101,6 @@ angular
 
     angular.merge(config.headers, signed);
     
-    if (!angular.isUndefined(retrievedCredentialSet)) {
-      var apiKey = retrievedCredentialSet["api-key"];
-      if (!angular.isUndefined(apiKey)) {
-        config.headers["x-api-key"] = apiKey;
-      }
-    }
-    
     return config;
     
   }
@@ -118,6 +116,14 @@ angular
       if (endsWith(config.url, eachSuffix)) {
         shouldSign = false;
         break;
+      }
+    }
+    
+    var userLoginObject = $cookieStore.get("login");
+    if (!angular.isUndefined(userLoginObject)) {
+      if (userLoginObject.user.hasOwnProperty("api-key")) {
+        var apiKey = userLoginObject.user["api-key"];
+        config.headers["x-api-key"] = apiKey;
       }
     }
     

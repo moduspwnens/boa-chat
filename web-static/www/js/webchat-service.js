@@ -5,23 +5,6 @@ angular.module('webchatService', ['webchatApiEndpoint'])
   
   var webchatService = {};
   
-  webchatService.getApiSettings = function() {
-    var apiSettingsEndpoint = WebChatApiEndpoint + 'api.json';
-    
-    return $q(function(resolve, reject) {
-      $http({
-        url: apiSettingsEndpoint
-      })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["user-id"]);
-      })
-      .error(function(angResponseObject, errorCode) {
-        console.log(arguments);
-        reject("Other");
-      })
-    });
-  }
-  
   webchatService.registerUser = function(emailAddress, password) {
     var registerEndpoint = WebChatApiEndpoint + 'user/register';
     
@@ -47,13 +30,56 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  webchatService.getCurrentUser = function() {
+    var userLoginObject = $cookieStore.get("login");
+    
+    if (!angular.isUndefined(userLoginObject)) {
+      return userLoginObject.user;
+    }
+    
+    return undefined;
+  }
+  
   webchatService.getCurrentUserCredentials = function() {
-    return $cookieStore.get("credentials");
+    var userLoginObject = $cookieStore.get("login");
+    if ((!angular.isUndefined(userLoginObject)) && !angular.isUndefined(userLoginObject.credentials)) {
+      /*
+      var expirationDateTime = new Date(userLoginObject.credentials.expiration);
+      var secondsUntilExpiration = (expirationDateTime.getTime() - (new Date()).getTime()) / 1000;
+      
+      if (secondsUntilExpiration < 0) {
+        console.log("User credentials expired!");
+        userLoginObject.credentials = undefined;
+        
+        $cookieStore.put("login", userLoginObject);
+        return undefined;
+      }
+      */
+    }
+    else {
+      return undefined;
+    }
+    
+    return userLoginObject.credentials;
   }
   
   webchatService.isUserLoggedIn = function() {
-    var returnValue = (webchatService.getCurrentUserCredentials() !== undefined);
+    var returnValue = (webchatService.getCurrentUser() !== undefined);
     return returnValue;
+  }
+  
+  var processNewLoginResponse = function(responseObject) {
+    var expirationSeconds = responseObject.credentials.expiration;
+    
+    var expirationDateTime = new Date();
+    expirationDateTime.setSeconds(expirationDateTime.getSeconds() + expirationSeconds);
+    
+    var cookieStoreObject = responseObject;
+    cookieStoreObject.credentials.expiration = expirationDateTime;
+    
+    $cookieStore.put("login", cookieStoreObject);
+    
+    resetCredentialRefreshTimer();
   }
   
   webchatService.logIn = function(emailAddress, password) {
@@ -69,19 +95,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       })
       .success(function(angResponseObject) {
         
-        var expirationSeconds = angResponseObject.expiration;
-        
-        // Assume it expires a little early to enforce early credential refresh.
-        expirationSeconds *= 0.9;
-        
-        var expirationDateTime = new Date();
-        expirationDateTime.setSeconds(expirationDateTime.getSeconds() + expirationSeconds);
-        
-        var cookieStoreObject = angResponseObject;
-        cookieStoreObject.expiration = expirationDateTime;
-        cookieStoreObject.emailAddress = emailAddress;
-        
-        $cookieStore.put("credentials", cookieStoreObject);
+        processNewLoginResponse(angResponseObject);
         
         resolve(angResponseObject);
       })
@@ -100,9 +114,42 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  var refreshCurrentUserCredentials = function() {
+    console.log("Attempting to refresh credentials.");
+    
+    var userObject = webchatService.getCurrentUser();
+    var credentials = webchatService.getCurrentUserCredentials();
+    
+    var refreshCredentialsEndpoint = WebChatApiEndpoint + 'user/refresh';
+    
+    $http({
+      method: 'POST',
+      url: refreshCredentialsEndpoint,
+      data: {
+        "user-id": userObject["user-id"],
+        "refresh-token": credentials["refresh-token"]
+      }
+    })
+    .success(function(angResponseObject) {
+      
+      processNewLoginResponse(angResponseObject);
+      
+      console.log("Credentials refreshed successfully.");
+    })
+    .error(function(angResponseObject, errorCode) {
+      console.log("An error occurred in refreshing credentials. Logging out.");
+      console.log(arguments);
+      
+      webchatService.logOut();
+    })
+    
+  }
+  
   webchatService.logOut = function() {
     return $q(function(resolve, reject) {
-      $cookieStore.put("credentials", undefined);
+      $cookieStore.put("login", undefined);
+      
+      resetCredentialRefreshTimer();
       
       resolve();
     });
@@ -237,6 +284,36 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       startWatchingRoomSessionMessages(getSessionMessagesEndpoint, messagesReceivedCallback);
     }
   }
+  
+  var credentialRefreshTimer = undefined;
+  
+  var resetCredentialRefreshTimer = function() {
+    
+    // Clear the existing timer (if it exists).
+    if (!angular.isUndefined(credentialRefreshTimer)) {
+      console.log("Clearing credential refresh timer.");
+      clearTimeout(credentialRefreshTimer);
+      credentialRefreshTimer = undefined;
+    }
+    
+    var credentials = webchatService.getCurrentUserCredentials();
+    if (angular.isUndefined(credentials)) {
+      // No credentials set. No need to set refresh timer.
+      return;
+    }
+    
+    var expirationDateTime = new Date(credentials.expiration);
+    var secondsUntilExpiration = (expirationDateTime.getTime() - (new Date()).getTime()) / 1000;
+    
+    var secondsUntilRefresh = (secondsUntilExpiration * 0.9);
+    
+    console.log("Setting timer for refreshing credentials in " + secondsUntilRefresh + " seconds.");
+    
+    credentialRefreshTimer = setTimeout(refreshCurrentUserCredentials, secondsUntilRefresh * 1000);
+    
+  }
+  
+  resetCredentialRefreshTimer();
   
   return webchatService;
 });

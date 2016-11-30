@@ -44,39 +44,62 @@ def lambda_handler(event, context):
     usage_plan_id = os.environ["USAGE_PLAN_ID"]
     
     email_address = event["request-body"].get("email-address", "")
-    
-    if email_address == "":
-        raise APIGatewayException("Value for \"email-address\" must be specified in request body.", 400)
+    user_id = event["request-body"].get("user-id", None)
     
     submitted_password = event["request-body"].get("password", "")
+    submitted_refresh_token = event["request-body"].get("refresh-token", None)
     
-    if submitted_password == "":
-        raise APIGatewayException("Value for \"password\" must be specified in request body.", 400)
+    auth_flow = None
+    auth_parameters = {}
     
-    secret_hash = generate_cognito_sign_up_secret_hash(email_address, user_pool_client_id, user_pool_client_secret)
+    if event["resource-path"] == "/user/login":
+        auth_flow = "ADMIN_NO_SRP_AUTH"
+        
+        if submitted_password == "":
+            raise APIGatewayException("Value for \"password\" must be specified in request body.", 400)
+        
+        if email_address == "":
+            raise APIGatewayException("Value for \"email-address\" must be specified in request body.", 400)
+        
+        auth_parameters["PASSWORD"] = submitted_password
+        auth_parameters["USERNAME"] = email_address
+        
+    elif event["resource-path"] == "/user/refresh":
+        auth_flow = "REFRESH_TOKEN_AUTH"
+        
+        if user_id is None:
+            raise APIGatewayException("Value for \"user-id\" must be specified in request body.", 400)
+        
+        if submitted_refresh_token is None:
+            raise APIGatewayException("Value for \"refresh-token\" must be specified in request body.", 400)
+        
+        auth_parameters["REFRESH_TOKEN"] = submitted_refresh_token
+        auth_parameters["USERNAME"] = user_id
     
-    print("Initiating auth.")
+    secret_hash = generate_cognito_sign_up_secret_hash(auth_parameters["USERNAME"], user_pool_client_id, user_pool_client_secret)
+    auth_parameters["SECRET_HASH"] = secret_hash
+    
+    print("Initiating auth ({}).".format(auth_flow))
     
     try:
         response = cognito_idp_client.admin_initiate_auth(
             UserPoolId = user_pool_id,
             ClientId = user_pool_client_id,
-            AuthFlow = "ADMIN_NO_SRP_AUTH",
-            AuthParameters = {
-                "USERNAME": email_address,
-                "PASSWORD": submitted_password,
-                "SECRET_HASH": secret_hash
-            }
+            AuthFlow = auth_flow,
+            AuthParameters = auth_parameters
         )
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'UserNotFoundException':
             raise APIGatewayException("User with e-mail address ({}) not found.".format(email_address), 404)
         elif e.response['Error']['Code'] == 'NotAuthorizedException':
-            raise APIGatewayException("Password entered is not correct.", 403)
+            if auth_flow == "ADMIN_NO_SRP_AUTH":
+                raise APIGatewayException("Password entered is not correct.", 403)
+            elif auth_flow == "REFRESH_TOKEN_AUTH":
+                raise APIGatewayException("Refresh token specified is invalid or expired.", 403)
         raise
     
     cognito_id_token = response["AuthenticationResult"]["IdToken"]
-    cognito_refresh_token = response["AuthenticationResult"]["RefreshToken"]
+    cognito_refresh_token = response["AuthenticationResult"].get("RefreshToken", submitted_refresh_token)
     cognito_access_token = response["AuthenticationResult"]["AccessToken"]
     cognito_access_token_type = response["AuthenticationResult"]["TokenType"]
     
@@ -87,11 +110,13 @@ def lambda_handler(event, context):
     user_id = response["Username"]
     
     user_api_key = None
+    user_email = None
     
     for each_attribute_pair in response["UserAttributes"]:
         if each_attribute_pair["Name"] == "custom:api_key":
             user_api_key = each_attribute_pair["Value"]
-            break
+        elif each_attribute_pair["Name"] == "email":
+            user_email = each_attribute_pair["Value"]
     
     if user_api_key is None:
         user_api_key = create_api_key_for_user_if_not_exists(
@@ -136,9 +161,16 @@ def lambda_handler(event, context):
     expiration_timestamp_seconds = calendar.timegm(response["Credentials"]["Expiration"].timetuple())
     
     return {
-        "api-key": user_api_key,
-        "access-key-id": aws_access_key_id,
-        "secret-access-key": aws_secret_access_key,
-        "session-token": aws_session_token,
-        "expiration": expiration_timestamp_seconds - int(time.time())
+        "user": {
+            "api-key": user_api_key,
+            "user-id": user_id,
+            "email-address": user_email
+        },
+        "credentials": {
+            "access-key-id": aws_access_key_id,
+            "secret-access-key": aws_secret_access_key,
+            "session-token": aws_session_token,
+            "expiration": expiration_timestamp_seconds - int(time.time()),
+            "refresh-token": cognito_refresh_token
+        }
     }

@@ -60,7 +60,8 @@ def lambda_handler(event, context):
     )
     
     return {
-        "user-id": new_username
+        "user-id": new_username,
+        "email-address": email_address
     }
 
 def validate_email_address(email_address):
