@@ -13,6 +13,71 @@ Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
   
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 137112412989.dkr.ecr.${AWS::Region}.amazonaws.com/amazonlinux:latest
+        Type: LINUX_CONTAINER
+      Name:
+        Fn::Sub: '${AWS::StackName}-webchat'
+      ServiceRole:
+        Fn::GetAtt:
+          - CodeBuildRole
+          - Arn
+      Source:
+        Location: CODEPIPELINE
+        Type: CODEPIPELINE
+  
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: CodeBuildRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudWatchLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                - "*"
+              - Sid: CodeCommitPolicy
+                Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - "*"
+              - Sid: S3GetObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - "*"
+              - Sid: S3PutObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - "*"
+  
   BuildPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -48,10 +113,12 @@ Resources:
                 Provider: AWS CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: testproject1
+                ProjectName:
+                  Fn::Sub: '${AWS::StackName}-webchat'
               OutputArtifacts:
                 - Name: MyAppBuild
-              
+    DependsOn:
+      - CodeBuildProject
   
   BuildPipelineRole:
     Type: AWS::IAM::Role
