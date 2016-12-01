@@ -1,0 +1,149 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Continuous integration stack for serverless web chat project.
+
+Resources:
+  
+  MainRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: '${AWS::StackName}-webchat'
+  
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+  
+  BuildPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location:
+          Ref: ArtifactStoreBucket
+        Type: S3
+      RoleArn:
+        Fn::GetAtt:
+          - BuildPipelineRole
+          - Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                BranchName: master
+                RepositoryName:
+                  Fn::Sub: '${AWS::StackName}-webchat'
+              OutputArtifacts:
+                - Name: MyApp
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: AWS CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: testproject1
+              OutputArtifacts:
+                - Name: MyAppBuild
+              
+  
+  BuildPipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: BuildPipelineRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::codepipeline*
+                  - arn:aws:s3:::elasticbeanstalk*
+                Effect: Allow
+              - Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - elasticbeanstalk:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*
+                  - sns:*
+                  - cloudformation:*
+                  - rds:*
+                  - sqs:*
+                  - ecs:*
+                  - iam:PassRole
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - lambda:InvokeFunction
+                  - lambda:ListFunctions
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - opsworks:CreateDeployment
+                  - opsworks:DescribeApps
+                  - opsworks:DescribeCommands
+                  - opsworks:DescribeDeployments
+                  - opsworks:DescribeInstances
+                  - opsworks:DescribeStacks
+                  - opsworks:UpdateApp
+                  - opsworks:UpdateStack
+                Resource: "*"
+                Effect: Allow
+          
+
+
+Outputs:
+  ArtifactStoreBucket:
+    Value:
+      Ref: ArtifactStoreBucket
+  RepositoryCloneUrlHttp:
+    Value:
+      Fn::GetAtt:
+        - MainRepository
+        - CloneUrlHttp
+  RepositoryCloneUrlSsh:
+    Value:
+      Fn::GetAtt:
+        - MainRepository
+        - CloneUrlSsh
