@@ -7,6 +7,7 @@ var rename = require('gulp-rename');
 var server = require('gulp-server-livereload');
 var install = require("gulp-install");
 var run = require('gulp-run');
+var templateCache = require('gulp-angular-templatecache');
 
 var devServerHost = 'localhost';
 
@@ -93,24 +94,6 @@ gulp.task('angular-ui-bootstrap-grunt', ['angular-ui-bootstrap-install'], functi
     });
 })
 
-gulp.task('angular-ui-bootstrap', ['angular-ui-bootstrap-grunt'], function(done) {
-  var ends = 1;
-  function end() {
-    if (--ends) return;
-    done();
-  }
-  gulp.src(['./node_modules/angular-ui-bootstrap/dist/**/*.js'])
-    .pipe(rename(function (path) {
-        path.basename = 'angular-' + path.basename.replace(/-\d\..*?(\.min)?$/, '$1');
-    }))
-    .pipe(gulp.dest('./www/lib/angular/js/'))
-    .on('end', end);
-  // For use with non embeded templates
-  ////gulp.src(['./node_modules/angular-ui-bootstrap/template/**'])
-  ////  .pipe(gulp.dest('./www/template'))
-  ////  .on('end', end);
-})
-
 gulp.task('angular', [], function(done) {
   var ends = 6;
   function end() {
@@ -129,16 +112,6 @@ gulp.task('angular', [], function(done) {
   gulp.src(['./node_modules//angular-animate/angular-animate.*'])
     .pipe(gulp.dest('./www/lib/angular/js/'))
     .on('end', end);
-  gulp.src(['./node_modules/angular-ui-bootstrap/src/*/*.js'])
-    .pipe(concat('angular-ui-bootstrap.js'))
-    .pipe(gulp.dest('./www/lib/angular/js'))
-    .on('end', end);
-  gulp.src(['./node_modules/angular-ui-bootstrap/src/*/*.js'])
-    .pipe(uglify('angular-ui-bootstrap.min.js',{
-      outSourceMap: true
-    }))
-    .pipe(gulp.dest('./www/lib/angular/js'))
-    .on('end', end);
 });
 
 gulp.task('angular-cookies', function() {
@@ -156,20 +129,35 @@ gulp.task('aws-sign-web', function() {
       .pipe(gulp.dest('./www/lib/aws-sign-web/'));
 });
 
-gulp.task('require', [], function(done) {
-  var ends = 1;
-  function end() {
-    if (--ends) return;
-    done();
-  }
-  gulp.src(['./node_modules/requirejs/require.js'])
-    .pipe(gulp.dest('./www/lib/require'))
-    .on('end', end);
+gulp.task('angular-ui-bootstrap', function() {
+    return gulp.src('./node_modules/angular-ui-bootstrap/dist/ui-bootstrap-tpls.js')
+      .pipe(gulp.dest('./www/lib/angular/js/'));
 });
 
-gulp.task('install', ['build', 'icons', 'angular', 'require', 'bootstrap', 'angular-ui-bootstrap', 'ie10-viewport-bug-workaround', 'angular-cookies', 'crypto-js', 'aws-sign-web'], function(done) {
-  done()
+gulp.task('template-cache', function () {
+  return gulp.src('./templates/*.html')
+    .pipe(templateCache())
+    .pipe(gulp.dest('./www/lib/template-cache/'));
 });
+
+gulp.task(
+  'install', 
+  [
+    'build', 
+    'icons', 
+    'angular', 
+    'bootstrap', 
+    'angular-ui-bootstrap', 
+    'ie10-viewport-bug-workaround', 
+    'angular-cookies', 
+    'crypto-js', 
+    'aws-sign-web', 
+    'template-cache'
+  ], 
+  function(done) {
+    done()
+  }
+);
 
 gulp.task('build', ['less'], function(done) {
   done()

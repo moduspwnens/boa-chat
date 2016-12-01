@@ -2,7 +2,7 @@ var app = undefined;
 
 (function() {
   
-  app = angular.module('app', ['ngCookies', 'ui.router', 'navController', 'ui.bootstrap', 'webchatService', 'authInterceptor'])
+  app = angular.module('app', ['ngCookies', 'ui.router', 'navController', 'ui.bootstrap', 'webchatService', 'authInterceptor', 'templates'])
 
 	app.config(function($stateProvider, $urlRouterProvider, $controllerProvider){
 		var origController = app.controller
@@ -11,8 +11,6 @@ var app = undefined;
 			return origController.apply(this, arguments);
 		}
 
-		var viewsPrefix = 'views/';
-
 		// For any unmatched url, send to /
 		$urlRouterProvider.otherwise("/")
 
@@ -20,32 +18,37 @@ var app = undefined;
 			// you can set this to no template if you just want to use the html in the page
 			.state('home', {
 				url: "/",
-				templateUrl: viewsPrefix + "home.html",
+				templateUrl: "home.html",
         controller: 'homeController'
 			})
 			.state('register', {
 				url: "/register",
-				templateUrl: viewsPrefix + "register.html",
+				templateUrl: "register.html",
         controller: 'registerController'
+			})
+			.state('register-verify', {
+				url: "/register/verify/:registrationId",
+				templateUrl: "register-verify.html",
+        controller: 'registerVerifyController'
 			})
 			.state('login', {
 				url: "/login",
-				templateUrl: viewsPrefix + "login.html",
+				templateUrl: "login.html",
         controller: 'loginController'
 			})
 			.state('logout', {
 				url: "/logout",
-				templateUrl: viewsPrefix + "logout.html",
+				templateUrl: "logout.html",
         controller: 'logoutController'
 			})
 			.state('forgot', {
 				url: "/forgot",
-				templateUrl: viewsPrefix + "forgot.html",
+				templateUrl: "forgot.html",
         controller: 'forgotController'
 			})
 			.state('room', {
 				url: "/room/:roomId",
-				templateUrl: viewsPrefix + "room.html",
+				templateUrl: "room.html",
         controller: 'roomController'
 			})
 	})

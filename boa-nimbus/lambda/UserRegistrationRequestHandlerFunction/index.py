@@ -60,7 +60,7 @@ def lambda_handler(event, context):
     )
     
     return {
-        "user-id": new_username,
+        "registration-id": new_username,
         "email-address": email_address
     }
 

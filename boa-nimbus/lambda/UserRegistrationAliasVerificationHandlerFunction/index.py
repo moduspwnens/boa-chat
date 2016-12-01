@@ -31,14 +31,14 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    user_id = event["request-params"]["querystring"].get("user-id", "")
+    cognito_user_id = event["request-params"]["querystring"].get("registration-id", "")
     token = event["request-params"]["querystring"].get("token", "")
     
     if token == "":
         raise APIGatewayException("Value for \"token\" must be specified in URL.", 400)
     
-    if user_id == "":
-        raise APIGatewayException("Value for \"user-id\" must be specified in URL.", 400)
+    if cognito_user_id == "":
+        raise APIGatewayException("Value for \"registration-id\" must be specified in URL.", 400)
     
     client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
@@ -46,8 +46,8 @@ def lambda_handler(event, context):
     try:
         cognito_idp_client.confirm_sign_up(
             ClientId = client_id,
-            SecretHash = generate_cognito_sign_up_secret_hash(user_id, client_id, client_secret),
-            Username = user_id,
+            SecretHash = generate_cognito_sign_up_secret_hash(cognito_user_id, client_id, client_secret),
+            Username = cognito_user_id,
             ConfirmationCode = token
         )
     except botocore.exceptions.ClientError as e:

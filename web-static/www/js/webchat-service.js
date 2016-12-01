@@ -21,11 +21,37 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         }
       })
       .success(function(angResponseObject) {
-        resolve(angResponseObject["user-id"]);
+        resolve(angResponseObject["registration-id"]);
       })
       .error(function(angResponseObject, errorCode) {
         console.log(arguments);
         reject("Other");
+      })
+    });
+  }
+  
+  webchatService.confirmUserEmailAddress = function(registrationId, token) {
+    var registerEndpoint = WebChatApiEndpoint + 'user/register/verify';
+    
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'GET',
+        url: registerEndpoint,
+        params: {
+          "registration-id": registrationId,
+          "token": token
+        }
+      })
+      .success(function(angResponseObject) {
+        resolve(true);
+      })
+      .error(function(angResponseObject, errorCode) {
+        if (errorCode == 400 && angResponseObject.hasOwnProperty("message")) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -43,18 +69,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
   webchatService.getCurrentUserCredentials = function() {
     var userLoginObject = $cookieStore.get("login");
     if ((!angular.isUndefined(userLoginObject)) && !angular.isUndefined(userLoginObject.credentials)) {
-      /*
-      var expirationDateTime = new Date(userLoginObject.credentials.expiration);
-      var secondsUntilExpiration = (expirationDateTime.getTime() - (new Date()).getTime()) / 1000;
-      
-      if (secondsUntilExpiration < 0) {
-        console.log("User credentials expired!");
-        userLoginObject.credentials = undefined;
-        
-        $cookieStore.put("login", userLoginObject);
-        return undefined;
-      }
-      */
+      // Clear credentials due to assumed expiry?
     }
     else {
       return undefined;

@@ -38,8 +38,12 @@
     <script src="lib/angular/js/angular.js"></script>
     <script src="lib/angular/js/angular-animate.js"></script>
     <script src="lib/angular/js/angular-ui-router.js"></script>
-    <script src="lib/angular/js/angular-ui-bootstrap-tpls.js"></script>
+    <script src="lib/angular/js/ui-bootstrap-tpls.js"></script>
     <script src="lib/angular-cookies/angular-cookies.js"></script>
+    
+    <!-- templates -->
+    <script src="js/template-cache-module.js"></script>
+    <script src="lib/template-cache/templates.js"></script>
     
     
     <!-- libraries -->
@@ -55,7 +59,9 @@
     <script src="js/auth-interceptor.js"></script>
     <script src="js/nav-controller.js"></script>
     <script src="js/home.js"></script>
+    <script src="js/modal-simple.js"></script>
     <script src="js/register.js"></script>
+    <script src="js/register-verify.js"></script>
     <script src="js/forgot.js"></script>
     <script src="js/login.js"></script>
     <script src="js/logout.js"></script>
@@ -91,7 +97,7 @@
             </li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
-            <li ng-show="!webchatService.isUserLoggedIn()"><a href="#/login">Log in</a></li>
+            <li ng-show="!webchatService.isUserLoggedIn()"><a href="#/login">Log in / Register</a></li>
             <li ng-show="webchatService.isUserLoggedIn()">
               <a class="dropdown-toggle" data-toggle="dropdown" role="button">
                 <span ng-bind="webchatService.getCurrentUser()['email-address']"></span>

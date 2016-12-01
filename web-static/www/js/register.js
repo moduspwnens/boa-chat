@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('registerController', function($scope, $http, $state, webchatService) {
+app.controller('registerController', function($scope, $http, $state, $cookieStore, webchatService) {
   
   $scope.$state = $state;
   
@@ -14,10 +14,15 @@ app.controller('registerController', function($scope, $http, $state, webchatServ
     $scope.ajaxOperationInProgress = true;
     
     webchatService.registerUser($scope.email, $scope.password)
-      .then(function(userId) {
+      .then(function(registrationId) {
         $scope.ajaxOperationInProgress = false;
         
-        console.log("Registration successful", userId);
+        var registrationEmailMap = $cookieStore.get("registration-email-map") || {};
+        registrationEmailMap[registrationId] = $scope.email;
+        $cookieStore.put("registration-email-map", registrationEmailMap);
+        
+        $state.go('register-verify', { registrationId: registrationId });
+        
       })
       .catch(function(errorReason) {
         $scope.ajaxOperationInProgress = false;

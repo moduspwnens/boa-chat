@@ -1,0 +1,17 @@
+<div class="container">
+  <form class="form-signin" ng-submit="registrationVerificationFormSubmitted()">
+    <h2 class="form-signin-heading">Verify E-mail Address</h2>
+    <p>
+      <span ng-show="registrationEmail">A verification code has been sent to <strong ng-bind="registrationEmail"></strong>.</span>
+      <span ng-show="!registrationEmail">A verification code has been sent to the e-mail address specified.</span>
+      Enter it below to confirm your registration.
+    </p>
+    
+    <label for="inputCode" class="sr-only">Six digit code</label>
+    <input type="text" id="inputCode" class="form-control email-verify-code" placeholder="Six digit code" ng-model="code" required autofocus>
+    <button class="btn btn-lg btn-primary btn-block" type="submit" ng-disabled="ajaxOperationInProgress">
+      Submit code
+      <span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span>
+    </button>
+  </form>
+</div>

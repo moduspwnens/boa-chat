@@ -4,6 +4,8 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
   
   $scope.$state = $state;
   
+  $scope.email = $cookieStore.get("last-logged-in-email");
+  
   $scope.loginFormSubmitted = function() {
     console.log("Attempting login.");
     
@@ -14,6 +16,8 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
         $scope.ajaxOperationInProgress = false;
         
         console.log("Login successful.");
+        
+        $cookieStore.put("last-logged-in-email", $scope.email);
         
         $state.go('home');
       })
@@ -34,10 +38,22 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
       })
   }
   
-  var focusEmailField = function() {
+  var focusElementById = function(elementId) {
     window.setTimeout(function() {
-      document.getElementById("inputEmail").focus();
+      document.getElementById(elementId).focus();
     }, 0);
+  }
+  
+  var focusEmailField = function() {
+    focusElementById("inputEmail");
+  }
+  
+  var focusPasswordField = function() {
+    focusElementById("inputPassword");
+  }
+  
+  if (!angular.isUndefined($scope.email)) {
+    focusPasswordField();
   }
   
 });
