@@ -47,7 +47,8 @@ def lambda_handler(event, context):
     usage_plan_id = os.environ["USAGE_PLAN_ID"]
     
     email_address = event["request-body"].get("email-address", "")
-    user_id = event["request-body"].get("user-id", None)
+    identity_id = event["request-body"].get("user-id", "")
+    user_id = None
     
     submitted_password = event["request-body"].get("password", "")
     submitted_refresh_token = event["request-body"].get("refresh-token", None)
@@ -70,8 +71,19 @@ def lambda_handler(event, context):
     elif event["resource-path"] == "/user/refresh":
         auth_flow = "REFRESH_TOKEN_AUTH"
         
-        if user_id is None:
+        if identity_id == "":
             raise APIGatewayException("Value for \"user-id\" must be specified in request body.", 400)
+        
+        response = cognito_sync_client.list_records(
+            IdentityPoolId = identity_pool_id,
+            IdentityId = identity_id,
+            DatasetName = user_profile_dataset_name
+        )
+        
+        for each_record in response["Records"]:
+            if each_record["Key"] == "user-id":
+                user_id = each_record["Value"]
+                break
         
         if submitted_refresh_token is None:
             raise APIGatewayException("Value for \"refresh-token\" must be specified in request body.", 400)
@@ -206,7 +218,7 @@ def lambda_handler(event, context):
     return {
         "user": {
             "api-key": user_api_key,
-            "user-id": user_id,
+            "user-id": identity_id,
             "email-address": user_email
         },
         "credentials": {
