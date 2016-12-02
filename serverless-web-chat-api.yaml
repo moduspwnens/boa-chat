@@ -120,18 +120,17 @@ Mappings:
       CorsAllowedHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       DummyStageName: DummyStage
       PreWarmScheduleExpression: rate(1 minute)
-      RobotsTxtContent: |-
-        User-Agent: *
-        Disallow: 
-        Allow: /
       StageName: v1
       WebChatApiGlobalSettingsResourceMethods: "'GET,OPTIONS'"
       WebChatApiRoomResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomMessageResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSessionResourceMethods: "'POST,OPTIONS'"
       WebChatApiSingleRoomSingleSessionMessageResourceMethods: "'GET,PUT,OPTIONS'"
+      WebChatApiUserChangePasswordResourceMethods: "'POST,OPTIONS'"
+      WebChatApiUserForgotPasswordResetResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserLoginResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserCredentialRefreshResourceMethods: "'POST,OPTIONS'"
+      WebChatApiUserForgotPasswordResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserRegisterResourceMethods: "'POST,OPTIONS'"
       WebChatApiUserRegistrationVerifyResourceMethods: "'GET,OPTIONS'"
       
@@ -230,13 +229,19 @@ Resources:
       - WebChatApiRoomCreateMethod
       - WebChatApiGlobalSettingsGetMethod
       - WebChatApiGlobalSettingsResourceOptions
+      - WebChatApiUserChangePasswordMethod
+      - WebChatApiUserForgotPasswordCreateMethod
+      - WebChatApiUserForgotPasswordResetMethod
+      - WebChatApiUserLoginCreateMethod
       - WebChatApiUserRegistrationCreateMethod
       - WebChatApiUserRegistrationAliasVerificationCreateMethod
-      - WebChatApiUserLoginCreateMethod
       - WebChatApiUserCredentialRefreshCreateMethod
       - WebChatApiRoomMessageGetMethod
       - WebChatApiRoomMessagePostMethod
       - WebChatApiRoomResourceOptions
+      - WebChatApiUserChangePasswordResourceOptions
+      - WebChatApiUserForgotPasswordResourceOptions
+      - WebChatApiUserForgotPasswordResetResourceOptions
       - WebChatApiUserLoginResourceOptions
       - WebChatApiUserRegistrationResourceOptions
       - WebChatApiUserCredentialRefreshResourceOptions
@@ -681,6 +686,55 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: false
             method.response.header.Access-Control-Allow-Headers: false
   
+  WebChatApiUserChangePasswordResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiUserResource
+      PathPart: password
+      RestApiId:
+        Ref: WebChatApi
+
+  WebChatApiUserChangePasswordResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserChangePasswordResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserChangePasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
   WebChatApiUserCredentialRefreshResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -729,6 +783,106 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: false
             method.response.header.Access-Control-Allow-Methods: false
             method.response.header.Access-Control-Allow-Headers: false
+    
+  WebChatApiUserForgotPasswordResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiUserResource
+      PathPart: forgot
+      RestApiId:
+        Ref: WebChatApi
+
+  WebChatApiUserForgotPasswordResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserForgotPasswordResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
+  WebChatApiUserForgotPasswordResetResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:
+        Ref: WebChatApiUserForgotPasswordResource
+      PathPart: password
+      RestApiId:
+        Ref: WebChatApi
+
+  WebChatApiUserForgotPasswordResetResourceOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserForgotPasswordResetResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: OPTIONS
+      Integration:
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: 
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResetResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        Type: MOCK
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+  
+  
   
   
   #
@@ -2325,6 +2479,615 @@ Resources:
   
   
   
+  #  
+  #   User Forgot Password Request Handler Function
+  #  
+    
+  UserForgotPasswordHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Handles user forgot password requests.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - UserForgotPasswordHandlerFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/UserForgotPasswordHandlerFunction.zip
+      Environment:
+        Variables:
+          COGNITO_USER_POOL_CLIENT_ID:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoUserPoolClientId
+          COGNITO_USER_POOL_CLIENT_SECRET:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoUserPoolClientSecret
+      Runtime: python2.7
+      Timeout: '300'
+  
+  UserForgotPasswordHandlerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  UserForgotPasswordHandlerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserForgotPasswordHandlerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserForgotPasswordHandlerFunction}:log-stream:*
+      Roles:
+        - Ref: UserForgotPasswordHandlerFunctionRole
+  
+  UserForgotPasswordHandlerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${UserForgotPasswordHandlerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiUserForgotPasswordCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserForgotPasswordResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserForgotPasswordHandlerFunctionArn}/invocations
+            - UserForgotPasswordHandlerFunctionArn:
+                Fn::GetAtt:
+                  - UserForgotPasswordHandlerFunction
+                  - Arn
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+    DependsOn:
+      - WebChatApiUserForgotPasswordCreateMethodUserForgotPasswordHandlerLambdaPermission
+  
+  WebChatApiUserForgotPasswordCreateMethodUserForgotPasswordHandlerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserForgotPasswordHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/forgot
+    DependsOn:
+      - UserForgotPasswordHandlerFunctionRoleActions
+      - UserForgotPasswordHandlerFunctionLogGroup
+  
+  PreWarmApiCloudWatchUserForgotPasswordHandlerFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserForgotPasswordHandlerFunction
+      Principal: 
+        Fn::GetAtt:
+          - PreWarmerFunctionRole
+          - Arn
+    DependsOn:
+      - UserForgotPasswordHandlerFunctionRoleActions
+      - UserForgotPasswordHandlerFunctionLogGroup
+  
+  
+  
+  
+  #  
+  #   User Reset Password Request Handler Function
+  #  
+    
+  UserChangePasswordHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Handles user forgot password requests.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - UserChangePasswordHandlerFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/UserChangePasswordHandlerFunction.zip
+      Environment:
+        Variables:
+          COGNITO_IDENTITY_POOL_ID:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoIdentityPoolId
+          COGNITO_USER_POOL_ID:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoUserPoolId
+          COGNITO_USER_POOL_CLIENT_ID:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoUserPoolClientId
+          COGNITO_USER_POOL_CLIENT_SECRET:
+            Fn::GetAtt:
+              - CognitoSharedResourceInvocation
+              - CognitoUserPoolClientSecret
+          COGNITO_USER_PROFILE_DATASET_NAME:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - CognitoIdentityUserProfileDatasetName
+      Runtime: python2.7
+      Timeout: '300'
+  
+  UserChangePasswordHandlerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  UserChangePasswordHandlerFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserChangePasswordHandlerFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserChangePasswordHandlerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - cognito-idp:AdminInitiateAuth
+            Resource:
+              Fn::Sub:
+                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
+                - CognitoUserPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoUserPoolId
+          - Effect: Allow
+            Action:
+              - cognito-sync:ListRecords
+            Resource:
+              Fn::Sub:
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoIdentityPoolId
+                  CognitoIdentityUserProfileDatasetName:
+                    Fn::FindInMap:
+                      - StaticVariables
+                      - Main
+                      - CognitoIdentityUserProfileDatasetName
+      Roles:
+        - Ref: UserChangePasswordHandlerFunctionRole
+  
+  UserChangePasswordHandlerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${UserChangePasswordHandlerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  WebChatApiUserForgotPasswordResetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      ResourceId:
+        Ref: WebChatApiUserForgotPasswordResetResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResetResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResetResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserForgotPasswordResetResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserChangePasswordHandlerFunctionArn}/invocations
+            - UserChangePasswordHandlerFunctionArn:
+                Fn::GetAtt:
+                  - UserChangePasswordHandlerFunction
+                  - Arn
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+    DependsOn:
+      - WebChatApiUserForgotPasswordResetMethodUserForgotPasswordHandlerLambdaPermission
+  
+  WebChatApiUserForgotPasswordResetMethodUserForgotPasswordHandlerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserChangePasswordHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/forgot/password
+    DependsOn:
+      - UserChangePasswordHandlerFunctionRoleActions
+      - UserChangePasswordHandlerFunctionLogGroup
+  
+  WebChatApiUserChangePasswordMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: true
+      AuthorizationType: AWS_IAM
+      ResourceId:
+        Ref: WebChatApiUserChangePasswordResource
+      RestApiId:
+        Ref: WebChatApi
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            SelectionPattern: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserChangePasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewaySuccessMappingTemplate
+          - StatusCode: '400'
+            SelectionPattern: '.*http-status\":\s*400.*'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserChangePasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayErrorMappingTemplate
+          - StatusCode: '500'
+            SelectionPattern:
+              Fn::FindInMap:
+                - StaticVariables
+                - Main
+                - ApiGatewayCatchAllErrorSelectionPattern
+            ResponseTemplates:
+              application/json:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - ApiGatewayServerErrorCatchAllTemplate
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:
+                Fn::GetAtt:
+                  - CorsOriginCombinerInvocation
+                  - ApiGatewayCorsOriginHeaderMapping
+              method.response.header.Access-Control-Allow-Methods:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - WebChatApiUserChangePasswordResourceMethods
+              method.response.header.Access-Control-Allow-Headers:
+                Fn::FindInMap:
+                  - StaticVariables
+                  - Main
+                  - CorsAllowedHeaders
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ApiGatewayDefaultLambdaIntegrationBodyMapping
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserChangePasswordHandlerFunctionArn}/invocations
+            - UserChangePasswordHandlerFunctionArn:
+                Fn::GetAtt:
+                  - UserChangePasswordHandlerFunction
+                  - Arn
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '400'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+        - StatusCode: '500'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Headers: false
+    DependsOn:
+      - WebChatApiUserChangePasswordMethodUserForgotPasswordHandlerLambdaPermission
+  
+  WebChatApiUserChangePasswordMethodUserForgotPasswordHandlerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserChangePasswordHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/*/POST/user/password
+    DependsOn:
+      - UserChangePasswordHandlerFunctionRoleActions
+      - UserChangePasswordHandlerFunctionLogGroup
+  
+  PreWarmApiCloudWatchUserChangePasswordHandlerFunctionLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: PreWarmingEnabledCondition
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: UserChangePasswordHandlerFunction
+      Principal: 
+        Fn::GetAtt:
+          - PreWarmerFunctionRole
+          - Arn
+    DependsOn:
+      - UserChangePasswordHandlerFunctionRoleActions
+      - UserChangePasswordHandlerFunctionLogGroup
+  
+  
   
   
   #  
@@ -3619,13 +4382,15 @@ Resources:
                 {
                     "function-arns": [
                         "${RoomGeneratorFunctionArn}",
-                        "${UserRegistrationRequestHandlerFunctionArn}",
-                        "${UserRegistrationAliasVerificationHandlerFunctionArn}",
-                        "${UserLoginHandlerFunctionArn}",
-                        "${RoomSessionGeneratorFunctionArn}",
                         "${RoomMessagePollerFunctionArn}",
                         "${RoomMessageAcknowledgerFunctionArn}",
-                        "${RoomMessagePosterFunctionArn}"
+                        "${RoomMessagePosterFunctionArn}",
+                        "${RoomSessionGeneratorFunctionArn}",
+                        "${UserForgotPasswordHandlerFunctionArn}",
+                        "${UserLoginHandlerFunctionArn}",
+                        "${UserRegistrationAliasVerificationHandlerFunctionArn}",
+                        "${UserRegistrationRequestHandlerFunctionArn}",
+                        "${UserChangePasswordHandlerFunctionArn}"
                     ],
                     "payload": {
                         "warming": true
@@ -3634,22 +4399,6 @@ Resources:
               - RoomGeneratorFunctionArn:
                   Fn::GetAtt:
                     - RoomGeneratorFunction
-                    - Arn
-                UserRegistrationRequestHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserRegistrationRequestHandlerFunction
-                    - Arn
-                UserRegistrationAliasVerificationHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserRegistrationAliasVerificationHandlerFunction
-                    - Arn
-                UserLoginHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserLoginHandlerFunction
-                    - Arn
-                RoomSessionGeneratorFunctionArn:
-                  Fn::GetAtt:
-                    - RoomSessionGeneratorFunction
                     - Arn
                 RoomMessagePollerFunctionArn:
                   Fn::GetAtt:
@@ -3663,6 +4412,31 @@ Resources:
                   Fn::GetAtt:
                     - RoomMessagePosterFunction
                     - Arn
+                RoomSessionGeneratorFunctionArn:
+                  Fn::GetAtt:
+                    - RoomSessionGeneratorFunction
+                    - Arn
+                UserForgotPasswordHandlerFunctionArn:
+                  Fn::GetAtt:
+                    - UserForgotPasswordHandlerFunction
+                    - Arn
+                UserLoginHandlerFunctionArn:
+                  Fn::GetAtt:
+                    - UserLoginHandlerFunction
+                    - Arn
+                UserRegistrationAliasVerificationHandlerFunctionArn:
+                  Fn::GetAtt:
+                    - UserRegistrationAliasVerificationHandlerFunction
+                    - Arn
+                UserRegistrationRequestHandlerFunctionArn:
+                  Fn::GetAtt:
+                    - UserRegistrationRequestHandlerFunction
+                    - Arn
+                UserChangePasswordHandlerFunctionArn:
+                  Fn::GetAtt:
+                    - UserChangePasswordHandlerFunction
+                    - Arn
+                
   
   #
   #   API Usage Plan Linker
@@ -3790,6 +4564,13 @@ Resources:
             Action:
               - execute-api:invoke
             Resource:
+              - Fn::Sub: 
+                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/user/password
+                  - WebChatApiStageName:
+                      Fn::FindInMap:
+                        - StaticVariables
+                        - Main
+                        - StageName
               - Fn::Sub: 
                   - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room
                   - WebChatApiStageName:
