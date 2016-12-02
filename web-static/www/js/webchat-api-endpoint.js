@@ -6,8 +6,9 @@ angular
   
   var apiEndpoint = "";
   
-  // Override this variable to point the web interface at an API at a 
-  // different URL than itself.
+  if (!angular.isUndefined(GlobalWebChatApiEndpoint)) {
+    apiEndpoint = GlobalWebChatApiEndpoint;
+  }
   
   return apiEndpoint;
 })
