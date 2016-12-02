@@ -3625,8 +3625,7 @@ Resources:
                         "${RoomSessionGeneratorFunctionArn}",
                         "${RoomMessagePollerFunctionArn}",
                         "${RoomMessageAcknowledgerFunctionArn}",
-                        "${RoomMessagePosterFunctionArn}",
-                        "${CognitoUserPostConfirmationTriggerFunctionArn}"
+                        "${RoomMessagePosterFunctionArn}"
                     ],
                     "payload": {
                         "warming": true
@@ -3663,10 +3662,6 @@ Resources:
                 RoomMessagePosterFunctionArn:
                   Fn::GetAtt:
                     - RoomMessagePosterFunction
-                    - Arn
-                CognitoUserPostConfirmationTriggerFunctionArn:
-                  Fn::GetAtt:
-                    - CognitoUserPostConfirmationTriggerFunction
                     - Arn
   
   #
@@ -3959,152 +3954,12 @@ Resources:
         Fn::GetAtt:
           - CognitoSharedResourceFunction
           - Arn
-      PostConfirmationTriggerFunctionArn:
-        Fn::GetAtt:
-          - CognitoUserPostConfirmationTriggerFunction
-          - Arn
       SharedBucket:
         Ref: SharedBucket
     DependsOn:
       - CognitoSharedResourceFunctionLogGroup
       - CognitoSharedResourceFunctionRoleActions
       - StackCleanupInvocation
-  
-  
-  
-  #
-  #   Cognito User Post Confirmation Trigger
-  #   
-  #   Called when a new user is confirmed.
-  #
-  
-  CognitoUserPostConfirmationTriggerFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Performs cleanup of associated resources on stack deletion.
-      Handler: index.lambda_handler
-      MemorySize: 256
-      Role:
-        Fn::GetAtt:
-          - CognitoUserPostConfirmationTriggerFunctionRole
-          - Arn
-      Code:
-        S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
-        S3Key: lambda/CognitoUserPostConfirmationTriggerFunction.zip
-      Environment:
-        Variables:
-          SHARED_BUCKET:
-            Ref: SharedBucket
-          STACK_NAME:
-            Ref: AWS::StackName
-          USAGE_PLAN_ID:
-            Ref: WebChatApiBasicUsagePlan
-      Runtime: python2.7
-      Timeout: '300'
-  
-  CognitoUserPostConfirmationTriggerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-  
-  CognitoUserPostConfirmationTriggerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: CognitoUserPostConfirmationTriggerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CognitoUserPostConfirmationTriggerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/user-api-keys/*
-          - Effect: Allow
-            Action:
-              - s3:ListBucket
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
-          - Effect: Allow
-            Action:
-              - cognito-idp:AdminUpdateUserAttributes
-            Resource:
-              Fn::Sub:
-                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-                - CognitoUserPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoUserPoolId
-      Roles:
-        - Ref: CognitoUserPostConfirmationTriggerFunctionRole
-  
-  CognitoUserPostConfirmationTriggerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${CognitoUserPostConfirmationTriggerFunction}
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  CognitoUserPostConfirmationTriggerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: CognitoUserPostConfirmationTriggerFunction
-      Principal: cognito-idp.amazonaws.com
-      SourceArn:
-        Fn::Sub:
-          - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-          - CognitoUserPoolId:
-              Fn::GetAtt:
-                - CognitoSharedResourceInvocation
-                - CognitoUserPoolId
-    DependsOn:
-      - RoomMessagePosterFunctionRoleActions
-      - RoomMessagePosterFunctionLogGroup
-  
-  PreWarmCognitoUserPostConfirmationTriggerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: CognitoUserPostConfirmationTriggerFunction
-      Principal:
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomMessagePosterFunctionRoleActions
-      - RoomMessagePosterFunctionLogGroup
   
   
   
@@ -4307,11 +4162,6 @@ Resources:
             Resource:
               - Fn::Sub: arn:aws:s3:::${SharedBucket}
               - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
-          - Effect: Allow
-            Action:
-              - apigateway:DELETE
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
       Roles:
         - Ref: StackCleanupFunctionRole
   
@@ -4336,6 +4186,128 @@ Resources:
     DependsOn:
       - StackCleanupFunctionLogGroup
       - StackCleanupFunctionRoleActions
+  
+  
+  
+  #
+  #   User Resource Cleanup
+  #   
+  #   This function cleans up user-specific resources on stack deletion.
+  #     
+  #     * API keys created for each user
+  #
+  
+  UserResourceCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize: 1536
+      Role:
+        Fn::GetAtt:
+          - UserResourceCleanupFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/UserResourceCleanupFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  UserResourceCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  UserResourceCleanupFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UserResourceCleanupFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserResourceCleanupFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - cognito-identity:ListIdentities
+            Resource:
+              Fn::Sub:
+                - arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}
+                - CognitoIdentityPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoIdentityPoolId
+          - Effect: Allow
+            Action:
+              - cognito-sync:ListRecords
+            Resource:
+              Fn::Sub:
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityPoolId:
+                    Fn::GetAtt:
+                      - CognitoSharedResourceInvocation
+                      - CognitoIdentityPoolId
+                  CognitoIdentityUserProfileDatasetName:
+                    Fn::FindInMap:
+                      - StaticVariables
+                      - Main
+                      - CognitoIdentityUserProfileDatasetName
+          - Effect: Allow
+            Action:
+              - cognito-identity:DeleteIdentities
+            Resource:
+              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/
+          - Effect: Allow
+            Action:
+              - apigateway:DELETE
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
+      Roles:
+        - Ref: UserResourceCleanupFunctionRole
+  
+  UserResourceCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${UserResourceCleanupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  UserResourceCleanupInvocation:
+    Type: Custom::UserResourceCleanupInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - UserResourceCleanupFunction
+          - Arn
+      CognitoIdentityPoolId:
+        Fn::GetAtt:
+          - CognitoSharedResourceInvocation
+          - CognitoIdentityPoolId
+      CognitoIdentityUserProfileDatasetName:
+        Fn::FindInMap:
+          - StaticVariables
+          - Main
+          - CognitoIdentityUserProfileDatasetName
+    DependsOn:
+      - UserResourceCleanupFunctionLogGroup
+      - UserResourceCleanupFunctionRoleActions
+      - CognitoSharedResourceInvocation
       
     
   #

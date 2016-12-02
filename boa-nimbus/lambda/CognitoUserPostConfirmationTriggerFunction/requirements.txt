@@ -1,3 +1,0 @@
-pyutil==2.0.0
-zbase32==1.1.5
-boa-nimbus/lambda-pip-modules/project-local

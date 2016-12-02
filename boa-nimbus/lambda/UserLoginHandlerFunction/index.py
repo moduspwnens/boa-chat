@@ -13,15 +13,18 @@ import copy
 import datetime
 import calendar
 import time
+import uuid
+import random
+import zbase32
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
 from cognito_helpers import generate_cognito_sign_up_secret_hash
-from project_local.generate_api_key import create_api_key_for_user_if_not_exists
 
 cognito_idp_client = boto3.client("cognito-idp")
 cognito_identity_client = boto3.client("cognito-identity")
 cognito_sync_client = boto3.client("cognito-sync")
+apig_client = boto3.client("apigateway")
 
 def lambda_handler(event, context):
     
@@ -124,24 +127,12 @@ def lambda_handler(event, context):
     
     user_id = response["Username"]
     
-    user_api_key = None
     user_email = None
     
     for each_attribute_pair in response["UserAttributes"]:
-        if each_attribute_pair["Name"] == "custom:api_key":
-            user_api_key = each_attribute_pair["Value"]
-        elif each_attribute_pair["Name"] == "email":
+        if each_attribute_pair["Name"] == "email":
             user_email = each_attribute_pair["Value"]
-    
-    if user_api_key is None:
-        user_api_key = create_api_key_for_user_if_not_exists(
-            user_id = user_id, 
-            email_address = email_address,
-            user_pool_id = user_pool_id,
-            stack_name = stack_name,
-            usage_plan_id = usage_plan_id,
-            s3_bucket_name = s3_bucket_name
-        )
+            break
     
     cognito_user_pool_provider_name = "cognito-idp.{}.amazonaws.com/{}".format(
         os.environ["AWS_DEFAULT_REGION"],
@@ -159,6 +150,9 @@ def lambda_handler(event, context):
     
     identity_id = response["IdentityId"]
     
+    user_api_key_id = None
+    user_api_key_value = None
+    
     response = cognito_sync_client.list_records(
         IdentityPoolId = identity_pool_id,
         IdentityId = identity_id,
@@ -167,13 +161,45 @@ def lambda_handler(event, context):
     
     sync_session_token = response["SyncSessionToken"]
     
+    for each_record in response.get("Records", []):
+        if each_record["Key"] == "api-key-id":
+            user_api_key_id = each_record["Value"]
+        elif each_record["Key"] == "api-key":
+            user_api_key_value = each_record["Value"]
+    
+    if user_api_key_id is None:
+        
+        generated_api_key = generate_potential_api_key()
+        
+        api_key_name = "{} - {}".format(
+            stack_name,
+            identity_id
+        )
+        
+        response = apig_client.create_api_key(
+            name = api_key_name,
+            description = "Web chat API key for {}.".format(identity_id),
+            enabled = True,
+            value = generated_api_key
+        )
+        
+        user_api_key_id = response["id"]
+        user_api_key_value = response["value"]
+        
+        response = apig_client.create_usage_plan_key(
+            usagePlanId = usage_plan_id,
+            keyId = user_api_key_id,
+            keyType = "API_KEY"
+        )
+    
     records_to_replace = {
-        "api-key": user_api_key,
+        "api-key-id": user_api_key_id,
+        "api-key": user_api_key_value,
         "email-address": user_email,
         "user-id": user_id
     }
     
-    for each_record in response["Records"]:
+    for each_record in response.get("Records", []):
         if each_record["Key"] in records_to_replace and each_record["Value"] == records_to_replace[each_record["Key"]]:
             del records_to_replace[each_record["Key"]]
     
@@ -217,7 +243,7 @@ def lambda_handler(event, context):
     
     return {
         "user": {
-            "api-key": user_api_key,
+            "api-key": user_api_key_value,
             "user-id": identity_id,
             "email-address": user_email
         },
@@ -229,3 +255,11 @@ def lambda_handler(event, context):
             "refresh-token": cognito_refresh_token
         }
     }
+
+def generate_potential_api_key():
+    # API key must be at least 30 characters.
+    base_key = zbase32.b2a(uuid.uuid4().bytes)
+    
+    filler_content = "".join(random.sample(base_key, len(base_key)))
+    
+    return (zbase32.b2a(uuid.uuid4().bytes) + filler_content)[:30]

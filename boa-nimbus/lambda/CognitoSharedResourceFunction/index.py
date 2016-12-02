@@ -1,9 +1,9 @@
 """CognitoSharedResourceFunction
 
 Used as a CloudFormation custom resource to create / update / delete:
+ * Cognito Identity Pool
  * Cognito User Pool
  * Cognito User Pool Client (the API itself)
- * Cognito Identity Pool for the Cognito User Pool
 
 """
 
@@ -73,17 +73,6 @@ def lambda_handler(event, context):
                     "AttributeDataType": "Number",
                     "NumberAttributeConstraints": {
                         "MinValue": "0"
-                    },
-                    "DeveloperOnlyAttribute": False,
-                    "Mutable": True,
-                    "Required": False
-                },
-                {
-                    "Name": "api_key",
-                    "AttributeDataType": "String",
-                    "StringAttributeConstraints": {
-                        "MinLength": "30",
-                        "MaxLength": "30"
                     },
                     "DeveloperOnlyAttribute": False,
                     "Mutable": True,
