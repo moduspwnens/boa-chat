@@ -1,0 +1,819 @@
+---
+swagger: "2.0"
+info:
+  version: "1.0"
+  title: "AWS Serverless Web Chat"
+
+host: "9q91nn81w3.execute-api.us-east-1.amazonaws.com"
+basePath: "/v1"
+schemes:
+  - "https"
+
+x-boa-cors-enable: true
+
+tags:
+  - name: global
+    description: Global API resources
+  - name: chat
+    description: Chat resources
+  - name: user
+    description: User and login resources
+
+paths:
+  
+  /api:
+    get:
+      summary: Get global API options
+      description: Returns necessary parameters for AWS v4 signatures, including service and region.
+      tags:
+        - global
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              aws-v4-sig:
+                region: us-west-2
+                service: execute-api
+          schema:
+            $ref: '#/definitions/GlobalApiSettings'
+  
+  /room:
+    post:
+      summary: Create a chat room
+      description: Returns the newly-created chat room's id.
+      tags:
+        - chat
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              room: room/0372c56c-e8c1-4080-808f-02a3ef451981
+          schema:
+            type: object
+            required:
+              - room
+            properties:
+              room:
+                description: A URL pointing to the newly-created room.
+                type: string
+      security:
+        - sigv4: []
+        - api_key: []
+  
+  /room/{room-id}/message:
+    post:
+      summary: Post a new message to a chat room
+      description: Returns the message's unique id.
+      tags:
+        - chat
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: room-id
+          description: The id of the room to which to post the message.
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: body
+          description: The message to post.
+          required: true
+          schema:
+            $ref: '#/definitions/PostChatMessageRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              message-id: 90fd827f-1b61-4d75-a53f-6742db519971
+          schema:
+            $ref: '#/definitions/NewRoomMessageResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: 'Unsupported message version: fish'
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+
+  /room/{room-id}/session:
+    post:
+      summary: Create a new chat room session
+      description: |+
+        Returns the new chat room session's id.
+        
+        A chat room session represents an endpoint the client can poll 
+        continuously to receive messages posted to the room as they arrive.
+      tags:
+        - chat
+      produces:
+        - application/json
+      parameters:
+        - name: room-id
+          description: The id of the room for which to create the session.
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              session: e373e692-2429-46e1-a34e-ff8cb4575eb5
+          schema:
+            $ref: '#/definitions/NewRoomSessionResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+  
+  /room/{room-id}/session/{session-id}/message:
+    get:
+      summary: Fetch messages a chat room session
+      description: |+
+        This method will wait up to 20 seconds to return, but will return as 
+        soon as at least one message is available.
+        
+        Messages received will be returned again after 30 seconds unless the 
+        client acknowledges receipt with the appropriate method.
+        
+        It can occasionally return duplicate messages across requests, so 
+        clients must handle deduplication separately.
+      tags:
+        - chat
+      produces:
+        - application/json
+      parameters:
+        - name: room-id
+          description: The id of the room to which the session belongs.
+          in: path
+          required: true
+          type: string
+        - name: session-id
+          description: The id of the room session from which to poll for messages.
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              receipt-handles:
+                - AQEBf1GhQWt2bnKWcyEQ8G+TeS6yDDp...
+              messages:
+                - author-name: webchatuser1@example.com
+                  identity-id: c9c708e9-7c19-49d9-81a7-29a1c10cded3
+                  message: Hello World!
+                  timestamp: 1480725356
+          schema:
+            $ref: '#/definitions/GetRoomMessagesResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: Invalid room session id.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+    
+    put:
+      summary: Acknowledge messages retrieved from a chat room session
+      description: |+
+        Send an array of receipt handles returned from polling for chat room 
+        session messages to flag them as received. This removes them from 
+        the queue to prevent receiving the same messages multiple times.
+      tags:
+        - chat
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: room-id
+          description: The id of the room to which the session belongs.
+          in: path
+          required: true
+          type: string
+        - name: session-id
+          description: The id of the room session from which the messages were received.
+          in: path
+          required: true
+          type: string
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/AcknowledgeChatRoomSessionMessagesRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json: {}
+          schema:
+            $ref: '#/definitions/Empty'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: Value for "receipt-handles" must be an array including at least one string.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+
+  /user/forgot:
+    post:
+      summary: Request a password reset code be e-mailed to the specified address
+      description: |+
+        The password reset code can be sent with a change forgotten password 
+        request to change a user's password.
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/SendForgotPasswordCodeRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              message: Password reset code sent.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: Value for "email-address" must be specified in request body.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+        404:
+          description: User not found
+          examples:
+            application/json:
+              message: No user found with the specified e-mail address.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+  
+  /user/forgot/password:
+    post:
+      summary: Use a password reset code to change a user's password
+      description: |+
+        A message containing a password reset code for the user is sent to 
+        the user's confirmed e-mail address after requesting it separately.
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/ChangeForgottenPasswordRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              message: Password changed successfully.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: The password reset code specified is invalid.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+
+  /user/password:
+    post:
+      summary: Use a user's existing password to change the user's password
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/ChangeKnownPasswordRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              message: Password changed successfully.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: The password reset code specified is invalid.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+  
+  /user/login:
+    post:
+      summary: Log in with an e-mail address and password
+      description: |+
+        Returns basic user details, an API key, and temporary credentials.
+        
+        Note that the e-mail address used to log in must already be confirmed.
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/LoginRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              credentials:
+                access-key-id: ASIAIOAJJTPR7P...
+                secret-access-key: 0mJF+cpIcN9XXKM/1GgR9wC...
+                session-token: AgoGb3JpZ2luEIT//////////wEa...
+                refresh-token: eyJjdHkiOiJKV1QiLCJlbm...
+                expiration: 3600
+              user:
+                email-address: webchatuser1@example.com
+                user-id: us-east-1:a08b99db-da0e-4282-9b5a-459419d457a6
+                api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
+          schema:
+            $ref: '#/definitions/UserCredentialsRetrievalResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: Password entered is not correct.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+
+  /user/refresh:
+    post:
+      summary: Use a refresh token to get new temporary credentials
+      description: |+
+        A refresh token is returned when a user logs in. It can be used 
+        multiple times to fetch new temporary credentials until it expires.
+        
+        After it expires, the user must log in again to retrieve fresh 
+        credentials to continue making authenticated requests.
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/UserCredentialRefreshRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              credentials:
+                access-key-id: ASIAIOAJJTPR7P...
+                secret-access-key: 0mJF+cpIcN9XXKM/1GgR9wC...
+                session-token: AgoGb3JpZ2luEIT//////////wEa...
+                refresh-token: eyJjdHkiOiJKV1QiLCJlbm...
+                expiration: 3600
+              user:
+                email-address: webchatuser1@example.com
+                user-id: us-east-1:a08b99db-da0e-4282-9b5a-459419d457a6
+                api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
+          schema:
+            $ref: '#/definitions/UserCredentialsRetrievalResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: The refresh token received is expired.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - api_key: []
+
+  /user/register:
+    post:
+      summary: Register a new user
+      description: |+
+        This method sends a confirmation code the submitted e-mail address. 
+        Registration is not complete until it is confirmed with the code.
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/RegisterUserRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              email-address: webchatuser1@example.com
+              registration-id: 5ed9ffaf-2e6e-4f3b-b9f3-e45bc1c0e8a5
+          schema:
+            $ref: '#/definitions/RegisterUserResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: The password entered does not meet validation requirements.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+
+  /user/register/verify:
+    get:
+      summary: Confirm a new user registration with a confirmation code
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/ConfirmUserEmailRequest'
+      responses:
+        200:
+          description: Success
+          examples:
+            application/json:
+              message: E-mail address confirmed successfully.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        400:
+          description: Bad request
+          examples:
+            application/json:
+              message: The confirmation code given is invalid or expired.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+
+definitions:
+  
+  Empty:
+    type: object
+    title: Empty Schema
+  
+  AcknowledgeChatRoomSessionMessagesRequest:
+    type: object
+    required:
+      - receipt-handles
+    properties:
+      receipt-handles:
+        type: array
+        description: An array of receipt handles received from a previous chat room session poll
+        items:
+          $ref: '#/definitions/ChatMessageReceiptHandle'
+    
+  AwsV4SignatureSettings:
+    type: object
+    description: Parameters necessary for AWS v4 signature authentication
+    required:
+      - region
+      - service
+    properties:
+      region:
+        type: string
+        description: AWS region name to use for AWS v4 signature authentication
+      service:
+        type: string
+        description: AWS service name to use for AWS v4 signature authentication
+  
+  BasicAcknowledgementResponse:
+    type: object
+    required:
+      - message
+    properties:
+      message:
+        type: string
+        description: |+
+          A human-readable message confirming the request was received and 
+          processed normally
+  
+  ChangeForgottenPasswordRequest:
+    type: object
+    required:
+      - email-address
+      - token
+      - password
+    properties:
+      email-address:
+        type: string
+      token:
+        type: string
+        description: |+
+          The password reset code retrieved from the message sent to the 
+          user's e-mail address
+      password:
+        type: string
+        format: password
+        description: The new desired password
+
+  ChangeKnownPasswordRequest:
+    type: object
+    required:
+      - old-password
+      - new-password
+    properties:
+      old-password:
+        type: string
+        format: password
+        description: The existing password for the user
+      new-password:
+        type: string
+        format: password
+        description: The new desired password
+  
+  ChatMessageObject:
+    type: object
+    required:
+      - author-name
+      - identity-id
+      - message
+      - timestamp
+    properties:
+      author-name:
+        type: string
+        description: User-visible name for the message sender
+      identity-id:
+        type: string
+        description: Unique and permanent id for the message sender
+      message:
+        type: string
+        description: The text of the message sent
+      timestamp:
+        type: integer
+        description: Unix timestamp of message sent time
+        format: int32
+  
+  ChatMessageReceiptHandle:
+    type: string
+    description: Represents an instance of retrieval of a chat room session message
+  
+  ConfirmUserEmailRequest:
+    type: object
+    required:
+      - registration-id
+      - token
+    properties:
+      registration-id:
+        type: string
+        description: The registration id returned in the prior registration request
+      token:
+        type: string
+        description: |+
+          The confirmation code found in the message sent to the user's e-mail 
+          address
+  
+  DefaultErrorResponse:
+    type: object
+    required:
+      - message
+    properties:
+      message:
+        type: string
+        description: A human-readable message describing the error the occurred
+  
+  GetRoomMessagesResponse:
+    type: object
+    required:
+      - receipt-handles
+      - messages
+    properties:
+      receipt-handles:
+        type: array
+        items:
+          $ref: '#/definitions/ChatMessageReceiptHandle'
+      messages:
+        type: array
+        items:
+          $ref: '#/definitions/ChatMessageObject'
+  
+  GlobalApiSettings:
+    type: object
+    required:
+      - aws-v4-sig
+    properties:
+      aws-v4-sig:
+        $ref: '#/definitions/AwsV4SignatureSettings'
+  
+  LoginRequest:
+    type: object
+    required:
+      - email-address
+      - password
+    properties:
+      email-address:
+        type: string
+        description: The e-mail address of the user. Must already be confirmed
+      password:
+        type: string
+        format: password
+  
+  NewRoomMessageResponse:
+    type: object
+    required:
+      - message-id
+    properties:
+      message-id:
+        type: string
+        description: The unique identifier for the new message
+  
+  NewRoomSessionResponse:
+    type: object
+    required:
+      - session-id
+    properties:
+      message-id:
+        type: string
+        description: The unique identifier for the new session
+  
+  PostChatMessageRequest:
+    type: object
+    required:
+      - version
+      - message
+    properties:
+      version:
+        type: string
+        enum:
+          - '1'
+      message:
+        type: string
+  
+  RegisterUserRequest:
+    type: object
+    required:
+      - email-address
+      - password
+    properties:
+      email-address:
+        type: string
+        description: |+
+          The e-mail address of the new user. Must not already be confirmed by 
+          another user
+      password:
+        type: string
+        description: |+
+          The new password the user should use in login requests
+        format: password
+  
+  RegisterUserResponse:
+    type: object
+    required:
+      - email-address
+      - registration-id
+    properties:
+      email-address:
+        type: string
+        description: |+
+          The e-mail address to which the confirmation code was sent
+      registration-id:
+        type: string
+        description: |+
+          Unique registration id to be sent with the confirmation code to 
+          confirm the user registration
+  
+  SendForgotPasswordCodeRequest:
+    type: object
+    required:
+      - email-address
+    properties:
+      email-address:
+        type: string
+        description: E-mail address of a user that has already been confirmed
+  
+  UserCredentialsRetrievalResponse:
+    type: object
+    required:
+      - credentials
+      - user
+    properties:
+      credentials:
+        $ref: '#/definitions/UserTemporaryCredentials'
+      user:
+        $ref: '#/definitions/UserBasicInfoObject'
+        
+  UserBasicInfoObject:
+    type: object
+    required:
+      - email-address
+      - user-id
+      - api-key
+    properties:
+      email-address:
+        type: string
+      user-id:
+        type: string
+        description: User's permanent id as will be included in posted messages
+      api-key:
+        type: string
+        description: API key to use in x-api-key header for authenticated requests
+  
+  UserCredentialRefreshRequest:
+    type: object
+    required:
+      - user-id
+      - refresh-token
+    properties:
+      user-id:
+        type: string
+        description: The user id returned from the login request
+      refresh-token:
+        type: string
+        description: The refresh token returned from the login request
+  
+  UserTemporaryCredentials:
+    type: object
+    required:
+      - access-key-id
+      - secret-access-key
+      - session-token
+      - expiration
+      - refresh-token
+    properties:
+      access-key-id:
+        type: string
+        description: Access key id to use for AWS v4 signature
+      secret-access-key:
+        type: string
+        description: Secret access key to use for AWS v4 signature
+      session-token:
+        type: string
+        description: Session token to use in x-amz-security-token header for authenticated requests
+      expiration:
+        type: integer
+        description: Number of seconds until credentials will expire
+        format: int32
+      refresh-token:
+        type: string
+        description: |+
+          A longer duration token that can be used with an to request new 
+          temporary credentials without re-entering a password
+
+securityDefinitions:
+  
+  api_key:
+    type: apiKey
+    name: x-api-key
+    in: header
+  
+  sigv4:
+    type: apiKey
+    name: Authorization
+    in: header
+    x-amazon-apigateway-authtype: awsSigv4
