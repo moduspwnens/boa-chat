@@ -481,11 +481,18 @@ paths:
       produces:
         - application/json
       parameters:
-        - in: body
-          name: body
+        - in: query
+          name: registration-id
+          description: The registration id returned in the prior registration request
           required: true
-          schema:
-            $ref: '#/definitions/ConfirmUserEmailRequest'
+          type: string
+        - in: query
+          name: token
+          description: |+
+            The confirmation code found in the message sent to the user's e-mail 
+            address
+          required: true
+          type: string
       responses:
         200:
           description: Success
@@ -603,21 +610,6 @@ definitions:
   ChatMessageReceiptHandle:
     type: string
     description: Represents an instance of retrieval of a chat room session message
-  
-  ConfirmUserEmailRequest:
-    type: object
-    required:
-      - registration-id
-      - token
-    properties:
-      registration-id:
-        type: string
-        description: The registration id returned in the prior registration request
-      token:
-        type: string
-        description: |+
-          The confirmation code found in the message sent to the user's e-mail 
-          address
   
   DefaultErrorResponse:
     type: object
