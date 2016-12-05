@@ -62,9 +62,10 @@ def lambda_handler(event, context):
                 print("Adding {} to identity deletion list.".format(each_identity_id))
                 identity_ids_to_delete.append(each_identity_id)
             
-            cognito_identity_client.delete_identities(
-                IdentityIdsToDelete = identity_ids_to_delete
-            )
+            if len(identity_ids_to_delete) > 0:
+                cognito_identity_client.delete_identities(
+                    IdentityIdsToDelete = identity_ids_to_delete
+                )
             
             print("Deleted {} identities.".format(len(identity_ids_to_delete)))
                 
