@@ -16,11 +16,11 @@ import random
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 from cognito_helpers import generate_cognito_sign_up_secret_hash
 
 s3_client = boto3.client("s3")
 apig_client = boto3.client("apigateway")
-
 cognito_idp_client = boto3.client("cognito-idp")
 
 def lambda_handler(event, context):
@@ -31,8 +31,8 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    cognito_user_id = event["request-params"]["querystring"].get("registration-id", "")
-    token = event["request-params"]["querystring"].get("token", "")
+    cognito_user_id = event.get("queryStringParameters", {}).get("registration-id", "")
+    token = event.get("queryStringParameters", {}).get("token", "")
     
     if token == "":
         raise APIGatewayException("Value for \"token\" must be specified in URL.", 400)
@@ -65,4 +65,25 @@ def lambda_handler(event, context):
     
     return {
         "message": "E-mail address confirmed successfully."
+    }
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
     }

@@ -16,9 +16,6 @@ On the back end, this:
  * Creates a pointer record in S3 so that the SQS queue can be found and
    cleaned up later.
 
-Expected request time: ~1100ms. 
-    Not particularly fast, but it only happens when first joining a room.
-
 """
 
 from __future__ import print_function
@@ -30,8 +27,8 @@ import time
 import hashlib
 import base64
 import boto3
-from apigateway_helpers import get_public_api_base
 from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 
 sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
@@ -44,29 +41,21 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    public_api_base = get_public_api_base(event)
-    
     session_id = generate_new_session_id()
     
     sqs_queue_name = get_queue_name(event, session_id)
     create_and_initialize_queue(event, sqs_queue_name, session_id)
     
     return {
-        "session": "{}{}/{}".format(
-            public_api_base,
-            event["resource-path"].format(**{
-                "room-id": event["request-params"]["path"]["room-id"]
-            }),
-            session_id
-        )
+        "id": session_id
     }
 
 def generate_new_session_id():
     return "{}".format(uuid.uuid4())
 
 def create_and_initialize_queue(event, sqs_queue_name, session_id):
-    s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
-    room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["request-params"]["path"]["room-id"]))["Body"].read())
+    s3_bucket_name = "webchat-sharedbucket-{}".format(event["requestContext"]["apiId"])
+    room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["pathParameters"]["room-id"]))["Body"].read())
     sns_topic_arn = room_info_dict["sns-topic-arn"]
     
     queue_url = sqs_client.create_queue(
@@ -86,13 +75,13 @@ def create_and_initialize_queue(event, sqs_queue_name, session_id):
         "created": int(time.time()),
         "sqs-queue-url": queue_url,
         "sns-subscription-arn": subscribe_response["SubscriptionArn"],
-        "user-id": event["cognito-identity-pool-id"]
+        "user-id": event["requestContext"]["identity"]["cognitoIdentityPoolId"]
     }
 
     s3_client.put_object(
         Bucket = s3_bucket_name,
         Key = "room-queues/{}/{}.json".format(
-            event["request-params"]["path"]["room-id"],
+            event["pathParameters"]["room-id"],
             session_id
         ),
         Body = json.dumps(s3_queue_config_object, indent=4)
@@ -101,9 +90,9 @@ def create_and_initialize_queue(event, sqs_queue_name, session_id):
 def get_queue_name(event, session_id):
     
     hash_string_base = "{}-{}-{}-{}".format(
-        event["api-id"],
-        event["stage"],
-        event["request-params"]["path"]["room-id"],
+        event["requestContext"]["apiId"],
+        event["requestContext"]["stage"],
+        event["pathParameters"]["room-id"],
         session_id
     )
     
@@ -164,4 +153,25 @@ def get_default_queue_attributes(sns_topic_arn):
                 }
             ]
         })
+    }
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
     }

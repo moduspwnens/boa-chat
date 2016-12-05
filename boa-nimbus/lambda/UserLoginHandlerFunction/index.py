@@ -19,6 +19,7 @@ import zbase32
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 from cognito_helpers import generate_cognito_sign_up_secret_hash
 
 cognito_idp_client = boto3.client("cognito-idp")
@@ -28,10 +29,13 @@ apig_client = boto3.client("apigateway")
 
 def lambda_handler(event, context):
     
+    event["request-body"] = json.loads(event["body"])
+    
     event_for_logging = copy.deepcopy(event)
     
     if "request-body" in event_for_logging and "password" in event_for_logging["request-body"]:
         event_for_logging["request-body"]["password"] = "********"
+        event_for_logging["body"] = json.dumps(event_for_logging["request-body"])
     
     print("Event: {}".format(json.dumps(event_for_logging)))
     
@@ -59,7 +63,7 @@ def lambda_handler(event, context):
     auth_flow = None
     auth_parameters = {}
     
-    if event["resource-path"] == "/user/login":
+    if event["resource"] == "/user/login":
         auth_flow = "ADMIN_NO_SRP_AUTH"
         
         if submitted_password == "":
@@ -71,7 +75,7 @@ def lambda_handler(event, context):
         auth_parameters["PASSWORD"] = submitted_password
         auth_parameters["USERNAME"] = email_address
         
-    elif event["resource-path"] == "/user/refresh":
+    elif event["resource"] == "/user/refresh":
         auth_flow = "REFRESH_TOKEN_AUTH"
         
         if identity_id == "":
@@ -263,3 +267,24 @@ def generate_potential_api_key():
     filler_content = "".join(random.sample(base_key, len(base_key)))
     
     return (zbase32.b2a(uuid.uuid4().bytes) + filler_content)[:30]
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
+    }

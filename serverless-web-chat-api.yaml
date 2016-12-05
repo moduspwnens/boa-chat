@@ -75,47 +75,6 @@ Parameters:
 Mappings:
   StaticVariables:
     Main:
-      ApiGatewayCatchAllErrorSelectionPattern: '((.*http-status\":\s*500.*)|^(?!.*http-status)(\n|.)+)'
-      ApiGatewayErrorMappingTemplate: |-
-        #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
-        #set ($bodyObj = $util.parseJson($input.body))
-        {
-            "message": "$util.escapeJavaScript($errorMessageObj.message).replaceAll("\\'","'")"
-        }
-      ApiGatewayDefaultLambdaIntegrationBodyMapping: |-
-        #set($allParams = $input.params())
-        {
-            "request-body": $input.json("$"),
-            "request-params" : {
-                #foreach($type in $allParams.keySet())
-                #set($params = $allParams.get($type))
-                "$type" : {
-                    #foreach($paramName in $params.keySet())
-                    "$paramName" : "$util.escapeJavaScript($params.get($paramName))"
-                    #if($foreach.hasNext),#end
-                    #end
-                }
-                #if($foreach.hasNext),#end
-                #end
-            },
-            "api-id": "$context.apiId",
-            "cognito-identity-id": "$context.identity.cognitoIdentityId",
-            "cognito-identity-pool-id": "$context.identity.cognitoIdentityPoolId",
-            "resource-path": "$context.resourcePath",
-            "stage": "$context.stage"
-        }
-      ApiGatewayServerErrorCatchAllTemplate: |-
-        {
-            "type": "InternalServerError",
-            "message": "The backend server encountered an internal error."
-        }
-      ApiGatewayServerErrorTimeoutTemplate: |-
-        {
-            "type": "InternalServerTimeout",
-            "message": "The backend server did not respond quickly enough."
-        }
-      ApiGatewaySuccessMappingTemplate: |-
-        $input.body
       CognitoIdentityUserProfileDatasetName: user-profile
       CorsAllowedHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
       DummyStageName: DummyStage
@@ -285,6 +244,20 @@ Resources:
           - StaticVariables
           - Main
           - StageName
+      Variables:
+        AwsAccountId:
+          Ref: AWS::AccountId
+        AwsRegion:
+          Ref: AWS::Region
+        CorsHeaders: 'Content-Type,X-Amz-Date,X-Api-Key,Authorization,X-Amz-Security-Token'
+        CorsMethods: 
+          Fn::Join:
+            - '&'
+            - - /room=POST,OPTIONS
+        CorsOrigins:
+          Fn::GetAtt:
+            - CorsOriginCombinerInvocation
+            - ApiGatewayCorsOriginHeaderValue
     DependsOn:
       - WebChatApiMainStageLogGroup
   
@@ -1063,7 +1036,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Generates a unique identifier for a chat room.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 1024
       Role:
         Fn::GetAtt:
@@ -1189,85 +1162,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiRoomResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json: 
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiRoomResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiRoomResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomGeneratorFunctionArn}/invocations
@@ -1277,20 +1173,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiRoomCreateMethodRoomGeneratorLambdaPermission
   
@@ -1332,8 +1214,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Generates a unique identifier for a user.
-      Handler: index.lambda_handler
-      MemorySize: 128
+      Handler: index.proxy_lambda_handler
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - UserRegistrationRequestHandlerFunctionRole
@@ -1408,131 +1290,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegisterResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegisterResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '479'
-            SelectionPattern: '.*http-status\":\s*479.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegisterResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegisterResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegisterResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserRegistrationRequestHandlerFunctionArn}/invocations
@@ -1542,30 +1301,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '479'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserRegistrationCreateMethodUserRegistrationRequestHandlerLambdaPermission
   
@@ -1607,7 +1342,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Generates a unique identifier for a user.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -1683,131 +1418,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegistrationVerifyResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegistrationVerifyResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '404'
-            SelectionPattern: '.*http-status\":\s*404.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegistrationVerifyResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegistrationVerifyResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserRegistrationVerifyResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserRegistrationAliasVerificationHandlerFunctionArn}/invocations
@@ -1817,30 +1429,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '404'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserRegistrationAliasVerificationCreateMethodUserRegistrationAliasVerificationHandlerLambdaPermission
   
@@ -1882,8 +1470,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Processes a login request from a user and returns credentials if successful.
-      Handler: index.lambda_handler
-      MemorySize: 128
+      Handler: index.proxy_lambda_handler
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - UserLoginHandlerFunctionRole
@@ -2043,154 +1631,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '403'
-            SelectionPattern: '.*http-status\":\s*403.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '404'
-            SelectionPattern: '.*http-status\":\s*404.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserLoginResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserLoginHandlerFunctionArn}/invocations
@@ -2200,37 +1642,8 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '403'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '404'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
-      - WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission  
+      - WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission
   
   WebChatApiUserLoginCreateMethodUserLoginHandlerLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -2260,154 +1673,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '403'
-            SelectionPattern: '.*http-status\":\s*403.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '404'
-            SelectionPattern: '.*http-status\":\s*404.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserCredentialRefreshResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserLoginHandlerFunctionArn}/invocations
@@ -2417,35 +1684,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '403'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '404'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserCredentialRefreshCreateMethodUserLoginHandlerLambdaPermission
   
@@ -2487,8 +1725,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Handles user forgot password requests.
-      Handler: index.lambda_handler
-      MemorySize: 128
+      Handler: index.proxy_lambda_handler
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - UserForgotPasswordHandlerFunctionRole
@@ -2563,85 +1801,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserForgotPasswordHandlerFunctionArn}/invocations
@@ -2651,20 +1812,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserForgotPasswordCreateMethodUserForgotPasswordHandlerLambdaPermission
   
@@ -2707,8 +1854,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Handles user forgot password requests.
-      Handler: index.lambda_handler
-      MemorySize: 128
+      Handler: index.proxy_lambda_handler
+      MemorySize: 1024
       Role:
         Fn::GetAtt:
           - UserChangePasswordHandlerFunctionRole
@@ -2720,10 +1867,6 @@ Resources:
         S3Key: lambda/UserChangePasswordHandlerFunction.zip
       Environment:
         Variables:
-          COGNITO_IDENTITY_POOL_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoIdentityPoolId
           COGNITO_USER_POOL_ID:
             Fn::GetAtt:
               - CognitoSharedResourceInvocation
@@ -2821,85 +1964,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResetResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResetResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserForgotPasswordResetResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserChangePasswordHandlerFunctionArn}/invocations
@@ -2909,20 +1975,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserForgotPasswordResetMethodUserForgotPasswordHandlerLambdaPermission
   
@@ -2954,85 +2006,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserChangePasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserChangePasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiUserChangePasswordResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UserChangePasswordHandlerFunctionArn}/invocations
@@ -3042,20 +2017,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiUserChangePasswordMethodUserForgotPasswordHandlerLambdaPermission
   
@@ -3098,7 +2059,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Generates a unique identifier for a user.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 1024
       Role:
         Fn::GetAtt:
@@ -3199,108 +2160,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSessionResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSessionResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSessionResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSessionResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomSessionGeneratorFunctionArn}/invocations
@@ -3310,25 +2171,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiRoomSessionCreateMethodRoomSessionGeneratorLambdaPermission
   
@@ -3369,7 +2211,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Returns any new messages sent to the requested room.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -3436,108 +2278,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern: 
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePollerFunctionArn}/invocations
@@ -3547,25 +2289,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiRoomMessageGetMethodRoomMessagePollerLambdaPermission
   
@@ -3607,7 +2330,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Returns any new messages sent to the requested room.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 128
       Role:
         Fn::GetAtt:
@@ -3674,108 +2397,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomSingleSessionMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessageAcknowledgerFunctionArn}/invocations
@@ -3785,25 +2408,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
     DependsOn:
       - WebChatApiRoomMessageAcknowledgeMethodRoomMessageAcknowledgerLambdaPermission
   
@@ -3844,7 +2448,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Description: Returns any new messages sent to the requested room.
-      Handler: index.lambda_handler
+      Handler: index.proxy_lambda_handler
       MemorySize: 1024
       Role:
         Fn::GetAtt:
@@ -3857,10 +2461,6 @@ Resources:
         S3Key: lambda/RoomMessagePosterFunction.zip
       Environment:
         Variables:
-          COGNITO_IDENTITY_POOL_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoIdentityPoolId
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -3937,131 +2537,8 @@ Resources:
         IntegrationResponses:
           - StatusCode: '200'
             SelectionPattern: ''
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewaySuccessMappingTemplate
-          - StatusCode: '400'
-            SelectionPattern: '.*http-status\":\s*400.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '403'
-            SelectionPattern: '.*http-status\":\s*403.*'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayErrorMappingTemplate
-          - StatusCode: '500'
-            SelectionPattern:
-              Fn::FindInMap:
-                - StaticVariables
-                - Main
-                - ApiGatewayCatchAllErrorSelectionPattern
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorCatchAllTemplate
-          - StatusCode: '504'
-            SelectionPattern: ".*Task timed out after .*"
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin:
-                Fn::GetAtt:
-                  - CorsOriginCombinerInvocation
-                  - ApiGatewayCorsOriginHeaderMapping
-              method.response.header.Access-Control-Allow-Methods:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - WebChatApiSingleRoomMessageResourceMethods
-              method.response.header.Access-Control-Allow-Headers:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - CorsAllowedHeaders
-            ResponseTemplates:
-              application/json:
-                Fn::FindInMap:
-                  - StaticVariables
-                  - Main
-                  - ApiGatewayServerErrorTimeoutTemplate
         PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - ApiGatewayDefaultLambdaIntegrationBodyMapping
-        Type: AWS
+        Type: AWS_PROXY
         Uri:
           Fn::Sub:
             - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RoomMessagePosterFunctionArn}/invocations
@@ -4071,32 +2548,6 @@ Resources:
                   - Arn
       MethodResponses:
         - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '400'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '403'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '500'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-        - StatusCode: '504'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Methods: false
-            method.response.header.Access-Control-Allow-Headers: false
-      RequestParameters:
-        method.request.querystring.user-id: true
     DependsOn:
       - WebChatApiRoomMessagePostMethodRoomMessagePosterLambdaPermission
   
@@ -4967,6 +3418,98 @@ Resources:
     DependsOn:
       - StackCleanupFunctionLogGroup
       - StackCleanupFunctionRoleActions
+  
+  
+  
+  
+  #
+  #   API Gateway Lambda CORS Env Setter Function
+  #   
+  #   Sets the necessary environment variables so that CORS headers can be 
+  #   returned with Lambda responses for API Gateway.
+  #
+  
+  ApiGatewayLambdaCorsEnvSetterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize: 1536
+      Role:
+        Fn::GetAtt:
+          - ApiGatewayLambdaCorsEnvSetterFunctionRole
+          - Arn
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/ApiGatewayLambdaCorsEnvSetterFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  ApiGatewayLambdaCorsEnvSetterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ApiGatewayLambdaCorsEnvSetterFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ApiGatewayLambdaCorsEnvSetterFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiGatewayLambdaCorsEnvSetterFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources
+              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*
+      Roles:
+        - Ref: ApiGatewayLambdaCorsEnvSetterFunctionRole
+  
+  ApiGatewayLambdaCorsEnvSetterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ApiGatewayLambdaCorsEnvSetterFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  ApiGatewayLambdaCorsEnvSetterInvocation:
+    Type: Custom::ApiGatewayLambdaCorsEnvSetterInvocation
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - ApiGatewayLambdaCorsEnvSetterFunction
+          - Arn
+      CorsHeaderValue:
+        Fn::GetAtt:
+          - CorsOriginCombinerInvocation
+          - ApiGatewayCorsOriginHeaderValue
+      RestApi:
+        Ref: WebChatApi
+    DependsOn:
+      - ApiGatewayLambdaCorsEnvSetterFunctionLogGroup
+      - ApiGatewayLambdaCorsEnvSetterFunctionRoleActions
+      - WebChatApiDeployment
+  
+  
   
   
   

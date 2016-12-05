@@ -1,6 +1,6 @@
 """RoomGeneratorFunction
 
-Returns a unique ID (and URL) for a chat room.
+Returns a unique ID for a chat room.
 
 When doing this, it also:
  * Creates an SNS topic for posting messages to the room.
@@ -20,7 +20,8 @@ from __future__ import print_function
 
 import json, uuid, time, os
 import boto3
-from apigateway_helpers import get_public_api_base
+from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 
 sns_client = boto3.client("sns")
 sts_client = boto3.client("sts")
@@ -34,8 +35,6 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
-    public_api_base = get_public_api_base(event)
-    
     new_room_id = generate_new_room_id()
     
     new_topic_name = generate_room_sns_topic_name(event, new_room_id)
@@ -47,7 +46,7 @@ def lambda_handler(event, context):
     topic_arn = sns_response["TopicArn"]
     
     topic_attributes_to_set = [
-        ("Policy", get_default_topic_policy(event, topic_arn)),
+        ("Policy", get_default_topic_policy(topic_arn)),
         ("SQSFailureFeedbackRoleArn", os.environ["SNS_FAILURE_FEEDBACK_ROLE"]),
         ("SQSSuccessFeedbackRoleArn", os.environ["SNS_SUCCESS_FEEDBACK_ROLE"])
     ]
@@ -72,7 +71,7 @@ def lambda_handler(event, context):
         metricTransformations = [
             {
                 "metricName": "DwellTimeMs",
-                "metricNamespace": "WebChat-{}".format(event["api-id"]),
+                "metricNamespace": "WebChat-{}".format(event["requestContext"]["apiId"]),
                 "metricValue": "$.delivery.dwellTimeMs"
             }
         ]
@@ -84,7 +83,7 @@ def lambda_handler(event, context):
         "log-group": log_group_name
     }
     
-    s3_bucket_name = "webchat-sharedbucket-{}".format(event["api-id"])
+    s3_bucket_name = "webchat-sharedbucket-{}".format(event["requestContext"]["apiId"])
     
     boto3.client("s3").put_object(
         Bucket = s3_bucket_name,
@@ -93,17 +92,13 @@ def lambda_handler(event, context):
     )
     
     return {
-        "room": "{}{}/{}".format(
-            public_api_base,
-            event["resource-path"],
-            new_room_id
-        )
+        "id": new_room_id
     }
 
 def generate_room_sns_topic_name(event, room_id):
     return "web-chat-{}-{}-{}".format(
-        event["api-id"],
-        event["stage"],
+        event["requestContext"]["apiId"],
+        event["requestContext"]["stage"],
         room_id
     )
 
@@ -124,12 +119,12 @@ def get_sns_cloudwatch_log_group_name(event, room_id):
         region = os.environ["AWS_DEFAULT_REGION"],
         account_id = get_own_account_id(),
         app_prefix = "web-chat",
-        api_id = event["api-id"],
-        stage = event["stage"],
+        api_id = event["requestContext"]["apiId"],
+        stage = event["requestContext"]["stage"],
         room_id = room_id
     )
     
-def get_default_topic_policy(event, sns_topic_arn):
+def get_default_topic_policy(sns_topic_arn):
     return json.dumps({
         "Version": "2008-10-17",
         "Statement": [
@@ -162,3 +157,24 @@ def get_default_topic_policy(event, sns_topic_arn):
             }
         ]
     })
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
+    }

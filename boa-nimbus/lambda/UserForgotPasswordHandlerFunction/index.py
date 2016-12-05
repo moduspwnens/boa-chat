@@ -11,6 +11,7 @@ import json
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 from cognito_helpers import generate_cognito_sign_up_secret_hash
 
 cognito_idp_client = boto3.client("cognito-idp")
@@ -23,6 +24,8 @@ def lambda_handler(event, context):
         return {
             "message": "Warmed!"
         }
+    
+    event["request-body"] = json.loads(event["body"])
     
     user_pool_client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
@@ -48,4 +51,25 @@ def lambda_handler(event, context):
     
     return {
         "message": "Password reset code sent."
+    }
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
     }

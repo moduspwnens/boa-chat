@@ -35,6 +35,7 @@ def lambda_handler(event, context):
             cors_entries_string = ",".join(cors_entries)
         
         response_data["CorsOriginList"] = cors_entries_string
+        response_data["ApiGatewayCorsOriginHeaderValue"] = cors_entries_string
         response_data["ApiGatewayCorsOriginHeaderMapping"] = "'{}'".format(cors_entries_string)
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, None)

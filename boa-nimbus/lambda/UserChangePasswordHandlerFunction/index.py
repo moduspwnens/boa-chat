@@ -11,6 +11,7 @@ import json
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
+from apigateway_helpers.headers import get_response_headers
 from cognito_helpers import generate_cognito_sign_up_secret_hash
 
 cognito_idp_client = boto3.client("cognito-idp")
@@ -25,8 +26,9 @@ def lambda_handler(event, context):
             "message": "Warmed!"
         }
     
+    event["request-body"] = json.loads(event["body"])
+    
     user_pool_id = os.environ["COGNITO_USER_POOL_ID"]
-    identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
     user_pool_client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
@@ -42,12 +44,13 @@ def lambda_handler(event, context):
     old_password = None
     password_reset_code = None
     
-    if event["resource-path"] == "/user/password":
+    if event["resource"] == "/user/password":
         print("Authenticated user password change request.")
         
         password_change_method = "Authenticated"
         
-        identity_id = event["cognito-identity-id"]
+        identity_id = event["requestContext"]["identity"]["cognitoIdentityId"]
+        identity_pool_id = event["requestContext"]["identity"]["cognitoIdentityPoolId"]
         
         response = cognito_sync_client.list_records(
             IdentityPoolId = identity_pool_id,
@@ -67,7 +70,7 @@ def lambda_handler(event, context):
         if old_password is None:
             raise APIGatewayException("Value for \"old-password\" must be specified in request body.", 400)
     
-    elif event["resource-path"] == "/user/forgot/password":
+    elif event["resource"] == "/user/forgot/password":
         print("Unathenticated (forgotten) user password change request.")
         
         password_change_method = "Unauthenticated"
@@ -151,4 +154,25 @@ def lambda_handler(event, context):
     
     return {
         "message": "Password changed successfully."
+    }
+
+def proxy_lambda_handler(event, context):
+    
+    response_headers = get_response_headers(event, context)
+    
+    try:
+        return_dict = lambda_handler(event, context)
+    except APIGatewayException as e:
+        return {
+            "statusCode": e.http_status_code,
+            "headers": response_headers,
+            "body": json.dumps({
+                "message": e.http_status_message
+            })
+        }
+    
+    return {
+        "statusCode": 200,
+        "headers": response_headers,
+        "body": json.dumps(return_dict)
     }

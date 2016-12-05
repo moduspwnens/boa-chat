@@ -10,5 +10,8 @@ class APIGatewayException(Exception):
             "message": message
         }
         
+        self.http_status_code = http_status_code
+        self.http_status_message = message
+        
         new_message = json.dumps(new_message_object, separators=(",", ":"))
         Exception.__init__(self, new_message)
