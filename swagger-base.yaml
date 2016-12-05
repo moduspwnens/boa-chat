@@ -53,14 +53,14 @@ paths:
           description: Success
           examples:
             application/json:
-              room: room/0372c56c-e8c1-4080-808f-02a3ef451981
+              id: 0372c56c-e8c1-4080-808f-02a3ef451981
           schema:
             type: object
             required:
-              - room
+              - id
             properties:
-              room:
-                description: A URL pointing to the newly-created room.
+              id:
+                description: The unique identifier of the newly-created room.
                 type: string
       security:
         - sigv4: []
@@ -130,7 +130,7 @@ paths:
           description: Success
           examples:
             application/json:
-              session: e373e692-2429-46e1-a34e-ff8cb4575eb5
+              id: e373e692-2429-46e1-a34e-ff8cb4575eb5
           schema:
             $ref: '#/definitions/NewRoomSessionResponse'
       security:
@@ -668,9 +668,9 @@ definitions:
   NewRoomSessionResponse:
     type: object
     required:
-      - session-id
+      - id
     properties:
-      message-id:
+      id:
         type: string
         description: The unique identifier for the new session
   
