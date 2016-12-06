@@ -77,7 +77,7 @@ def get_room_topic_arn(event):
     room_id = event["pathParameters"]["room-id"]
     
     if room_id not in room_id_topic_arn_map:
-        s3_bucket_name = "webchat-sharedbucket-{}".format(event["requestContext"]["apiId"])
+        s3_bucket_name = os.environ["SHARED_BUCKET"]
         room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(room_id))["Body"].read())
         room_id_topic_arn_map[room_id] = room_info_dict["sns-topic-arn"]
     

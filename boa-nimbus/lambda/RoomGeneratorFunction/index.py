@@ -15,7 +15,10 @@ When doing this, it also:
 
 from __future__ import print_function
 
-import json, uuid, time, os
+import json
+import uuid
+import time
+import os
 import boto3
 from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
@@ -81,7 +84,7 @@ def lambda_handler(event, context):
         "log-group": log_group_name
     }
     
-    s3_bucket_name = "webchat-sharedbucket-{}".format(event["requestContext"]["apiId"])
+    s3_bucket_name = os.environ["SHARED_BUCKET"]
     
     boto3.client("s3").put_object(
         Bucket = s3_bucket_name,

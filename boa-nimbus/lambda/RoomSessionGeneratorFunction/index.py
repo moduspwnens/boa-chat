@@ -54,7 +54,7 @@ def generate_new_session_id():
     return "{}".format(uuid.uuid4())
 
 def create_and_initialize_queue(event, sqs_queue_name, session_id):
-    s3_bucket_name = "webchat-sharedbucket-{}".format(event["requestContext"]["apiId"])
+    s3_bucket_name = os.environ["SHARED_BUCKET"]
     room_info_dict = json.loads(s3_client.get_object(Bucket=s3_bucket_name, Key="room-topics/{}.json".format(event["pathParameters"]["room-id"]))["Body"].read())
     sns_topic_arn = room_info_dict["sns-topic-arn"]
     

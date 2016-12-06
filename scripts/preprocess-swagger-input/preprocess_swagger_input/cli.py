@@ -13,8 +13,8 @@ def cli():
 @click.command()
 @click.option('--input-swagger-file', help='Path to input Swagger file.', required=True, type=click.File('rb'))
 @click.option('--output-swagger-file', help='Path to output Swagger file (will be overwritten).', required=True, type=click.File('wb'))
-@click.option('--aws-region', help='AWS region.', required=True)
-@click.option('--aws-account-id', help='AWS account ID.', required=True)
+@click.option('--aws-region', help='AWS region.', default='aws-region')
+@click.option('--aws-account-id', help='AWS account ID.', default='000000000000')
 def process(input_swagger_file, output_swagger_file, aws_region, aws_account_id):
     
     input_template = yaml.load(input_swagger_file.read())
