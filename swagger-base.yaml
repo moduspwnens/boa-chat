@@ -10,6 +10,7 @@ schemes:
   - "https"
 
 x-boa-cors-enable: true
+x-boa-cors-headers: Content-Type
 
 tags:
   - name: global
@@ -25,12 +26,19 @@ paths:
     get:
       summary: Get global API options
       description: Returns necessary parameters for AWS v4 signatures, including service and region.
+      x-boa-static-body-mapping: |+
+        {
+          "aws-v4-sig": {
+            "region": "${stageVariables.AwsRegion}",
+            "service": "execute-api"
+          }
+        }
       tags:
         - global
       produces:
         - application/json
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -44,24 +52,19 @@ paths:
     post:
       summary: Create a chat room
       description: Returns the newly-created chat room's id.
+      x-boa-lambda-resource-name: RoomGeneratorFunction
       tags:
         - chat
       produces:
         - application/json
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               id: 0372c56c-e8c1-4080-808f-02a3ef451981
           schema:
-            type: object
-            required:
-              - id
-            properties:
-              id:
-                description: The unique identifier of the newly-created room.
-                type: string
+            $ref: '#/definitions/NewRoomResponse'
       security:
         - sigv4: []
         - api_key: []
@@ -70,6 +73,7 @@ paths:
     post:
       summary: Post a new message to a chat room
       description: Returns the message's unique id.
+      x-boa-lambda-resource-name: RoomMessagePosterFunction
       tags:
         - chat
       consumes:
@@ -89,14 +93,14 @@ paths:
           schema:
             $ref: '#/definitions/PostChatMessageRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               message-id: 90fd827f-1b61-4d75-a53f-6742db519971
           schema:
             $ref: '#/definitions/NewRoomMessageResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -115,6 +119,7 @@ paths:
         
         A chat room session represents an endpoint the client can poll 
         continuously to receive messages posted to the room as they arrive.
+      x-boa-lambda-resource-name: RoomSessionGeneratorFunction
       tags:
         - chat
       produces:
@@ -126,7 +131,7 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -149,6 +154,7 @@ paths:
         
         It can occasionally return duplicate messages across requests, so 
         clients must handle deduplication separately.
+      x-boa-lambda-resource-name: RoomMessagePollerFunction
       tags:
         - chat
       produces:
@@ -165,7 +171,7 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -178,7 +184,7 @@ paths:
                   timestamp: 1480725356
           schema:
             $ref: '#/definitions/GetRoomMessagesResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -195,6 +201,7 @@ paths:
         Send an array of receipt handles returned from polling for chat room 
         session messages to flag them as received. This removes them from 
         the queue to prevent receiving the same messages multiple times.
+      x-boa-lambda-resource-name: RoomMessageAcknowledgerFunction
       tags:
         - chat
       consumes:
@@ -218,13 +225,13 @@ paths:
           schema:
             $ref: '#/definitions/AcknowledgeChatRoomSessionMessagesRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json: {}
           schema:
             $ref: '#/definitions/Empty'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -241,6 +248,7 @@ paths:
       description: |+
         The password reset code can be sent with a change forgotten password 
         request to change a user's password.
+      x-boa-lambda-resource-name: UserForgotPasswordHandlerFunction
       tags:
         - user
       consumes:
@@ -254,25 +262,18 @@ paths:
           schema:
             $ref: '#/definitions/SendForgotPasswordCodeRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               message: Password reset code sent.
           schema:
             $ref: '#/definitions/BasicAcknowledgementResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
               message: Value for "email-address" must be specified in request body.
-          schema:
-            $ref: '#/definitions/DefaultErrorResponse'
-        404:
-          description: User not found
-          examples:
-            application/json:
-              message: No user found with the specified e-mail address.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
   
@@ -282,6 +283,7 @@ paths:
       description: |+
         A message containing a password reset code for the user is sent to 
         the user's confirmed e-mail address after requesting it separately.
+      x-boa-lambda-resource-name: UserForgotPasswordHandlerFunction
       tags:
         - user
       consumes:
@@ -295,14 +297,14 @@ paths:
           schema:
             $ref: '#/definitions/ChangeForgottenPasswordRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               message: Password changed successfully.
           schema:
             $ref: '#/definitions/BasicAcknowledgementResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -313,6 +315,7 @@ paths:
   /user/password:
     post:
       summary: Use a user's existing password to change the user's password
+      x-boa-lambda-resource-name: UserChangePasswordHandlerFunction
       tags:
         - user
       consumes:
@@ -326,14 +329,14 @@ paths:
           schema:
             $ref: '#/definitions/ChangeKnownPasswordRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               message: Password changed successfully.
           schema:
             $ref: '#/definitions/BasicAcknowledgementResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -351,6 +354,7 @@ paths:
         Returns basic user details, an API key, and temporary credentials.
         
         Note that the e-mail address used to log in must already be confirmed.
+      x-boa-lambda-resource-name: UserLoginHandlerFunction
       tags:
         - user
       consumes:
@@ -364,7 +368,7 @@ paths:
           schema:
             $ref: '#/definitions/LoginRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -380,7 +384,7 @@ paths:
                 api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
           schema:
             $ref: '#/definitions/UserCredentialsRetrievalResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -397,6 +401,7 @@ paths:
         
         After it expires, the user must log in again to retrieve fresh 
         credentials to continue making authenticated requests.
+      x-boa-lambda-resource-name: UserLoginHandlerFunction
       tags:
         - user
       consumes:
@@ -410,7 +415,7 @@ paths:
           schema:
             $ref: '#/definitions/UserCredentialRefreshRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -426,7 +431,7 @@ paths:
                 api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
           schema:
             $ref: '#/definitions/UserCredentialsRetrievalResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -442,6 +447,7 @@ paths:
       description: |+
         This method sends a confirmation code the submitted e-mail address. 
         Registration is not complete until it is confirmed with the code.
+      x-boa-lambda-resource-name: UserRegistrationRequestHandlerFunction
       tags:
         - user
       consumes:
@@ -455,7 +461,7 @@ paths:
           schema:
             $ref: '#/definitions/RegisterUserRequest'
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
@@ -463,7 +469,7 @@ paths:
               registration-id: 5ed9ffaf-2e6e-4f3b-b9f3-e45bc1c0e8a5
           schema:
             $ref: '#/definitions/RegisterUserResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -474,6 +480,7 @@ paths:
   /user/register/verify:
     get:
       summary: Confirm a new user registration with a confirmation code
+      x-boa-lambda-resource-name: UserRegistrationAliasVerificationHandlerFunction
       tags:
         - user
       consumes:
@@ -494,14 +501,14 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Success
           examples:
             application/json:
               message: E-mail address confirmed successfully.
           schema:
             $ref: '#/definitions/BasicAcknowledgementResponse'
-        400:
+        '400':
           description: Bad request
           examples:
             application/json:
@@ -664,6 +671,15 @@ definitions:
       message-id:
         type: string
         description: The unique identifier for the new message
+  
+  NewRoomResponse:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        type: string
+        description: The unique identifier for the new room
   
   NewRoomSessionResponse:
     type: object
