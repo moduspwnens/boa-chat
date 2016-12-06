@@ -181,7 +181,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         data: ""
       })
       .success(function(angResponseObject) {
-        resolve(angResponseObject);
+        resolve(angResponseObject["id"]);
       })
       .error(function() {
         reject(arguments);
@@ -200,7 +200,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         data: ""
       })
       .success(function(angResponseObject) {
-        resolve(angResponseObject);
+        resolve(angResponseObject["id"]);
       })
       .error(function() {
         reject(arguments);
@@ -292,7 +292,10 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     })
   }
   
-  webchatService.watchForRoomSessionMessages = function(sessionUrl, messagesReceivedCallback, concurrentRequestCount = 3) {
+  webchatService.watchForRoomSessionMessages = function(roomId, sessionId, messagesReceivedCallback, concurrentRequestCount = 3) {
+    
+    var sessionUrl = WebChatApiEndpoint + 'room/' + roomId + '/session/' + sessionId;
+    
     var getSessionMessagesEndpoint = sessionUrl + '/message';
     
     for (var i=0; i < concurrentRequestCount; i++) {

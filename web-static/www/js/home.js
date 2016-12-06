@@ -8,11 +8,8 @@ app.controller('homeController', function($scope, $http, $state, $uibModal, webc
     
     $scope.createRoomButtonDisabled = true;
     webchatService.createNewRoom()
-      .then(function(angResponseObject) {
+      .then(function(roomId) {
         $scope.createRoomButtonDisabled = false;
-        
-        var roomUrlParts = angResponseObject.room.split("/");
-        var roomId = roomUrlParts[roomUrlParts.length - 1];
         
         $state.go('room', { roomId: roomId });
         

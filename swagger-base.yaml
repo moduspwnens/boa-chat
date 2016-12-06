@@ -283,7 +283,7 @@ paths:
       description: |+
         A message containing a password reset code for the user is sent to 
         the user's confirmed e-mail address after requesting it separately.
-      x-boa-lambda-resource-name: UserForgotPasswordHandlerFunction
+      x-boa-lambda-resource-name: UserChangePasswordHandlerFunction
       tags:
         - user
       consumes:

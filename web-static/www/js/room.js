@@ -66,10 +66,9 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
   }
   
   webchatService.createNewRoomSession(roomId)
-    .then(function(angResponseObject) {
-      var sessionUrl = angResponseObject.session;
+    .then(function(sessionId) {
       
-      webchatService.watchForRoomSessionMessages(sessionUrl, newMessagesReceived);
+      webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
       $scope.messageInputTextPlaceholder = "Send a message";
       $scope.messageInputDisabled = false;
       

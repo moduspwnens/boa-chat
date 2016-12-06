@@ -29,7 +29,7 @@ apig_client = boto3.client("apigateway")
 
 def lambda_handler(event, context):
     
-    event["request-body"] = json.loads(event["body"])
+    event["request-body"] = json.loads(event.get("body", "{}"))
     
     event_for_logging = copy.deepcopy(event)
     

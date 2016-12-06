@@ -27,6 +27,7 @@ sns_client = boto3.client("sns")
 sts_client = boto3.client("sts")
 logs_client = boto3.client("logs")
 
+
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
     
