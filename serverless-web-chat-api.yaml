@@ -319,144 +319,6 @@ Resources:
   
   
   
-  #  
-  #   Room Generator Function
-  #  
-    
-  RoomGeneratorFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Generates a unique identifier for a chat room.
-      Handler: index.proxy_lambda_handler
-      MemorySize: 1024
-      Role:
-        Fn::GetAtt:
-          - RoomGeneratorFunctionRole
-          - Arn
-      Code:
-        S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
-        S3Key: lambda/RoomGeneratorFunction.zip
-      Environment:
-        Variables:
-          DELETE_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - StackCleanupFunctionRole
-              - Arn
-          PUBLISH_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - RoomMessagePosterFunctionRole
-              - Arn
-          SHARED_BUCKET:
-            Ref: SharedBucket
-          SUBSCRIBE_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - RoomSessionGeneratorFunctionRole
-              - Arn
-          SNS_FAILURE_FEEDBACK_ROLE:
-            Fn::GetAtt:
-              - SNSFailureFeedbackRole
-              - Arn
-          SNS_SUCCESS_FEEDBACK_ROLE:
-            Fn::GetAtt:
-              - SNSSuccessFeedbackRole
-              - Arn
-      Runtime: python2.7
-      Timeout: 300
-  
-  RoomGeneratorFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-  
-  RoomGeneratorFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomGeneratorFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
-          - Effect: Allow
-            Action: 
-              - sns:CreateTopic
-            Resource: '*'
-          - Effect: Allow
-            Action: 
-              - sns:SetTopicAttributes
-            Resource: 
-              Fn::Sub:
-                - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
-                - WebChatApiStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
-          - Effect: Allow
-            Action: 
-              - logs:CreateLogGroup
-              - logs:PutMetricFilter
-            Resource: 
-              Fn::Sub:
-                - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
-                - WebChatApiStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-          - Effect: Allow
-            Action:
-              - apigateway:GET
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
-      Roles:
-        - Ref: RoomGeneratorFunctionRole
-  
-  RoomGeneratorFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomGeneratorFunction}
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  PreWarmApiCloudWatchRoomGeneratorFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomGeneratorFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomGeneratorFunctionRoleActions
-      - RoomGeneratorFunctionLogGroup
-  
-  
-  
   
   #  
   #   User Registration Request Handler Function
@@ -464,6 +326,8 @@ Resources:
     
   UserRegistrationRequestHandlerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
@@ -530,21 +394,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchUserRegistrationRequestHandlerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserRegistrationRequestHandlerFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - UserRegistrationRequestHandlerFunctionRoleActions
-      - UserRegistrationRequestHandlerFunctionLogGroup
-  
   
   
   
@@ -554,6 +403,8 @@ Resources:
     
   UserRegistrationAliasVerificationHandlerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
@@ -620,21 +471,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchUserRegistrationAliasVerificationHandlerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserRegistrationAliasVerificationHandlerFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - UserRegistrationAliasVerificationHandlerFunctionRoleActions
-      - UserRegistrationAliasVerificationHandlerFunctionLogGroup
-  
   
   
   #  
@@ -643,6 +479,8 @@ Resources:
     
   UserLoginHandlerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Processes a login request from a user and returns credentials if successful.
       Handler: index.proxy_lambda_handler
@@ -792,21 +630,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchUserLoginHandlerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserLoginHandlerFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - UserLoginHandlerFunctionRoleActions
-      - UserLoginHandlerFunctionLogGroup
-  
   
   
   
@@ -816,6 +639,8 @@ Resources:
     
   UserForgotPasswordHandlerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
@@ -882,21 +707,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchUserForgotPasswordHandlerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserForgotPasswordHandlerFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - UserForgotPasswordHandlerFunctionRoleActions
-      - UserForgotPasswordHandlerFunctionLogGroup
-  
   
   
   #  
@@ -905,6 +715,8 @@ Resources:
     
   UserChangePasswordHandlerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
@@ -1005,20 +817,131 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchUserChangePasswordHandlerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
+  
+  
+  #  
+  #   Room Generator Function
+  #  
+    
+  RoomGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: UserChangePasswordHandlerFunction
-      Principal: 
+      Description: Generates a unique identifier for a chat room.
+      Handler: index.proxy_lambda_handler
+      MemorySize: 1024
+      Role:
         Fn::GetAtt:
-          - PreWarmerFunctionRole
+          - RoomGeneratorFunctionRole
           - Arn
-    DependsOn:
-      - UserChangePasswordHandlerFunctionRoleActions
-      - UserChangePasswordHandlerFunctionLogGroup
+      Code:
+        S3Bucket:
+          Fn::ImportValue:
+            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        S3Key: lambda/RoomGeneratorFunction.zip
+      Environment:
+        Variables:
+          DELETE_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - StackCleanupFunctionRole
+              - Arn
+          PUBLISH_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - RoomMessagePosterFunctionRole
+              - Arn
+          SHARED_BUCKET:
+            Ref: SharedBucket
+          SUBSCRIBE_ROOM_TOPIC_ROLE:
+            Fn::GetAtt:
+              - RoomSessionGeneratorFunctionRole
+              - Arn
+          SNS_FAILURE_FEEDBACK_ROLE:
+            Fn::GetAtt:
+              - SNSFailureFeedbackRole
+              - Arn
+          SNS_SUCCESS_FEEDBACK_ROLE:
+            Fn::GetAtt:
+              - SNSSuccessFeedbackRole
+              - Arn
+      Runtime: python2.7
+      Timeout: 300
+  
+  RoomGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  RoomGeneratorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: RoomGeneratorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
+          - Effect: Allow
+            Action: 
+              - sns:CreateTopic
+            Resource: '*'
+          - Effect: Allow
+            Action: 
+              - sns:SetTopicAttributes
+            Resource: 
+              Fn::Sub:
+                - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
+                - WebChatApiStageName:
+                    Fn::FindInMap:
+                    - StaticVariables
+                    - Main
+                    - StageName
+          - Effect: Allow
+            Action: 
+              - logs:CreateLogGroup
+              - logs:PutMetricFilter
+            Resource: 
+              Fn::Sub:
+                - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
+                - WebChatApiStageName:
+                    Fn::FindInMap:
+                    - StaticVariables
+                    - Main
+                    - StageName
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+          - Effect: Allow
+            Action:
+              - apigateway:GET
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
+      Roles:
+        - Ref: RoomGeneratorFunctionRole
+  
+  RoomGeneratorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${RoomGeneratorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
   
   
   
@@ -1028,6 +951,8 @@ Resources:
     
   RoomSessionGeneratorFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
@@ -1118,21 +1043,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchRoomSessionGeneratorFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomSessionGeneratorFunction
-      Principal: 
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomSessionGeneratorFunctionRoleActions
-      - RoomSessionGeneratorFunctionLogGroup
-  
   
   
   #  
@@ -1141,6 +1051,8 @@ Resources:
     
   RoomMessagePollerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
@@ -1199,21 +1111,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchRoomMessagePollerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomMessagePollerFunction
-      Principal:
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomMessagePollerFunctionRoleActions
-      - RoomMessagePollerFunctionLogGroup
-  
   
   
   
@@ -1224,6 +1121,8 @@ Resources:
     
   RoomMessageAcknowledgerFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
@@ -1282,21 +1181,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchRoomMessageAcknowledgerFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomMessageAcknowledgerFunction
-      Principal:
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomMessageAcknowledgerFunctionRoleActions
-      - RoomMessageAcknowledgerFunctionLogGroup
-  
   
   
   #  
@@ -1305,6 +1189,8 @@ Resources:
     
   RoomMessagePosterFunction:
     Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
@@ -1383,21 +1269,6 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
-  PreWarmApiCloudWatchRoomMessagePosterFunctionLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Condition: PreWarmingEnabledCondition
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Ref: RoomMessagePosterFunction
-      Principal:
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
-    DependsOn:
-      - RoomMessagePosterFunctionRoleActions
-      - RoomMessagePosterFunctionLogGroup
-  
   
   
   
@@ -1413,7 +1284,7 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - CorsOriginCombinerFunctionRole
@@ -1602,6 +1473,17 @@ Resources:
               - logs:PutLogEvents
             Resource:
               Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${PreWarmerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*
+          - Effect: Allow
+            Action:
+              - cloudformation:DescribeStackResource
+              - cloudformation:ListStackResources
+            Resource:
+              Ref: AWS::StackId
       Roles:
         - Ref: PreWarmerFunctionRole
   
@@ -1647,73 +1529,19 @@ Resources:
               - Arn
           Id: PreWarmerFunction
           Input:
-            Fn::Sub:
-              - |-
-                {
-                    "function-arns": [
-                        "${RoomGeneratorFunctionArn}",
-                        "${RoomMessagePollerFunctionArn}",
-                        "${RoomMessageAcknowledgerFunctionArn}",
-                        "${RoomMessagePosterFunctionArn}",
-                        "${RoomSessionGeneratorFunctionArn}",
-                        "${UserForgotPasswordHandlerFunctionArn}",
-                        "${UserLoginHandlerFunctionArn}",
-                        "${UserRegistrationAliasVerificationHandlerFunctionArn}",
-                        "${UserRegistrationRequestHandlerFunctionArn}",
-                        "${UserChangePasswordHandlerFunctionArn}"
-                    ],
-                    "payload": {
-                        "warming": true
-                    }
-                }
-              - RoomGeneratorFunctionArn:
-                  Fn::GetAtt:
-                    - RoomGeneratorFunction
-                    - Arn
-                RoomMessagePollerFunctionArn:
-                  Fn::GetAtt:
-                    - RoomMessagePollerFunction
-                    - Arn
-                RoomMessageAcknowledgerFunctionArn:
-                  Fn::GetAtt:
-                    - RoomMessageAcknowledgerFunction
-                    - Arn
-                RoomMessagePosterFunctionArn:
-                  Fn::GetAtt:
-                    - RoomMessagePosterFunction
-                    - Arn
-                RoomSessionGeneratorFunctionArn:
-                  Fn::GetAtt:
-                    - RoomSessionGeneratorFunction
-                    - Arn
-                UserForgotPasswordHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserForgotPasswordHandlerFunction
-                    - Arn
-                UserLoginHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserLoginHandlerFunction
-                    - Arn
-                UserRegistrationAliasVerificationHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserRegistrationAliasVerificationHandlerFunction
-                    - Arn
-                UserRegistrationRequestHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserRegistrationRequestHandlerFunction
-                    - Arn
-                UserChangePasswordHandlerFunctionArn:
-                  Fn::GetAtt:
-                    - UserChangePasswordHandlerFunction
-                    - Arn
+            Fn::Sub: |-
+              {
+                  "payload": {
+                      "warming": true
+                  },
+                  "stack-id": "${AWS::StackId}"
+              }
   
   #
   #   API Usage Plan Linker
   #   
   #   AWS CloudFormation Custom Resource for adding an API Gateway REST API and 
   #   stage to a usage plan.
-  #
-  #   Necessary to avoid a CloudFormation dependency loop.
   #
   
   ApiUsagePlanLinkerFunction:
@@ -1913,7 +1741,7 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - CognitoSharedResourceFunctionRole
@@ -2029,7 +1857,7 @@ Resources:
     Properties:
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - CognitoIdentityPoolRoleLinkerFunctionRole
@@ -2143,7 +1971,7 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - StackCleanupFunctionRole
@@ -2534,7 +2362,7 @@ Resources:
     Properties:
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - S3StaticWebContentDeployerFunctionRole
@@ -2631,7 +2459,7 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize: 1536
       Role:
         Fn::GetAtt:
           - S3ObjectWriterFunctionRole
