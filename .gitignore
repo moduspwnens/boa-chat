@@ -98,3 +98,4 @@ npm-debug.log
 
 # Build artifacts for uploading to S3
 boa-nimbus/s3/web-static.zip
+boa-nimbus/s3/swagger-apigateway.yaml
