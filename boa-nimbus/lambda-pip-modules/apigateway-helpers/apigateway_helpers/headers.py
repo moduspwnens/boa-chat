@@ -37,7 +37,7 @@ def get_response_headers(event, context):
     
     cors_config = _get_cors_configuration()
     
-    resource_cors_config = cors_config.get(event["resource"], {})
+    resource_cors_config = cors_config.get(event.get("resource", ""), {})
     
     return_headers = {
         "Content-Type": "application/json"

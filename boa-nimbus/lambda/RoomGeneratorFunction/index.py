@@ -11,9 +11,6 @@ When doing this, it also:
  * Creates a pointer record in S3 so that the resources above can be found and
    cleaned up later.
 
-Expected request time: ~850ms. 
-    Not particularly fast, but it only happens when a room is first created.
-
 """
 
 from __future__ import print_function
