@@ -74,6 +74,18 @@ Parameters:
       
 Mappings:
   StaticVariables:
+    
+    # Group Lambda memory allocation into classes for easy tweaking.
+    LambdaMemoryClasses:
+      
+      # We'll use high values for very rarely called functions and low values 
+      # for simple, often-called functions to strike a balance between 
+      # performance and cost.
+      StackCrudOperation: 1536
+      ApiOccasional: 1536
+      ApiCommon: 128
+      PreWarmApi: 128
+      
     Main:
       CognitoIdentityUserProfileDatasetName: user-profile
       DummyStageName: DummyStage
@@ -331,7 +343,11 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - UserRegistrationRequestHandlerFunctionRole
@@ -408,7 +424,11 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
-      MemorySize: 128
+      MemorySize: 
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - UserRegistrationAliasVerificationHandlerFunctionRole
@@ -484,7 +504,11 @@ Resources:
     Properties:
       Description: Processes a login request from a user and returns credentials if successful.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - UserLoginHandlerFunctionRole
@@ -644,7 +668,11 @@ Resources:
     Properties:
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - UserForgotPasswordHandlerFunctionRole
@@ -720,7 +748,11 @@ Resources:
     Properties:
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - UserChangePasswordHandlerFunctionRole
@@ -830,7 +862,11 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a chat room.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize: 
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - RoomGeneratorFunctionRole
@@ -956,7 +992,11 @@ Resources:
     Properties:
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize: 
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - RoomSessionGeneratorFunctionRole
@@ -1056,7 +1096,11 @@ Resources:
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
-      MemorySize: 128
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiCommon
       Role:
         Fn::GetAtt:
           - RoomMessagePollerFunctionRole
@@ -1126,7 +1170,11 @@ Resources:
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
-      MemorySize: 128
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiCommon
       Role:
         Fn::GetAtt:
           - RoomMessageAcknowledgerFunctionRole
@@ -1194,7 +1242,11 @@ Resources:
     Properties:
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
-      MemorySize: 1024
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
       Role:
         Fn::GetAtt:
           - RoomMessagePosterFunctionRole
@@ -1284,7 +1336,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - CorsOriginCombinerFunctionRole
@@ -1433,7 +1489,11 @@ Resources:
     Properties:
       Description: Queues up Lambda function invocations for later execution.
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - PreWarmApi
       Role:
         Fn::GetAtt:
           - PreWarmerFunctionRole
@@ -1549,7 +1609,11 @@ Resources:
     Properties:
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
-      MemorySize: 1024
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - ApiUsagePlanLinkerFunctionRole
@@ -1741,7 +1805,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - CognitoSharedResourceFunctionRole
@@ -1857,7 +1925,11 @@ Resources:
     Properties:
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - CognitoIdentityPoolRoleLinkerFunctionRole
@@ -1971,7 +2043,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - StackCleanupFunctionRole
@@ -2084,7 +2160,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - ApiGatewayLambdaSetupFunctionRole
@@ -2195,7 +2275,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - UserResourceCleanupFunctionRole
@@ -2362,7 +2446,11 @@ Resources:
     Properties:
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - S3StaticWebContentDeployerFunctionRole
@@ -2459,7 +2547,11 @@ Resources:
     Properties:
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
-      MemorySize: 1536
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
       Role:
         Fn::GetAtt:
           - S3ObjectWriterFunctionRole
