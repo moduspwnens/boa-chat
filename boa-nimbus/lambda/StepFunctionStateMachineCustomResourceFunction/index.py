@@ -1,6 +1,6 @@
-"""StepFunctionSetupCleanupFunction
+"""StepFunctionStateMachineCustomResourceFunction
 
-AWS CloudFormation Custom Resource for Step Functions.
+AWS CloudFormation Custom Resource for a Step Functions State Machine.
 
 """
 
