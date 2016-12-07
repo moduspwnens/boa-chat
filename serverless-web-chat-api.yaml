@@ -567,17 +567,6 @@ Resources:
               Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
           - Effect: Allow
             Action:
-              - s3:GetObject
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/user-api-keys/*
-          - Effect: Allow
-            Action:
-              - s3:ListBucket
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}
-          - Effect: Allow
-            Action:
               - apigateway:POST
             Resource:
               Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
@@ -1759,6 +1748,11 @@ Resources:
               - s3:ListBucket
             Resource:
               Fn::Sub: arn:aws:s3:::${SharedBucket}
+            Condition:
+              StringEquals:
+                s3:prefix:
+                  - cognito-user-pool.json
+                  - cognito-identity-pool.json
       Roles:
         - Ref: CognitoSharedResourceFunctionRole
   
@@ -2585,7 +2579,6 @@ Resources:
       Code:
         ZipFile: |-
           import cfnresponse
-
           def lambda_handler(event, context):
               cfnresponse.send(event, context, cfnresponse.SUCCESS, event.get("ResourceProperties", {}), None)
       Runtime: python2.7
