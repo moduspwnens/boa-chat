@@ -2080,6 +2080,82 @@ Resources:
   
   
   
+  #
+  #   Step Function Setup / Cleanup
+  #   
+  #   CloudFormation custom resource for Step Functions.
+  #
+  
+  StepFunctionSetupCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
+      Role:
+        Fn::Sub: ${StepFunctionSetupCleanupFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/StepFunctionSetupCleanupFunction.zip
+      Runtime: python2.7
+      Timeout: '300'
+  
+  StepFunctionSetupCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  StepFunctionSetupCleanupFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: StepFunctionSetupCleanupFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StepFunctionSetupCleanupFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - states:CreateStateMachine
+            Resource:
+              Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:*
+          - Effect: Allow
+            Action:
+              - states:DeleteStateMachine
+              - states:DescribeStateMachine
+            Resource:
+              Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-*
+      Roles:
+        - Ref: StepFunctionSetupCleanupFunctionRole
+  
+  StepFunctionSetupCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${StepFunctionSetupCleanupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  
+  
   
   #
   #   API Gateway Lambda Setup Function
