@@ -11,6 +11,8 @@ Metadata:
           - EmailFromAddress
           - LambdaPackageStackName
           - MetricAlarmEmailAddress
+          - S3SourceType
+          - S3SourceName
           - PreWarmingEnabled
           - LogRetentionDays
     ParameterLabels:
@@ -18,14 +20,16 @@ Metadata:
         default: HTTP CORS Origins Allowed
       EmailFromAddress:
         default: E-mail From Address
-      LambdaPackageStackName:
-        default: Lambda Package Stack Name
       LogRetentionDays:
         default: Log Retention (days)
       MetricAlarmEmailAddress:
         default: Alarm E-mail Address
       PreWarmingEnabled:
         default: Pre-Warming Enabled
+      S3SourceName:
+        default: S3 Source Resource Name
+      S3SourceType:
+        default: S3 Source Resource Type
         
 Parameters:
   AdditionalCorsOrigins:
@@ -34,11 +38,6 @@ Parameters:
   EmailFromAddress:
     Type: String
     Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
-  LambdaPackageStackName:
-    Type: String
-    Default: webchat-lambda-src
-    Description: Name of the CloudFormation stack containing Lambda packages (deployed by boa-nimbus).
-    MinLength: 1
   LogRetentionDays:
     Type: String
     Default: '14'
@@ -71,6 +70,17 @@ Parameters:
     AllowedValues:
       - 'Yes'
       - 'No'
+  S3SourceName:
+    Type: String
+    #Default: moduspwnens-webchat-public-2016-12-06
+    Default: webchat-lambda-src
+  S3SourceType:
+    Type: String
+    #Default: S3 Bucket
+    Default: CloudFormation Stack
+    AllowedValues:
+      - S3 Bucket
+      - CloudFormation Stack
       
 Mappings:
   StaticVariables:
@@ -102,6 +112,10 @@ Conditions:
     Fn::Equals:
       - Ref: PreWarmingEnabled
       - 'Yes'
+  SourceTypeIsS3Bucket:
+    Fn::Equals:
+      - Ref: S3SourceType
+      - 'S3 Bucket'
       
 Resources:
   
@@ -352,8 +366,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserRegistrationRequestHandlerFunction.zip
       Environment:
         Variables:
@@ -433,8 +446,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserRegistrationAliasVerificationHandlerFunction.zip
       Environment:
         Variables:
@@ -513,8 +525,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserLoginHandlerFunction.zip
       Environment:
         Variables:
@@ -677,8 +688,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserForgotPasswordHandlerFunction.zip
       Environment:
         Variables:
@@ -757,8 +767,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserChangePasswordHandlerFunction.zip
       Environment:
         Variables:
@@ -871,8 +880,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomGeneratorFunction.zip
       Environment:
         Variables:
@@ -1001,8 +1009,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomSessionGeneratorFunction.zip
       Environment:
         Variables:
@@ -1105,8 +1112,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomMessagePollerFunction.zip
       Environment:
         Variables:
@@ -1179,8 +1185,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomMessageAcknowledgerFunction.zip
       Environment:
         Variables:
@@ -1251,8 +1256,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomMessagePosterFunction.zip
       Environment:
         Variables:
@@ -1345,8 +1349,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/CorsOriginCombinerFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -1498,8 +1501,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/PreWarmerFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -1618,8 +1620,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/ApiUsagePlanLinkerFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -1814,8 +1815,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/CognitoSharedResourceFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -1934,8 +1934,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/CognitoIdentityPoolRoleLinkerFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2049,8 +2048,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/SwaggerTemplatePresetFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2086,11 +2084,7 @@ Resources:
             Action:
               - s3:GetObject
             Resource:
-              Fn::Sub: 
-                - arn:aws:s3:::${SourceBucket}/swagger-apigateway.yaml
-                - SourceBucket:
-                    Fn::ImportValue:
-                      Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+              Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/swagger-apigateway.yaml
           - Effect: Allow
             Action:
               - s3:PutObject
@@ -2119,8 +2113,7 @@ Resources:
         Ref: SharedBucket
       OutputKey: swagger-apigateway.yaml
       SourceBucket:
-        Fn::ImportValue:
-          Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+        Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
       SourceKey: swagger-apigateway.yaml
     DependsOn:
       - SwaggerTemplatePresetFunctionLogGroup
@@ -2155,8 +2148,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/StackCleanupFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2272,8 +2264,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/ApiGatewayLambdaSetupFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2387,8 +2378,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserResourceCleanupFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2556,8 +2546,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/S3StaticWebContentDeployerFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2593,11 +2582,7 @@ Resources:
             Action:
               - s3:GetObject
             Resource:
-              Fn::Sub: 
-                - arn:aws:s3:::${S3Bucket}/web-static.zip
-                - S3Bucket:
-                    Fn::ImportValue:
-                      Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+              Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/web-static.zip
           - Effect: Allow
             Action:
               - s3:PutObject
@@ -2623,8 +2608,7 @@ Resources:
           - Arn
       Source:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: web-static.zip
       Target:
         S3Bucket:
@@ -2657,8 +2641,7 @@ Resources:
           - Arn
       Code:
         S3Bucket:
-          Fn::ImportValue:
-            Fn::Sub: '${LambdaPackageStackName}-S3Bucket'
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/S3ObjectWriterFunction.zip
       Runtime: python2.7
       Timeout: '300'
@@ -2759,7 +2742,65 @@ Resources:
     DependsOn:
       - S3ObjectWriterFunctionLogGroup
       - S3ObjectWriterFunctionRoleActions
-        
+    
+    
+    
+  #
+  #   CloudFormation Input Echo
+  #   
+  #   Just returns what it's given.
+  #   Useful to avoid duplicating CloudFormation variable definition logic 
+  #   all over the place.
+  #
+
+  CloudFormationInputEchoFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: |-
+        Used as a CloudFormation custom resource to simply return what it's 
+        given.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - CloudFormationInputEchoFunctionRole
+          - Arn
+      Code:
+        ZipFile: |-
+          import cfnresponse
+
+          def lambda_handler(event, context):
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, event.get("ResourceProperties", {}), None)
+      Runtime: python2.7
+      Timeout: '300'
+
+  CloudFormationInputEchoFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  CloudFormationPresetVariables:
+    Type: Custom::CloudFormationPresetVariables
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - CloudFormationInputEchoFunction
+          - Arn
+      S3SourceBucket:
+        Fn::If:
+          - SourceTypeIsS3Bucket
+          - Ref: S3SourceName
+          - Fn::ImportValue:
+              Fn::Sub: '${S3SourceName}-S3Bucket'
           
 Outputs:
   WebChatApi:
