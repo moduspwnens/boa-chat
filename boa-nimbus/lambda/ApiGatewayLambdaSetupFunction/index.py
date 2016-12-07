@@ -41,13 +41,16 @@ def lambda_handler(event, context):
     
     request_type = event.get("RequestType")
     
-    resource_properties = event["ResourceProperties"]
+    resource_props = event["ResourceProperties"]
 
     if request_type in ["Create", "Update"]:
         
-        rest_api_id = resource_properties["RestApi"]
-        stage_name = resource_properties["StageName"]
-        bucket_name = resource_properties["Bucket"]
+        rest_api_id = resource_props["RestApi"]
+        stage_name = resource_props["StageName"]
+        bucket_name = resource_props["Bucket"]
+        cors_origin_list = resource_props.get("CorsOriginList", "")
+        
+        stage_redeploy_required = False
         
         paginator = apig_client.get_paginator("get_resources")
         response_iterator = paginator.paginate(
@@ -88,29 +91,53 @@ def lambda_handler(event, context):
                             "method": each_method
                         })
                 
-                elif each_method.upper() == "OPTIONS" and method_integration.get("type", "").upper() == "MOCK":
-                    default_response_dict = response["methodIntegration"]["integrationResponses"]["200"]
+                elif method_integration.get("type", "").upper() == "MOCK":
+                    
+                    default_status_code = "200"
+                    default_response_dict = response["methodIntegration"]["integrationResponses"][default_status_code]
                     
                     response_parameters = default_response_dict.get("responseParameters", {})
                     
-                    headers_dict = {}
-                    for each_key in response_parameters.keys():
-                        if each_key.startswith("method.response.header."):
-                            header_name = each_key[23:].upper()
-                            headers_dict[header_name] = response_parameters[each_key]
+                    cors_origin_mapping_key = "method.response.header.Access-Control-Allow-Origin"
                     
-                    resource_cors_map[each_resource["path"]] = {}
+                    if response_parameters.get(cors_origin_mapping_key, "") != cors_origin_list:
+                        print("Updating {} {} integration response parameter {}".format(
+                            each_resource["path"],
+                            each_method,
+                            cors_origin_mapping_key
+                        ))
+                        apig_client.update_integration_response(
+                            restApiId = rest_api_id,
+                            resourceId = each_resource["id"],
+                            httpMethod = each_method,
+                            statusCode = default_status_code,
+                            patchOperations = [{
+                                "op": "replace",
+                                "path": "/responseParameters/{}".format(cors_origin_mapping_key),
+                                "value": "'{}'".format(cors_origin_list)
+                            }]
+                        )
+                        stage_redeploy_required = True
                     
-                    for each_header in cors_headers_to_save:
-                        each_header_upper = each_header.upper()
+                    if each_method.upper() == "OPTIONS":
+                        headers_dict = {}
+                        for each_key in response_parameters.keys():
+                            if each_key.startswith("method.response.header."):
+                                header_name = each_key[23:].upper()
+                                headers_dict[header_name] = response_parameters[each_key]
+                    
+                        resource_cors_map[each_resource["path"]] = {}
+                    
+                        for each_header in cors_headers_to_save:
+                            each_header_upper = each_header.upper()
                         
-                        if each_header_upper in headers_dict:
-                            each_header_value = headers_dict[each_header_upper]
+                            if each_header_upper in headers_dict:
+                                each_header_value = headers_dict[each_header_upper]
                             
-                            # Strip single quotes off.
-                            each_header_value = each_header_value[1:][:-1]
+                                # Strip single quotes off.
+                                each_header_value = each_header_value[1:][:-1]
                             
-                            resource_cors_map[each_resource["path"]][each_header] = each_header_value
+                                resource_cors_map[each_resource["path"]][each_header] = each_header_value
         
         lambda_function_resource_name_map = {}
         
@@ -186,6 +213,35 @@ def lambda_handler(event, context):
             Body = json.dumps(resource_cors_map, indent=4),
             ContentType = "application/json"
         )
+        
+        additional_stage_variables = resource_props.get("StageVariables", {})
+        
+        stage_patch_operations = []
+        
+        for each_key in additional_stage_variables.keys():
+            each_value = additional_stage_variables[each_key]
+            
+            stage_patch_operations.append({
+                "op": "replace",
+                "path": "/variables/{}".format(each_key),
+                "value": each_value
+            })
+        
+        if len(stage_patch_operations) > 0:
+            print("Creating additional stage variables ({}).".format(len(stage_patch_operations)))
+            
+            apig_client.update_stage(
+                restApiId = rest_api_id,
+                stageName = stage_name,
+                patchOperations = stage_patch_operations
+            )
+        
+        if stage_redeploy_required:
+            print("Redeploying stage.")
+            apig_client.create_deployment(
+                restApiId = rest_api_id,
+                stageName = stage_name
+            )
         
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)

@@ -46,12 +46,11 @@ def get_response_headers(event, context):
     for each_key in resource_cors_config.keys():
         return_headers[each_key] = resource_cors_config[each_key]
     
-    
-    
-    if len(resource_cors_config) > 0:
-        cors_origin_string = event.get("stageVariables", {}).get("CorsOrigins")
-        if cors_origin_string is not None:
-            return_headers["Access-Control-Allow-Origin"] = cors_origin_string
+    # Lambda environment variables can't contain commas (which are necessary for CORS),
+    # so they're specified with semicolons that need to be replaced with commas.
+    cors_origin_string = ",".join(os.environ.get("CORS_ORIGINS", "").strip(";").split(";"))
+    if len(resource_cors_config) > 0 and len(cors_origin_string) > 0:
+        return_headers["Access-Control-Allow-Origin"] = cors_origin_string
     
     return return_headers
 

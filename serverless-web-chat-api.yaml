@@ -6,20 +6,29 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
+          default: Deployment
+        Parameters:
+          - S3SourceType
+          - S3SourceName
+      - Label:
           default: Configuration
         Parameters:
           - EmailFromAddress
-          - LambdaPackageStackName
           - MetricAlarmEmailAddress
-          - S3SourceType
-          - S3SourceName
           - PreWarmingEnabled
           - LogRetentionDays
+      - Label:
+          default: Cross-Origin Resource Sharing
+        Parameters:
+          - IncludeBucketSiteInCorsOrigin
+          - AdditionalCorsOrigins
     ParameterLabels:
       AdditionalCorsOrigins:
-        default: HTTP CORS Origins Allowed
+        default: Additional HTTP CORS Origins Allowed
       EmailFromAddress:
         default: E-mail From Address
+      IncludeBucketSiteInCorsOrigin:
+        default: Include Bucket Site in CORS Origin
       LogRetentionDays:
         default: Log Retention (days)
       MetricAlarmEmailAddress:
@@ -35,9 +44,17 @@ Parameters:
   AdditionalCorsOrigins:
     Type: CommaDelimitedList
     Description: Comma-separated list of additional domains allowed access to the API. Leave blank for default only.
+    Default: ''
   EmailFromAddress:
     Type: String
     Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
+  IncludeBucketSiteInCorsOrigin:
+    Type: String
+    Description: Allows the default site to access the API.
+    Default: 'Yes'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
   LogRetentionDays:
     Type: String
     Default: '14'
@@ -103,16 +120,26 @@ Mappings:
       StageName: v1
       
 Conditions:
+  IncludeBucketSiteInCorsOriginCondition:
+    Fn::Equals:
+      - Ref: IncludeBucketSiteInCorsOrigin
+      - 'Yes'
   IncludeMetricAlarmsCondition:
     Fn::Not:
       - Fn::Equals:
         - Ref: MetricAlarmEmailAddress
         - ''
+  NoAdditionalCorsOriginsSpecifiedCondition:
+    Fn::Equals:
+      - Fn::Join:
+         - ''
+         - Ref: AdditionalCorsOrigins
+      - ''
   PreWarmingEnabledCondition:
     Fn::Equals:
       - Ref: PreWarmingEnabled
       - 'Yes'
-  SourceTypeIsS3Bucket:
+  SourceTypeIsS3BucketCondition:
     Fn::Equals:
       - Ref: S3SourceType
       - 'S3 Bucket'
@@ -248,13 +275,6 @@ Resources:
           - StaticVariables
           - Main
           - StageName
-      Variables:
-        AwsAccountId:
-          Ref: AWS::AccountId
-        AwsRegion:
-          Ref: AWS::Region
-        CorsOrigins:
-          Fn::Sub: ${CorsOriginCombinerInvocation.ApiGatewayCorsOriginHeaderValue}
         
     DependsOn:
       - WebChatApiMainStageLogGroup
@@ -368,6 +388,8 @@ Resources:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -442,6 +464,8 @@ Resources:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -524,6 +548,8 @@ Resources:
               - StaticVariables
               - Main
               - CognitoIdentityUserProfileDatasetName
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
           STACK_NAME:
@@ -638,6 +664,8 @@ Resources:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -718,6 +746,8 @@ Resources:
               - StaticVariables
               - Main
               - CognitoIdentityUserProfileDatasetName
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -803,6 +833,8 @@ Resources:
         S3Key: lambda/RoomGeneratorFunction.zip
       Environment:
         Variables:
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           DELETE_ROOM_TOPIC_ROLE:
             Fn::Sub: ${StackCleanupFunctionRole.Arn}
           PUBLISH_ROOM_TOPIC_ROLE:
@@ -922,6 +954,8 @@ Resources:
         Variables:
           ACKNOWLEDGER_FUNCTION_ROLE:
             Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           POLLER_FUNCTION_ROLE:
             Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
           QUEUE_DELETE_FUNCTION_ROLE:
@@ -1015,6 +1049,8 @@ Resources:
         S3Key: lambda/RoomMessagePollerFunction.zip
       Environment:
         Variables:
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1086,6 +1122,8 @@ Resources:
         S3Key: lambda/RoomMessageAcknowledgerFunction.zip
       Environment:
         Variables:
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1160,6 +1198,8 @@ Resources:
               - StaticVariables
               - Main
               - CognitoIdentityUserProfileDatasetName
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1212,86 +1252,6 @@ Resources:
         Fn::Sub: /aws/lambda/${RoomMessagePosterFunction}
       RetentionInDays:
         Ref: LogRetentionDays
-  
-  
-  
-  
-  #
-  #   CORS Origin Combiner Function
-  #   
-  #   Returns an appropriate value for an API Gateway header mapping for the 
-  #   Access-Control-Allowed-Origin header.
-  #
-  
-  CorsOriginCombinerFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Performs cleanup of associated resources on stack deletion.
-      Handler: index.lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - StackCrudOperation
-      Role:
-        Fn::Sub: ${CorsOriginCombinerFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
-        S3Key: lambda/CorsOriginCombinerFunction.zip
-      Runtime: python2.7
-      Timeout: '300'
-  
-  CorsOriginCombinerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-  
-  CorsOriginCombinerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: CorsOriginCombinerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CorsOriginCombinerFunction}:log-stream:*
-      Roles:
-        - Ref: CorsOriginCombinerFunctionRole
-  
-  CorsOriginCombinerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${CorsOriginCombinerFunction}
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  CorsOriginCombinerInvocation:
-    Type: Custom::CorsOriginCombinerInvocation
-    Properties:
-      ServiceToken:
-        Fn::Sub: ${CorsOriginCombinerFunction.Arn}
-      AdditionalCorsOrigins:
-        Ref: AdditionalCorsOrigins
-      BucketWebsiteUrl:
-        Fn::Sub: ${StaticContentBucket.WebsiteURL}
-    DependsOn:
-      - CorsOriginCombinerFunctionLogGroup
-      - CorsOriginCombinerFunctionRoleActions
       
   
   
@@ -2222,6 +2182,11 @@ Resources:
               - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*
           - Effect: Allow
             Action:
+              - apigateway:POST
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/deployments
+          - Effect: Allow
+            Action:
               - cloudformation:DescribeStackResource
             Resource:
               Ref: AWS::StackId
@@ -2234,7 +2199,8 @@ Resources:
             Action:
               - apigateway:PATCH
             Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/stages/${WebChatApiStage}
+              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/stages/${WebChatApiStage}
+              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*/methods/*/integration/responses/*
           - Effect: Allow
             Action:
               - s3:PutObject
@@ -2258,10 +2224,17 @@ Resources:
         Fn::Sub: ${ApiGatewayLambdaSetupFunction.Arn}
       Bucket:
         Ref: SharedBucket
+      CorsOriginList:
+        Fn::Sub: ${CorsOriginListVariable.CorsOriginList}
       RestApi:
         Ref: WebChatApi
       StageName:
         Ref: WebChatApiStage
+      StageVariables:
+        AwsAccountId:
+          Ref: AWS::AccountId
+        AwsRegion:
+          Ref: AWS::Region
     DependsOn:
       - ApiGatewayLambdaSetupFunctionLogGroup
       - ApiGatewayLambdaSetupFunctionRoleActions
@@ -2625,8 +2598,6 @@ Resources:
                     - StaticVariables
                     - Main
                     - StageName
-            CorsOriginList:
-              Fn::Sub: ${CorsOriginCombinerInvocation.CorsOriginList}
       Content-Type: text/javascript
     DependsOn:
       - S3ObjectWriterFunctionLogGroup
@@ -2681,10 +2652,84 @@ Resources:
         Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
       S3SourceBucket:
         Fn::If:
-          - SourceTypeIsS3Bucket
+          - SourceTypeIsS3BucketCondition
           - Ref: S3SourceName
           - Fn::ImportValue:
               Fn::Sub: '${S3SourceName}-S3Bucket'
+  
+  CorsOriginListVariable:
+    Type: Custom::CloudFormationVariable
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
+      CorsOriginList:
+        Fn::If:
+          - IncludeBucketSiteInCorsOriginCondition
+          - Fn::Join:
+              - ','
+              - - Fn::Sub: ${StaticContentBucket.WebsiteURL}
+                - Fn::If:
+                   - NoAdditionalCorsOriginsSpecifiedCondition
+                   - Ref: AWS::NoValue
+                   - Fn::Join:
+                       - ','
+                       - Ref: AdditionalCorsOrigins
+          - Fn::Join:
+              - ','
+              - Ref: AdditionalCorsOrigins
+  
+  
+  
+  
+  SimpleStringReplaceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: |-
+        Used as a CloudFormation custom resource to make a simple string 
+        replacement.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${SimpleStringReplaceFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import cfnresponse
+          def lambda_handler(event, context):
+              resource_props = event["ResourceProperties"]
+              response_dict = {
+                  "Output": resource_props["Input"].replace(
+                      resource_props["OldSubstring"],
+                      resource_props.get("NewSubstring", "")
+                  )
+              }
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, None)
+      Runtime: python2.7
+      Timeout: '300'
+
+  SimpleStringReplaceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  CorsOriginListEscaped:
+    Type: Custom::StringReplacement
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${SimpleStringReplaceFunction.Arn}
+      Input:
+        Fn::Sub: ${CorsOriginListVariable.CorsOriginList}
+      OldSubstring: ','
+      NewSubstring: ';'
+    
           
 Outputs:
   WebChatApi:
