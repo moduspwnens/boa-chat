@@ -181,9 +181,7 @@ Resources:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn:
-        Fn::GetAtt:
-          - ApiGatewayCloudWatchRole
-          - Arn
+        Fn::Sub: ${ApiGatewayCloudWatchRole.Arn}
   
   #  
   #   API Gateway - REST API resources
@@ -256,9 +254,7 @@ Resources:
         AwsRegion:
           Ref: AWS::Region
         CorsOrigins:
-          Fn::GetAtt:
-            - CorsOriginCombinerInvocation
-            - ApiGatewayCorsOriginHeaderValue
+          Fn::Sub: ${CorsOriginCombinerInvocation.ApiGatewayCorsOriginHeaderValue}
         
     DependsOn:
       - WebChatApiMainStageLogGroup
@@ -361,9 +357,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - UserRegistrationRequestHandlerFunctionRole
-          - Arn
+        Fn::Sub: ${UserRegistrationRequestHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -371,13 +365,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientSecret
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -441,9 +431,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - UserRegistrationAliasVerificationHandlerFunctionRole
-          - Arn
+        Fn::Sub: ${UserRegistrationAliasVerificationHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -451,13 +439,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientSecret
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -520,9 +504,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - UserLoginHandlerFunctionRole
-          - Arn
+        Fn::Sub: ${UserLoginHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -530,21 +512,13 @@ Resources:
       Environment:
         Variables:
           COGNITO_IDENTITY_POOL_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoIdentityPoolId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
           COGNITO_USER_POOL_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolId}
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientSecret
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -590,12 +564,7 @@ Resources:
             Action:
               - cognito-idp:AdminInitiateAuth
             Resource:
-              Fn::Sub: 
-                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-                - CognitoUserPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoUserPoolId
+              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
           - Effect: Allow
             Action:
               - s3:GetObject
@@ -621,33 +590,19 @@ Resources:
             Action:
               - cognito-idp:AdminUpdateUserAttributes
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-                - CognitoUserPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoUserPoolId
+              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
           - Effect: Allow
             Action:
               - cognito-sync:ListRecords
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
+              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
           - Effect: Allow
             Action:
               - cognito-sync:UpdateRecords
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
-                  CognitoIdentityUserProfileDatasetName:
+              Fn::Sub: 
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityUserProfileDatasetName:
                     Fn::FindInMap:
                       - StaticVariables
                       - Main
@@ -683,9 +638,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - UserForgotPasswordHandlerFunctionRole
-          - Arn
+        Fn::Sub: ${UserForgotPasswordHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -693,13 +646,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientSecret
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -762,9 +711,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - UserChangePasswordHandlerFunctionRole
-          - Arn
+        Fn::Sub: ${UserChangePasswordHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -772,17 +719,11 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolId}
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientId
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::GetAtt:
-              - CognitoSharedResourceInvocation
-              - CognitoUserPoolClientSecret
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -824,23 +765,14 @@ Resources:
             Action:
               - cognito-idp:AdminInitiateAuth
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}
-                - CognitoUserPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoUserPoolId
+              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
           - Effect: Allow
             Action:
               - cognito-sync:ListRecords
             Resource:
               Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
-                  CognitoIdentityUserProfileDatasetName:
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityUserProfileDatasetName:
                     Fn::FindInMap:
                       - StaticVariables
                       - Main
@@ -875,9 +807,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - RoomGeneratorFunctionRole
-          - Arn
+        Fn::Sub: ${RoomGeneratorFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -885,27 +815,17 @@ Resources:
       Environment:
         Variables:
           DELETE_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - StackCleanupFunctionRole
-              - Arn
+            Fn::Sub: ${StackCleanupFunctionRole.Arn}
           PUBLISH_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - RoomMessagePosterFunctionRole
-              - Arn
+            Fn::Sub: ${RoomMessagePosterFunctionRole.Arn}
           SHARED_BUCKET:
             Ref: SharedBucket
           SUBSCRIBE_ROOM_TOPIC_ROLE:
-            Fn::GetAtt:
-              - RoomSessionGeneratorFunctionRole
-              - Arn
+            Fn::Sub: ${RoomSessionGeneratorFunctionRole.Arn}
           SNS_FAILURE_FEEDBACK_ROLE:
-            Fn::GetAtt:
-              - SNSFailureFeedbackRole
-              - Arn
+            Fn::Sub: ${SNSFailureFeedbackRole.Arn}
           SNS_SUCCESS_FEEDBACK_ROLE:
-            Fn::GetAtt:
-              - SNSSuccessFeedbackRole
-              - Arn
+            Fn::Sub: ${SNSSuccessFeedbackRole.Arn}
       Runtime: python2.7
       Timeout: 300
   
@@ -1004,9 +924,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - RoomSessionGeneratorFunctionRole
-          - Arn
+        Fn::Sub: ${RoomSessionGeneratorFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1014,17 +932,11 @@ Resources:
       Environment:
         Variables:
           ACKNOWLEDGER_FUNCTION_ROLE:
-            Fn::GetAtt:
-              - RoomMessageAcknowledgerFunctionRole
-              - Arn
+            Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
           POLLER_FUNCTION_ROLE:
-            Fn::GetAtt:
-              - RoomMessagePollerFunctionRole
-              - Arn
+            Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
           QUEUE_DELETE_FUNCTION_ROLE:
-            Fn::GetAtt:
-              - StackCleanupFunctionRole
-              - Arn
+            Fn::Sub: ${StackCleanupFunctionRole.Arn}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1107,9 +1019,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiCommon
       Role:
-        Fn::GetAtt:
-          - RoomMessagePollerFunctionRole
-          - Arn
+        Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1180,9 +1090,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiCommon
       Role:
-        Fn::GetAtt:
-          - RoomMessageAcknowledgerFunctionRole
-          - Arn
+        Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1251,9 +1159,7 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::GetAtt:
-          - RoomMessagePosterFunctionRole
-          - Arn
+        Fn::Sub: ${RoomMessagePosterFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1306,12 +1212,7 @@ Resources:
             Action:
               - cognito-sync:ListRecords
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
+              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
       Roles:
         - Ref: RoomMessagePosterFunctionRole
   
@@ -1344,9 +1245,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - CorsOriginCombinerFunctionRole
-          - Arn
+        Fn::Sub: ${CorsOriginCombinerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1396,15 +1295,11 @@ Resources:
     Type: Custom::CorsOriginCombinerInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - CorsOriginCombinerFunction
-          - Arn
+        Fn::Sub: ${CorsOriginCombinerFunction.Arn}
       AdditionalCorsOrigins:
         Ref: AdditionalCorsOrigins
       BucketWebsiteUrl:
-        Fn::GetAtt:
-          - StaticContentBucket
-          - WebsiteURL
+        Fn::Sub: ${StaticContentBucket.WebsiteURL}
     DependsOn:
       - CorsOriginCombinerFunctionLogGroup
       - CorsOriginCombinerFunctionRoleActions
@@ -1496,9 +1391,7 @@ Resources:
           - LambdaMemoryClasses
           - PreWarmApi
       Role:
-        Fn::GetAtt:
-          - PreWarmerFunctionRole
-          - Arn
+        Fn::Sub: ${PreWarmerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1564,9 +1457,7 @@ Resources:
         Ref: PreWarmerFunction
       Principal: events.amazonaws.com
       SourceArn:
-        Fn::GetAtt:
-          - PreWarmApiEventRule
-          - Arn
+        Fn::Sub: ${PreWarmApiEventRule.Arn}
     DependsOn:
       - PreWarmerFunctionRoleActions
       - PreWarmerFunctionLogGroup
@@ -1584,9 +1475,7 @@ Resources:
       State: ENABLED
       Targets:
         - Arn:
-            Fn::GetAtt:
-              - PreWarmerFunction
-              - Arn
+            Fn::Sub: ${PreWarmerFunction.Arn}
           Id: PreWarmerFunction
           Input:
             Fn::Sub: |-
@@ -1615,9 +1504,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - ApiUsagePlanLinkerFunctionRole
-          - Arn
+        Fn::Sub: ${ApiUsagePlanLinkerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1672,9 +1559,7 @@ Resources:
     Type: Custom::ApiUsagePlanLinkerInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - ApiUsagePlanLinkerFunction
-          - Arn
+        Fn::Sub: ${ApiUsagePlanLinkerFunction.Arn}
       RestApi:
         Ref: WebChatApi
       Stage:
@@ -1706,9 +1591,7 @@ Resources:
             Condition:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
-                  Fn::GetAtt:
-                    - CognitoSharedResourceInvocation
-                    - CognitoIdentityPoolId
+                  Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': authenticated
       Path: "/"
@@ -1784,9 +1667,7 @@ Resources:
             Condition:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
-                  Fn::GetAtt:
-                    - CognitoSharedResourceInvocation
-                    - CognitoIdentityPoolId
+                  Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': unauthenticated
       Path: "/"
@@ -1810,9 +1691,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - CognitoSharedResourceFunctionRole
-          - Arn
+        Fn::Sub: ${CognitoSharedResourceFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1895,9 +1774,7 @@ Resources:
     Type: Custom::CognitoSharedResourceInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - CognitoSharedResourceFunction
-          - Arn
+        Fn::Sub: ${CognitoSharedResourceFunction.Arn}
       SharedBucket:
         Ref: SharedBucket
     DependsOn:
@@ -1929,9 +1806,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - CognitoIdentityPoolRoleLinkerFunctionRole
-          - Arn
+        Fn::Sub: ${CognitoIdentityPoolRoleLinkerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -1970,22 +1845,13 @@ Resources:
             Action:
               - sts:PassRole
             Resource:
-              - Fn::GetAtt:
-                  - CognitoAuthenticatedUserRole
-                  - Arn
-              - Fn::GetAtt:
-                  - CognitoUnauthenticatedUserRole
-                  - Arn
+              - Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
+              - Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
           - Effect: Allow
             Action:
               - cognito-identity:SetIdentityPoolRoles
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
+              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
       Roles:
         - Ref: CognitoIdentityPoolRoleLinkerFunctionRole
   
@@ -2001,22 +1867,14 @@ Resources:
     Type: Custom::CognitoIdentityPoolRoleLinkerInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - CognitoIdentityPoolRoleLinkerFunction
-          - Arn
+        Fn::Sub: ${CognitoIdentityPoolRoleLinkerFunction.Arn}
       IdentityPoolId:
-        Fn::GetAtt:
-          - CognitoSharedResourceInvocation
-          - CognitoIdentityPoolId
+        Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
       UserRoles:
         AuthenticatedUserRole:
-          Fn::GetAtt:
-            - CognitoAuthenticatedUserRole
-            - Arn
+          Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
         UnauthenticatedUserRole:
-          Fn::GetAtt:
-            - CognitoUnauthenticatedUserRole
-            - Arn
+          Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
     DependsOn:
       - CognitoIdentityPoolRoleLinkerFunctionLogGroup
       - CognitoIdentityPoolRoleLinkerFunctionRoleActions
@@ -2035,7 +1893,7 @@ Resources:
   SwaggerTemplatePresetFunction:
     Type: AWS::Lambda::Function
     Properties:
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Replaces Swagger template values to work for this AWS account / region.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -2043,9 +1901,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - SwaggerTemplatePresetFunctionRole
-          - Arn
+        Fn::Sub: ${SwaggerTemplatePresetFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2106,9 +1962,7 @@ Resources:
     Type: Custom::SwaggerTemplatePresetInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - SwaggerTemplatePresetFunction
-          - Arn
+        Fn::Sub: ${SwaggerTemplatePresetFunction.Arn}
       OutputBucket:
         Ref: SharedBucket
       OutputKey: swagger-apigateway.yaml
@@ -2143,9 +1997,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - StackCleanupFunctionRole
-          - Arn
+        Fn::Sub: ${StackCleanupFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2224,9 +2076,7 @@ Resources:
     Type: Custom::StackCleanupInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - StackCleanupFunction
-          - Arn
+        Fn::Sub: ${StackCleanupFunction.Arn}
       Bucket:
         Ref: SharedBucket
       BucketContentType: Default
@@ -2259,9 +2109,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - ApiGatewayLambdaSetupFunctionRole
-          - Arn
+        Fn::Sub: ${ApiGatewayLambdaSetupFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2337,9 +2185,7 @@ Resources:
     Type: Custom::ApiGatewayLambdaSetupInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - ApiGatewayLambdaSetupFunction
-          - Arn
+        Fn::Sub: ${ApiGatewayLambdaSetupFunction.Arn}
       Bucket:
         Ref: SharedBucket
       RestApi:
@@ -2373,9 +2219,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - UserResourceCleanupFunctionRole
-          - Arn
+        Fn::Sub: ${UserResourceCleanupFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2414,23 +2258,14 @@ Resources:
             Action:
               - cognito-identity:ListIdentities
             Resource:
-              Fn::Sub:
-                - arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
+              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
           - Effect: Allow
             Action:
               - cognito-sync:ListRecords
             Resource:
               Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityPoolId:
-                    Fn::GetAtt:
-                      - CognitoSharedResourceInvocation
-                      - CognitoIdentityPoolId
-                  CognitoIdentityUserProfileDatasetName:
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityUserProfileDatasetName:
                     Fn::FindInMap:
                       - StaticVariables
                       - Main
@@ -2460,13 +2295,9 @@ Resources:
     Type: Custom::UserResourceCleanupInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - UserResourceCleanupFunction
-          - Arn
+        Fn::Sub: ${UserResourceCleanupFunction.Arn}
       CognitoIdentityPoolId:
-        Fn::GetAtt:
-          - CognitoSharedResourceInvocation
-          - CognitoIdentityPoolId
+        Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
       CognitoIdentityUserProfileDatasetName:
         Fn::FindInMap:
           - StaticVariables
@@ -2513,9 +2344,7 @@ Resources:
     Type: Custom::StaticWebSiteBucketCleanupInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - StackCleanupFunction
-          - Arn
+        Fn::Sub: ${StackCleanupFunction.Arn}
       Bucket:
         Ref: StaticContentBucket
       BucketContentType: 'Static Content'
@@ -2541,9 +2370,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - S3StaticWebContentDeployerFunctionRole
-          - Arn
+        Fn::Sub: ${S3StaticWebContentDeployerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2603,9 +2430,7 @@ Resources:
     Type: Custom::S3StaticWebContentDeployerInvocation
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - S3StaticWebContentDeployerFunction
-          - Arn
+        Fn::Sub: ${S3StaticWebContentDeployerFunction.Arn}
       Source:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2636,9 +2461,7 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::GetAtt:
-          - S3ObjectWriterFunctionRole
-          - Arn
+        Fn::Sub: ${S3ObjectWriterFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
@@ -2712,9 +2535,7 @@ Resources:
     Type: Custom::WebChatApiPointerJsFile
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - S3ObjectWriterFunction
-          - Arn
+        Fn::Sub: ${S3ObjectWriterFunction.Arn}
       Bucket:
         Ref: StaticContentBucket
       Key: api/endpoint.js
@@ -2735,9 +2556,7 @@ Resources:
                     - Main
                     - StageName
             CorsOriginList:
-              Fn::GetAtt:
-                - CorsOriginCombinerInvocation
-                - CorsOriginList
+              Fn::Sub: ${CorsOriginCombinerInvocation.CorsOriginList}
       Content-Type: text/javascript
     DependsOn:
       - S3ObjectWriterFunctionLogGroup
@@ -2762,9 +2581,7 @@ Resources:
       Handler: index.lambda_handler
       MemorySize: 128
       Role:
-        Fn::GetAtt:
-          - CloudFormationInputEchoFunctionRole
-          - Arn
+        Fn::Sub: ${CloudFormationInputEchoFunctionRole.Arn}
       Code:
         ZipFile: |-
           import cfnresponse
@@ -2792,9 +2609,7 @@ Resources:
     Type: Custom::CloudFormationPresetVariables
     Properties:
       ServiceToken:
-        Fn::GetAtt:
-          - CloudFormationInputEchoFunction
-          - Arn
+        Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
       S3SourceBucket:
         Fn::If:
           - SourceTypeIsS3Bucket
@@ -2817,6 +2632,4 @@ Outputs:
       Fn::Sub:
         - ${WebChatHome}/
         - WebChatHome:
-            Fn::GetAtt:
-              - StaticContentBucket
-              - WebsiteURL
+            Fn::Sub: ${StaticContentBucket.WebsiteURL}
