@@ -13,9 +13,6 @@ import copy
 import datetime
 import calendar
 import time
-import uuid
-import random
-import zbase32
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
@@ -26,6 +23,7 @@ cognito_idp_client = boto3.client("cognito-idp")
 cognito_identity_client = boto3.client("cognito-identity")
 cognito_sync_client = boto3.client("cognito-sync")
 apig_client = boto3.client("apigateway")
+lambda_client = boto3.client("lambda")
 
 def lambda_handler(event, context):
     
@@ -49,9 +47,7 @@ def lambda_handler(event, context):
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
     identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
-    s3_bucket_name = os.environ["SHARED_BUCKET"]
-    stack_name = os.environ["STACK_NAME"]
-    usage_plan_id = os.environ["USAGE_PLAN_ID"]
+    api_key_creator_function_arn = os.environ["API_KEY_CREATOR_FUNCTION_ARN"]
     
     email_address = event["request-body"].get("email-address", "")
     identity_id = event["request-body"].get("user-id", "")
@@ -168,37 +164,27 @@ def lambda_handler(event, context):
     for each_record in response.get("Records", []):
         if each_record["Key"] == "api-key-id":
             user_api_key_id = each_record["Value"]
-        elif each_record["Key"] == "api-key":
+        elif each_record["Key"] == "api-key-value":
             user_api_key_value = each_record["Value"]
     
-    if user_api_key_id is None:
-        
-        generated_api_key = generate_potential_api_key()
-        
-        api_key_name = "{} - {}".format(
-            stack_name,
-            identity_id
+    if user_api_key_value is None:
+        response = lambda_client.invoke(
+            FunctionName = api_key_creator_function_arn,
+            Payload = json.dumps({
+                "identity-id": identity_id
+            })
         )
+        response_object = json.loads(response["Payload"].read())
         
-        response = apig_client.create_api_key(
-            name = api_key_name,
-            description = "Web chat API key for {}.".format(identity_id),
-            enabled = True,
-            value = generated_api_key
-        )
+        if "api-key-id" not in response_object:
+            print(json.dumps(response_object))
+            raise Exception("Invalid API Key creator response.")
         
-        user_api_key_id = response["id"]
-        user_api_key_value = response["value"]
+        user_api_key_id = response_object["api-key-id"]
+        user_api_key_value = response_object["api-key-value"]
         
-        response = apig_client.create_usage_plan_key(
-            usagePlanId = usage_plan_id,
-            keyId = user_api_key_id,
-            keyType = "API_KEY"
-        )
-    
+        
     records_to_replace = {
-        "api-key-id": user_api_key_id,
-        "api-key": user_api_key_value,
         "email-address": user_email,
         "user-id": user_id
     }
@@ -259,14 +245,6 @@ def lambda_handler(event, context):
             "refresh-token": cognito_refresh_token
         }
     }
-
-def generate_potential_api_key():
-    # API key must be at least 30 characters.
-    base_key = zbase32.b2a(uuid.uuid4().bytes)
-    
-    filler_content = "".join(random.sample(base_key, len(base_key)))
-    
-    return (zbase32.b2a(uuid.uuid4().bytes) + filler_content)[:30]
 
 def proxy_lambda_handler(event, context):
     

@@ -535,6 +535,8 @@ Resources:
         S3Key: lambda/UserLoginHandlerFunction.zip
       Environment:
         Variables:
+          API_KEY_CREATOR_FUNCTION_ARN:
+            Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           COGNITO_IDENTITY_POOL_ID:
             Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
           COGNITO_USER_POOL_ID:
@@ -552,10 +554,6 @@ Resources:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
-          STACK_NAME:
-            Ref: AWS::StackName
-          USAGE_PLAN_ID:
-            Ref: WebChatApiBasicUsagePlan
       Runtime: python2.7
       Timeout: '300'
   
@@ -593,21 +591,6 @@ Resources:
               Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
           - Effect: Allow
             Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
-          - Effect: Allow
-            Action:
-              - cognito-idp:AdminUpdateUserAttributes
-            Resource:
-              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
-          - Effect: Allow
-            Action:
               - cognito-sync:ListRecords
             Resource:
               Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
@@ -622,6 +605,11 @@ Resources:
                       - StaticVariables
                       - Main
                       - CognitoIdentityUserProfileDatasetName
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              Fn::Sub: ${ApiKeyCreatorFunction.Arn}
       Roles:
         - Ref: UserLoginHandlerFunctionRole
   
@@ -1252,7 +1240,113 @@ Resources:
         Fn::Sub: /aws/lambda/${RoomMessagePosterFunction}
       RetentionInDays:
         Ref: LogRetentionDays
-      
+  
+  
+  #
+  #   API Key Creator
+  #   
+  #   Used with a state machine to create a new API key for a user.
+  #
+  
+  ApiKeyCreatorFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
+    Properties:
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${ApiKeyCreatorFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/ApiKeyCreatorFunction.zip
+      Environment:
+        Variables:
+          COGNITO_IDENTITY_POOL_ID:
+            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+          COGNITO_USER_PROFILE_DATASET_NAME:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - CognitoIdentityUserProfileDatasetName
+          STACK_NAME:
+            Ref: AWS::StackName
+          USAGE_PLAN_ID:
+            Ref: WebChatApiBasicUsagePlan
+      Runtime: python2.7
+      Timeout: '300'
+  
+  ApiKeyCreatorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ApiKeyCreatorFunctionRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ApiKeyCreatorFunctionRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiKeyCreatorFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - apigateway:POST
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
+          - Effect: Allow
+            Action:
+              - apigateway:POST
+            Resource:
+              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
+          - Effect: Allow
+            Action:
+              - cognito-sync:ListRecords
+            Resource:
+              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+          - Effect: Allow
+            Action:
+              - cognito-sync:UpdateRecords
+            Resource:
+              Fn::Sub: 
+                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                - CognitoIdentityUserProfileDatasetName:
+                    Fn::FindInMap:
+                      - StaticVariables
+                      - Main
+                      - CognitoIdentityUserProfileDatasetName
+      Roles:
+        - Ref: ApiKeyCreatorFunctionRole
+  
+  ApiKeyCreatorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ApiKeyCreatorFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+
+  
   
   
   #
