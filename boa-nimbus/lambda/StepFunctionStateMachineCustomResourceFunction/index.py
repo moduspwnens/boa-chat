@@ -51,6 +51,8 @@ def lambda_handler(event, context):
                     break
                 else:
                     raise
+            
+            time.sleep(5)
     
     if request_type in ["Create", "Update"]:
         
@@ -60,7 +62,7 @@ def lambda_handler(event, context):
         
         response = sfn_client.create_state_machine(
             name = state_machine_name,
-            definition = json.dumps(definition_dict),
+            definition = json.dumps(definition_dict, indent=4),
             roleArn = resource_props["RoleArn"]
         )
         
