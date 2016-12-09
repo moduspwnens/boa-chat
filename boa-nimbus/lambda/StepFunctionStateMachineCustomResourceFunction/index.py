@@ -6,6 +6,7 @@ AWS CloudFormation Custom Resource for a Step Functions State Machine.
 
 from __future__ import print_function
 
+import os
 import json
 import uuid
 import time
@@ -31,6 +32,46 @@ def lambda_handler(event, context):
     if request_type in ["Update", "Delete"]:
         state_machine_arn = physical_resource_id
         
+        on_delete_steps = resource_props.get("OnDelete", [])
+        
+        if "StopExecutions" in on_delete_steps:
+            
+            next_token = None
+            
+            while True:
+                
+                list_executions_kwargs = {
+                    "stateMachineArn": state_machine_arn,
+                    "statusFilter": "RUNNING"
+                }
+                
+                if next_token is not None:
+                    list_executions_kwargs["nextToken"] = next_token
+                
+                try:
+                    response = sfn_client.list_executions(**list_executions_kwargs)
+                except botocore.exceptions.ClientError as e:
+                    if e.response['Error']['Code'] == 'StateMachineDoesNotExist':
+                        print("State machine has no executions because it doesn't exist.")
+                        break
+                    else:
+                        raise
+                
+                for each_execution in response.get("executions", []):
+                    each_execution_arn = each_execution["executionArn"]
+                    
+                    print("Stopping execution: {}".format(each_execution_arn))
+                    sfn_client.stop_execution(
+                        executionArn = each_execution_arn,
+                        error = "StateMachineDeletion",
+                        cause = "The state machine performing this execution is pending deletion."
+                    )
+                
+                if "nextToken" not in response:
+                    break
+                else:
+                    next_token = response["nextToken"]
+        
         sfn_client.delete_state_machine(
             stateMachineArn = state_machine_arn
         )
@@ -45,7 +86,7 @@ def lambda_handler(event, context):
                 response = sfn_client.describe_state_machine(
                     stateMachineArn = state_machine_arn
                 )
-                print(response)
+                print(response["status"])
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'StateMachineDoesNotExist':
                     break
@@ -56,15 +97,20 @@ def lambda_handler(event, context):
     
     if request_type in ["Create", "Update"]:
         
-        state_machine_name = get_state_machine_name(stack_name)
+        state_machine_name = get_state_machine_name()
         
         definition_dict = json.loads(resource_props["Definition"])
         
-        response = sfn_client.create_state_machine(
-            name = state_machine_name,
-            definition = json.dumps(definition_dict, indent=4),
-            roleArn = resource_props["RoleArn"]
-        )
+        try:
+            response = sfn_client.create_state_machine(
+                name = state_machine_name,
+                definition = json.dumps(definition_dict, indent=4),
+                roleArn = resource_props["RoleArn"]
+            )
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidDefinition':
+                cfnresponse.send(event, context, cfnresponse.FAILED, {}, physical_resource_id)
+            raise
         
         state_machine_arn = response["stateMachineArn"]
         
@@ -79,9 +125,9 @@ def lambda_handler(event, context):
 
     return {}
 
-def get_state_machine_name(stack_name):
+def get_state_machine_name():
     return "{}-{}".format(
-        stack_name,
+        os.environ["PROJECT_GLOBAL_PREFIX"],
         "{}".format(
             uuid.uuid4()
         ).replace("-", "")

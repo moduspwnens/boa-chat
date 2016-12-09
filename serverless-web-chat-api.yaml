@@ -369,6 +369,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserRegistrationRequestHandlerFunction
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -408,28 +410,23 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserRegistrationRequestHandlerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserRegistrationRequestHandlerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserRegistrationRequestHandlerFunction}:log-stream:*
-      Roles:
-        - Ref: UserRegistrationRequestHandlerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserRegistrationRequestHandlerFunctionLogGroup.Arn}
   
   UserRegistrationRequestHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserRegistrationRequestHandlerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserRegistrationRequestHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -445,6 +442,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserRegistrationAliasVerificationHandlerFunction
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
       MemorySize: 
@@ -484,31 +483,25 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserRegistrationAliasVerificationHandlerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserRegistrationAliasVerificationHandlerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserRegistrationAliasVerificationHandlerFunction}:log-stream:*
-      Roles:
-        - Ref: UserRegistrationAliasVerificationHandlerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserRegistrationAliasVerificationHandlerFunctionLogGroup.Arn}
   
   UserRegistrationAliasVerificationHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserRegistrationAliasVerificationHandlerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserRegistrationAliasVerificationHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
-  
   
   
   #  
@@ -520,6 +513,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserLoginHandlerFunction
       Description: Processes a login request from a user and returns credentials if successful.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -555,7 +550,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   UserLoginHandlerFunctionRole:
     Type: AWS::IAM::Role
@@ -570,54 +565,49 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserLoginHandlerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserLoginHandlerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserLoginHandlerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - cognito-idp:AdminInitiateAuth
-            Resource:
-              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
-          - Effect: Allow
-            Action:
-              - cognito-sync:ListRecords
-            Resource:
-              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
-          - Effect: Allow
-            Action:
-              - cognito-sync:UpdateRecords
-            Resource:
-              Fn::Sub: 
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityUserProfileDatasetName:
-                    Fn::FindInMap:
-                      - StaticVariables
-                      - Main
-                      - CognitoIdentityUserProfileDatasetName
-          - Effect: Allow
-            Action:
-              - lambda:InvokeFunction
-            Resource:
-              Fn::Sub: ${ApiKeyCreatorFunction.Arn}
-      Roles:
-        - Ref: UserLoginHandlerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserLoginHandlerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminInitiateAuth
+                Resource:
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+              - Effect: Allow
+                Action:
+                  - cognito-sync:UpdateRecords
+                Resource:
+                  Fn::Sub: 
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  Fn::Sub: ${ApiKeyCreatorFunction.Arn}
   
   UserLoginHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserLoginHandlerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserLoginHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -633,6 +623,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserForgotPasswordHandlerFunction
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -657,7 +649,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   UserForgotPasswordHandlerFunctionRole:
     Type: AWS::IAM::Role
@@ -672,28 +664,23 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserForgotPasswordHandlerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserForgotPasswordHandlerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserForgotPasswordHandlerFunction}:log-stream:*
-      Roles:
-        - Ref: UserForgotPasswordHandlerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserForgotPasswordHandlerFunctionLogGroup.Arn}
   
   UserForgotPasswordHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserForgotPasswordHandlerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserForgotPasswordHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -708,6 +695,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserChangePasswordHandlerFunction
       Description: Handles user forgot password requests.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -739,7 +728,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   UserChangePasswordHandlerFunctionRole:
     Type: AWS::IAM::Role
@@ -754,44 +743,39 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserChangePasswordHandlerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserChangePasswordHandlerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserChangePasswordHandlerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - cognito-idp:AdminInitiateAuth
-            Resource:
-              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
-          - Effect: Allow
-            Action:
-              - cognito-sync:ListRecords
-            Resource:
-              Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityUserProfileDatasetName:
-                    Fn::FindInMap:
-                      - StaticVariables
-                      - Main
-                      - CognitoIdentityUserProfileDatasetName
-      Roles:
-        - Ref: UserChangePasswordHandlerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserChangePasswordHandlerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminInitiateAuth
+                Resource:
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub:
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
   
   UserChangePasswordHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserChangePasswordHandlerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserChangePasswordHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -806,6 +790,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomGeneratorFunction
       Description: Generates a unique identifier for a chat room.
       Handler: index.proxy_lambda_handler
       MemorySize: 
@@ -825,8 +811,14 @@ Resources:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           DELETE_ROOM_TOPIC_ROLE:
             Fn::Sub: ${StackCleanupFunctionRole.Arn}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           PUBLISH_ROOM_TOPIC_ROLE:
             Fn::Sub: ${RoomMessagePosterFunctionRole.Arn}
+          ROOM_LIFECYCLE_FUNCTION_ROLE:
+            Fn::Sub: ${RoomLifecycleHandlerFunctionRole.Arn}
+          ROOM_LIFECYCLE_STATE_MACHINE_ARN:
+            Fn::Sub: ${RoomLifecycleStateMachine.StateMachineArn}
           SHARED_BUCKET:
             Ref: SharedBucket
           SUBSCRIBE_ROOM_TOPIC_ROLE:
@@ -851,65 +843,40 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  RoomGeneratorFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomGeneratorFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomGeneratorFunction}:log-stream:*
-          - Effect: Allow
-            Action: 
-              - sns:CreateTopic
-            Resource: '*'
-          - Effect: Allow
-            Action: 
-              - sns:SetTopicAttributes
-            Resource: 
-              Fn::Sub:
-                - arn:aws:sns:${AWS::Region}:${AWS::AccountId}:web-chat-${WebChatApi}-${WebChatApiStageName}-*
-                - WebChatApiStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
-          - Effect: Allow
-            Action: 
-              - logs:CreateLogGroup
-              - logs:PutMetricFilter
-            Resource: 
-              Fn::Sub:
-                - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
-                - WebChatApiStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-          - Effect: Allow
-            Action:
-              - apigateway:GET
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
-      Roles:
-        - Ref: RoomGeneratorFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomGeneratorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:SetTopicAttributes
+                Resource: 
+                  Fn::Sub: arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action: 
+                  - logs:CreateLogGroup
+                  - logs:PutMetricFilter
+                Resource: 
+                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  Fn::Sub: ${RoomLifecycleStateMachine.StateMachineArn}
   
   RoomGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomGeneratorFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomGeneratorFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -925,6 +892,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomSessionGeneratorFunction
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
       MemorySize: 
@@ -946,12 +915,20 @@ Resources:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           POLLER_FUNCTION_ROLE:
             Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
+          OWN_FUNCTION_ROLE:
+            Fn::Sub: ${RoomSessionGeneratorFunctionRole.Arn}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           QUEUE_DELETE_FUNCTION_ROLE:
             Fn::Sub: ${StackCleanupFunctionRole.Arn}
+          ROOM_LIFECYCLE_FUNCTION_ROLE:
+            Fn::Sub: ${RoomLifecycleHandlerFunctionRole.Arn}
           SHARED_BUCKET:
             Ref: SharedBucket
+          STACK_NAME:
+            Ref: AWS::StackName
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   RoomSessionGeneratorFunctionRole:
     Type: AWS::IAM::Role
@@ -966,48 +943,29 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  RoomSessionGeneratorFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomSessionGeneratorFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomSessionGeneratorFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - sqs:CreateQueue
-              - sqs:GetQueueAttributes
-            Resource: '*'
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-queues/*
-          - Effect: Allow
-            Action:
-              - apigateway:GET
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/domainnames/*/basepathmappings
-      Roles:
-        - Ref: RoomSessionGeneratorFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomSessionGeneratorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - sqs:CreateQueue
+                  - sqs:GetQueueAttributes
+                Resource:
+                  Fn::Sub: arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-*
   
   RoomSessionGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomSessionGeneratorFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomSessionGeneratorFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1022,6 +980,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessagePollerFunction
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -1042,7 +1002,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   RoomMessagePollerFunctionRole:
     Type: AWS::IAM::Role
@@ -1057,28 +1017,23 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  RoomMessagePollerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomMessagePollerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePollerFunction}:log-stream:*
-      Roles:
-        - Ref: RoomMessagePollerFunctionRole
+      Policies:
+        - PolicyName: RoomMessagePollerFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomMessagePollerFunctionLogGroup.Arn}
   
   RoomMessagePollerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomMessagePollerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessagePollerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1095,6 +1050,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessageAcknowledgerFunction
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -1115,7 +1072,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   RoomMessageAcknowledgerFunctionRole:
     Type: AWS::IAM::Role
@@ -1130,28 +1087,23 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  RoomMessageAcknowledgerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomMessageAcknowledgerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessageAcknowledgerFunction}:log-stream:*
-      Roles:
-        - Ref: RoomMessageAcknowledgerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomMessageAcknowledgerFunctionLogGroup.Arn}
   
   RoomMessageAcknowledgerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomMessageAcknowledgerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessageAcknowledgerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1166,6 +1118,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessagePosterFunction
       Description: Returns any new messages sent to the requested room.
       Handler: index.proxy_lambda_handler
       MemorySize:
@@ -1191,7 +1145,7 @@ Resources:
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   RoomMessagePosterFunctionRole:
     Type: AWS::IAM::Role
@@ -1206,38 +1160,33 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  RoomMessagePosterFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: RoomMessagePosterFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${RoomMessagePosterFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
-          - Effect: Allow
-            Action:
-              - cognito-sync:ListRecords
-            Resource:
-              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
-      Roles:
-        - Ref: RoomMessagePosterFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomMessagePosterFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
   
   RoomMessagePosterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${RoomMessagePosterFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessagePosterFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1253,6 +1202,8 @@ Resources:
     Metadata:
       PreWarming: true
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -1280,7 +1231,7 @@ Resources:
           USAGE_PLAN_ID:
             Ref: WebChatApiBasicUsagePlan
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   ApiKeyCreatorFunctionRole:
     Type: AWS::IAM::Role
@@ -1295,57 +1246,211 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  ApiKeyCreatorFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ApiKeyCreatorFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiKeyCreatorFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
-          - Effect: Allow
-            Action:
-              - cognito-sync:ListRecords
-            Resource:
-              Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
-          - Effect: Allow
-            Action:
-              - cognito-sync:UpdateRecords
-            Resource:
-              Fn::Sub: 
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityUserProfileDatasetName:
-                    Fn::FindInMap:
-                      - StaticVariables
-                      - Main
-                      - CognitoIdentityUserProfileDatasetName
-      Roles:
-        - Ref: ApiKeyCreatorFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${ApiKeyCreatorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+              - Effect: Allow
+                Action:
+                  - cognito-sync:UpdateRecords
+                Resource:
+                  Fn::Sub: 
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
   
   ApiKeyCreatorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ApiKeyCreatorFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
       RetentionInDays:
         Ref: LogRetentionDays
-
+  
+  
+  
+  #
+  #   Room Lifecycle Handler
+  #   
+  #   State machine and Lambda function for managing the chat room's state 
+  #   over its lifetime.
+  #
+  
+  RoomLifecycleHandlerFunction:
+    Type: AWS::Lambda::Function
+    #Metadata:
+    #  PreWarming: true
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomLifecycleHandlerFunction
+      Description: Performs cleanup of associated resources on stack deletion.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${RoomLifecycleHandlerFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/RoomLifecycleHandlerFunction.zip
+      Environment:
+        Variables:
+          DELETE_ROOM_TOPIC_ROLE:
+            Fn::Sub: ${StackCleanupFunctionRole.Arn}
+          OWN_FUNCTION_ROLE:
+            Fn::Sub: ${RoomLifecycleHandlerFunctionRole.Arn}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
+      Runtime: python2.7
+      Timeout: 300
+  
+  RoomLifecycleHandlerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomLifecycleHandlerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - logs:DeleteLogGroup
+                Resource: 
+                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - sqs:ListQueues
+                Resource:
+                  Fn::Sub: arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*
+  
+  RoomLifecycleHandlerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomLifecycleHandlerFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  RoomLifecycleStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - Fn::Sub: states.${AWS::Region}.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  Fn::Sub: ${RoomLifecycleHandlerFunction.Arn}
+  
+  RoomLifecycleStateMachine:
+    Type: Custom::StepFunctionStateMachine
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${StepFunctionStateMachineCustomResourceFunction.Arn}
+      OnDelete:
+        - StopExecutions
+      Definition:
+        Fn::Sub: |-
+          {
+            "Comment": "A state machine for managing the lifecycle of a chat room.",
+            "StartAt": "Wait Until Room Duration Expires",
+            "States": {
+              "Wait Until Room Duration Expires": {
+                "Type": "Wait",
+                "SecondsPath": "$.config.duration",
+                "Next": "Close Room To New Posts"
+              },
+              "Close Room To New Posts": {
+                "Type": "Task",
+                "Resource": "${RoomLifecycleHandlerFunction.Arn}",
+                "Retry": [
+                  {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 5,
+                    "MaxAttempts": 10
+                  }
+                ],
+                "Next": "Wait for In-Flight Events to Process"
+              },
+              "Wait for In-Flight Events to Process": {
+                "Comment": "A delay to ensure room events flow all the way to permanent storage before cleaning up dependent resources.",
+                "Type": "Wait",
+                "SecondsPath": "$.inflight-wait-duration",
+                "Next": "Continue Room Cleanup"
+              },
+              "Continue Room Cleanup": {
+                "Type": "Task",
+                "Resource": "${RoomLifecycleHandlerFunction.Arn}",
+                "Retry": [
+                  {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 5,
+                    "MaxAttempts": 10
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+      RoleArn:
+        Fn::Sub: ${RoomLifecycleStateMachineRole.Arn}
   
   
   
@@ -1426,6 +1531,8 @@ Resources:
   PreWarmerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-PreWarmerFunction
       Description: Queues up Lambda function invocations for later execution.
       Handler: index.lambda_handler
       MemorySize:
@@ -1440,7 +1547,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/PreWarmerFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   PreWarmerFunctionRole:
     Type: AWS::IAM::Role
@@ -1455,39 +1562,34 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  PreWarmerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: PreWarmerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${PreWarmerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - lambda:InvokeFunction
-            Resource:
-              Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*
-          - Effect: Allow
-            Action:
-              - cloudformation:DescribeStackResource
-              - cloudformation:ListStackResources
-            Resource:
-              Ref: AWS::StackId
-      Roles:
-        - Ref: PreWarmerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${PreWarmerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:ListStackResources
+                Resource:
+                  Ref: AWS::StackId
   
   PreWarmerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${PreWarmerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-PreWarmerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1501,9 +1603,6 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn:
         Fn::Sub: ${PreWarmApiEventRule.Arn}
-    DependsOn:
-      - PreWarmerFunctionRoleActions
-      - PreWarmerFunctionLogGroup
   
   PreWarmApiEventRule:
     Type: AWS::Events::Rule
@@ -1539,6 +1638,8 @@ Resources:
   ApiUsagePlanLinkerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiUsagePlanLinkerFunction
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
       MemorySize:
@@ -1553,7 +1654,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/ApiUsagePlanLinkerFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   ApiUsagePlanLinkerFunctionRole:
     Type: AWS::IAM::Role
@@ -1568,33 +1669,28 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  ApiUsagePlanLinkerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ApiUsagePlanLinkerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiUsagePlanLinkerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - apigateway:PATCH
-            Resource:
-              Fn::Sub: arn:aws:apigateway:us-east-1::/usageplans/${WebChatApiBasicUsagePlan}
-      Roles:
-        - Ref: ApiUsagePlanLinkerFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${ApiUsagePlanLinkerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - apigateway:PATCH
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:us-east-1::/usageplans/${WebChatApiBasicUsagePlan}
   
   ApiUsagePlanLinkerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ApiUsagePlanLinkerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiUsagePlanLinkerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1609,9 +1705,6 @@ Resources:
         Ref: WebChatApiStage
       UsagePlan:
         Ref: WebChatApiBasicUsagePlan
-    DependsOn:
-      - ApiUsagePlanLinkerFunctionLogGroup
-      - ApiUsagePlanLinkerFunctionRoleActions
   
   
   
@@ -1638,62 +1731,21 @@ Resources:
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': authenticated
       Path: "/"
-  
-  CognitoAuthenticatedUserRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: CognitoAuthenticatedUserRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - execute-api:invoke
-            Resource:
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/user/password
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room/*/session
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/POST/room/*/message
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/GET/room/*/session/*/message
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-              - Fn::Sub: 
-                  - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStageName}/PUT/room/*/session/*/message
-                  - WebChatApiStageName:
-                      Fn::FindInMap:
-                        - StaticVariables
-                        - Main
-                        - StageName
-      Roles:
-        - Ref: CognitoAuthenticatedUserRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - execute-api:invoke
+                Resource:
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/user/password
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room/*/session
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room/*/message
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/GET/room/*/session/*/message
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PUT/room/*/session/*/message
   
   CognitoUnauthenticatedUserRole:
     Type: AWS::IAM::Role
@@ -1726,6 +1778,8 @@ Resources:
   CognitoSharedResourceFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoSharedResourceFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -1740,7 +1794,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/CognitoSharedResourceFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   CognitoSharedResourceFunctionRole:
     Type: AWS::IAM::Role
@@ -1755,66 +1809,61 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  CognitoSharedResourceFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: CognitoSharedResourceFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CognitoSharedResourceFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - cognito-idp:CreateUserPool
-            Resource: '*'
-          - Effect: Allow
-            Action:
-              - cognito-idp:CreateUserPoolClient
-              - cognito-idp:DeleteUserPool
-            Resource:
-              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
-          - Effect: Allow
-            Action:
-              - cognito-identity:CreateIdentityPool
-            Resource:
-              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/
-          - Effect: Allow
-            Action:
-              - cognito-identity:DeleteIdentityPool
-            Resource:
-              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:DeleteObject
-            Resource:
-              - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-user-pool.json
-              - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-identity-pool.json
-          - Effect: Allow
-            Action:
-              - s3:ListBucket
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}
-            Condition:
-              StringEquals:
-                s3:prefix:
-                  - cognito-user-pool.json
-                  - cognito-identity-pool.json
-      Roles:
-        - Ref: CognitoSharedResourceFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${CognitoSharedResourceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPool
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:DeleteUserPool
+                Resource:
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+              - Effect: Allow
+                Action:
+                  - cognito-identity:CreateIdentityPool
+                Resource:
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/
+              - Effect: Allow
+                Action:
+                  - cognito-identity:DeleteIdentityPool
+                Resource:
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-user-pool.json
+                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-identity-pool.json
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}
+                Condition:
+                  StringEquals:
+                    s3:prefix:
+                      - cognito-user-pool.json
+                      - cognito-identity-pool.json
   
   CognitoSharedResourceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${CognitoSharedResourceFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoSharedResourceFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1826,8 +1875,6 @@ Resources:
       SharedBucket:
         Ref: SharedBucket
     DependsOn:
-      - CognitoSharedResourceFunctionLogGroup
-      - CognitoSharedResourceFunctionRoleActions
       - StackCleanupInvocation
   
   
@@ -1846,6 +1893,8 @@ Resources:
   CognitoIdentityPoolRoleLinkerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoIdentityPoolRoleLinkerFunction
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
       MemorySize:
@@ -1860,7 +1909,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/CognitoIdentityPoolRoleLinkerFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   CognitoIdentityPoolRoleLinkerFunctionRole:
     Type: AWS::IAM::Role
@@ -1875,39 +1924,34 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  CognitoIdentityPoolRoleLinkerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: CognitoIdentityPoolRoleLinkerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${CognitoIdentityPoolRoleLinkerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - sts:PassRole
-            Resource:
-              - Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
-              - Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
-          - Effect: Allow
-            Action:
-              - cognito-identity:SetIdentityPoolRoles
-            Resource:
-              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
-      Roles:
-        - Ref: CognitoIdentityPoolRoleLinkerFunctionRole
+      Policies:
+        - PolicyName: CognitoIdentityPoolRoleLinkerFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${CognitoIdentityPoolRoleLinkerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - sts:PassRole
+                Resource:
+                  - Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
+                  - Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-identity:SetIdentityPoolRoles
+                Resource:
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
   
   CognitoIdentityPoolRoleLinkerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${CognitoIdentityPoolRoleLinkerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoIdentityPoolRoleLinkerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -1923,9 +1967,6 @@ Resources:
           Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
         UnauthenticatedUserRole:
           Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
-    DependsOn:
-      - CognitoIdentityPoolRoleLinkerFunctionLogGroup
-      - CognitoIdentityPoolRoleLinkerFunctionRoleActions
   
   
   
@@ -1941,6 +1982,8 @@ Resources:
   SwaggerTemplatePresetFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-SwaggerTemplatePresetFunction
       Description: Replaces Swagger template values to work for this AWS account / region.
       Handler: index.lambda_handler
       MemorySize:
@@ -1955,7 +1998,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/SwaggerTemplatePresetFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   SwaggerTemplatePresetFunctionRole:
     Type: AWS::IAM::Role
@@ -1970,39 +2013,34 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  SwaggerTemplatePresetFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: SwaggerTemplatePresetFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${SwaggerTemplatePresetFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/swagger-apigateway.yaml
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-              - s3:DeleteObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/swagger-apigateway.yaml
-      Roles:
-        - Ref: SwaggerTemplatePresetFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${SwaggerTemplatePresetFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/swagger-apigateway.yaml
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/swagger-apigateway.yaml
   
   SwaggerTemplatePresetFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${SwaggerTemplatePresetFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-SwaggerTemplatePresetFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2017,9 +2055,6 @@ Resources:
       SourceBucket:
         Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
       SourceKey: swagger-apigateway.yaml
-    DependsOn:
-      - SwaggerTemplatePresetFunctionLogGroup
-      - SwaggerTemplatePresetFunctionRoleActions
   
   
   
@@ -2037,6 +2072,8 @@ Resources:
   StackCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-StackCleanupFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -2050,8 +2087,12 @@ Resources:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/StackCleanupFunction.zip
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   StackCleanupFunctionRole:
     Type: AWS::IAM::Role
@@ -2066,57 +2107,61 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  StackCleanupFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: StackCleanupFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StackCleanupFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - logs:DeleteLogGroup
-            Resource: 
-              Fn::Sub:
-                - arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/web-chat-${WebChatApi}-${WebChatApiStageName}-*
-                - WebChatApiStageName:
-                    Fn::FindInMap:
-                      - StaticVariables
-                      - Main
-                      - StageName
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-            Resource:
-              - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
-              - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
-          - Effect: Allow
-            Action:
-              - s3:DeleteObject
-            Resource:
-              - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
-              - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
-          - Effect: Allow
-            Action:
-              - s3:ListBucket
-            Resource:
-              - Fn::Sub: arn:aws:s3:::${SharedBucket}
-              - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
-      Roles:
-        - Ref: StackCleanupFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${StackCleanupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - sqs:ListQueues
+                Resource:
+                  Fn::Sub: arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - sns:ListTopics
+                Resource:
+                  Fn::Sub: arn:aws:sns:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                Resource: 
+                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+              - Effect: Allow
+                Action:
+                  - logs:DeleteLogGroup
+                Resource: 
+                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
+                  - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
+                  - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${SharedBucket}
+                  - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
   
   StackCleanupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${StackCleanupFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StackCleanupFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2128,9 +2173,6 @@ Resources:
       Bucket:
         Ref: SharedBucket
       BucketContentType: Default
-    DependsOn:
-      - StackCleanupFunctionLogGroup
-      - StackCleanupFunctionRoleActions
   
   
   
@@ -2143,6 +2185,8 @@ Resources:
   StepFunctionStateMachineCustomResourceFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -2156,8 +2200,12 @@ Resources:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/StepFunctionStateMachineCustomResourceFunction.zip
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   StepFunctionStateMachineCustomResourceFunctionRole:
     Type: AWS::IAM::Role
@@ -2172,39 +2220,45 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  StepFunctionStateMachineCustomResourceFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: StepFunctionStateMachineCustomResourceFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${StepFunctionStateMachineCustomResourceFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - states:CreateStateMachine
-            Resource:
-              Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:*
-          - Effect: Allow
-            Action:
-              - states:DeleteStateMachine
-              - states:DescribeStateMachine
-            Resource:
-              Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${AWS::StackName}-*
-      Roles:
-        - Ref: StepFunctionStateMachineCustomResourceFunctionRole
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${StepFunctionStateMachineCustomResourceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - states:CreateStateMachine
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - states:DeleteStateMachine
+                  - states:DescribeStateMachine
+                  - states:ListExecutions
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - states:StopExecution
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - Fn::Sub: ${RoomLifecycleStateMachineRole.Arn}
   
   StepFunctionStateMachineCustomResourceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${StepFunctionStateMachineCustomResourceFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2225,6 +2279,8 @@ Resources:
   ApiGatewayLambdaSetupFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiGatewayLambdaSetupFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -2239,7 +2295,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/ApiGatewayLambdaSetupFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   ApiGatewayLambdaSetupFunctionRole:
     Type: AWS::IAM::Role
@@ -2254,60 +2310,55 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  ApiGatewayLambdaSetupFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ApiGatewayLambdaSetupFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ApiGatewayLambdaSetupFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - apigateway:GET
-            Resource:
-              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources
-              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*
-          - Effect: Allow
-            Action:
-              - apigateway:POST
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/deployments
-          - Effect: Allow
-            Action:
-              - cloudformation:DescribeStackResource
-            Resource:
-              Ref: AWS::StackId
-          - Effect: Allow
-            Action:
-              - lambda:AddPermission
-            Resource:
-              Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-*
-          - Effect: Allow
-            Action:
-              - apigateway:PATCH
-            Resource:
-              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/stages/${WebChatApiStage}
-              - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*/methods/*/integration/responses/*
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${SharedBucket}/api-cors.json
-      Roles:
-        - Ref: ApiGatewayLambdaSetupFunctionRole
+      Policies:
+        - PolicyName: ApiGatewayLambdaSetupFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${ApiGatewayLambdaSetupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                Resource:
+                  - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources
+                  - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/deployments
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResource
+                Resource:
+                  Ref: AWS::StackId
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                Resource:
+                  - Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - apigateway:PATCH
+                Resource:
+                  - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/stages/${WebChatApiStage}
+                  - Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${WebChatApi}/resources/*/methods/*/integration/responses/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/api-cors.json
   
   ApiGatewayLambdaSetupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ApiGatewayLambdaSetupFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiGatewayLambdaSetupFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2330,8 +2381,16 @@ Resources:
         AwsRegion:
           Ref: AWS::Region
     DependsOn:
-      - ApiGatewayLambdaSetupFunctionLogGroup
-      - ApiGatewayLambdaSetupFunctionRoleActions
+      - RoomGeneratorFunction
+      - RoomMessageAcknowledgerFunction
+      - RoomMessagePollerFunction
+      - RoomMessagePosterFunction
+      - RoomSessionGeneratorFunction
+      - UserChangePasswordHandlerFunction
+      - UserForgotPasswordHandlerFunction
+      - UserLoginHandlerFunction
+      - UserRegistrationAliasVerificationHandlerFunction
+      - UserRegistrationRequestHandlerFunction
   
   
   
@@ -2348,6 +2407,8 @@ Resources:
   UserResourceCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserResourceCleanupFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -2362,7 +2423,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/UserResourceCleanupFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   UserResourceCleanupFunctionRole:
     Type: AWS::IAM::Role
@@ -2377,54 +2438,49 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  UserResourceCleanupFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: UserResourceCleanupFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${UserResourceCleanupFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - cognito-identity:ListIdentities
-            Resource:
-              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
-          - Effect: Allow
-            Action:
-              - cognito-sync:ListRecords
-            Resource:
-              Fn::Sub:
-                - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                - CognitoIdentityUserProfileDatasetName:
-                    Fn::FindInMap:
-                      - StaticVariables
-                      - Main
-                      - CognitoIdentityUserProfileDatasetName
-          - Effect: Allow
-            Action:
-              - cognito-identity:DeleteIdentities
-            Resource:
-              Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/
-          - Effect: Allow
-            Action:
-              - apigateway:DELETE
-            Resource:
-              Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
-      Roles:
-        - Ref: UserResourceCleanupFunctionRole
+      Policies:
+        - PolicyName: UserResourceCleanupFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserResourceCleanupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-identity:ListIdentities
+                Resource:
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub:
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
+              - Effect: Allow
+                Action:
+                  - cognito-identity:DeleteIdentities
+                Resource:
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/
+              - Effect: Allow
+                Action:
+                  - apigateway:DELETE
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
   
   UserResourceCleanupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${UserResourceCleanupFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserResourceCleanupFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2441,8 +2497,6 @@ Resources:
           - Main
           - CognitoIdentityUserProfileDatasetName
     DependsOn:
-      - UserResourceCleanupFunctionLogGroup
-      - UserResourceCleanupFunctionRoleActions
       - CognitoSharedResourceInvocation
       
     
@@ -2485,9 +2539,6 @@ Resources:
       Bucket:
         Ref: StaticContentBucket
       BucketContentType: 'Static Content'
-    DependsOn:
-      - StackCleanupFunctionLogGroup
-      - StackCleanupFunctionRoleActions
   
   
   #
@@ -2499,6 +2550,8 @@ Resources:
   S3StaticWebContentDeployerFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3StaticWebContentDeployerFunction
       Description: Links an API Gateway usage plan to a REST API / stage.
       Handler: index.lambda_handler
       MemorySize:
@@ -2513,7 +2566,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/S3StaticWebContentDeployerFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   S3StaticWebContentDeployerFunctionRole:
     Type: AWS::IAM::Role
@@ -2528,38 +2581,33 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  S3StaticWebContentDeployerFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: S3StaticWebContentDeployerFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3StaticWebContentDeployerFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/web-static.zip
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
-      Roles:
-        - Ref: S3StaticWebContentDeployerFunctionRole
+      Policies:
+        - PolicyName: S3StaticWebContentDeployerFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${S3StaticWebContentDeployerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/web-static.zip
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
   
   S3StaticWebContentDeployerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${S3StaticWebContentDeployerFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-S3StaticWebContentDeployerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2576,9 +2624,6 @@ Resources:
         S3Bucket:
           Ref: StaticContentBucket
         S3KeyPrefix: ""
-    DependsOn:
-      - S3StaticWebContentDeployerFunctionLogGroup
-      - S3StaticWebContentDeployerFunctionRoleActions
   
   #
   #   S3 Object Writer
@@ -2590,6 +2635,8 @@ Resources:
   S3ObjectWriterFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3ObjectWriterFunction
       Description: Performs cleanup of associated resources on stack deletion.
       Handler: index.lambda_handler
       MemorySize:
@@ -2604,7 +2651,7 @@ Resources:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/S3ObjectWriterFunction.zip
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
   
   S3ObjectWriterFunctionRole:
     Type: AWS::IAM::Role
@@ -2619,38 +2666,33 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: "/"
-  
-  S3ObjectWriterFunctionRoleActions:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: S3ObjectWriterFunctionRoleActions
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${S3ObjectWriterFunction}:log-stream:*
-          - Effect: Allow
-            Action:
-              - s3:PutObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/api/endpoint.js
-          - Effect: Allow
-            Action:
-              - s3:DeleteObject
-            Resource:
-              Fn::Sub: arn:aws:s3:::${StaticContentBucket}/api/endpoint.js
-      Roles:
-        - Ref: S3ObjectWriterFunctionRole
+      Policies:
+        - PolicyName: S3ObjectWriterFunctionRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${S3ObjectWriterFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${StaticContentBucket}/api/endpoint.js
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${StaticContentBucket}/api/endpoint.js
   
   S3ObjectWriterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${S3ObjectWriterFunction}
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-S3ObjectWriterFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2693,9 +2735,6 @@ Resources:
                     - Main
                     - StageName
       Content-Type: text/javascript
-    DependsOn:
-      - S3ObjectWriterFunctionLogGroup
-      - S3ObjectWriterFunctionRoleActions
     
     
     
@@ -2710,6 +2749,8 @@ Resources:
   CloudFormationInputEchoFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CloudFormationInputEchoFunction
       Description: |-
         Used as a CloudFormation custom resource to simply return what it's 
         given.
@@ -2723,7 +2764,7 @@ Resources:
           def lambda_handler(event, context):
               cfnresponse.send(event, context, cfnresponse.SUCCESS, event.get("ResourceProperties", {}), None)
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
 
   CloudFormationInputEchoFunctionRole:
     Type: AWS::IAM::Role
@@ -2778,6 +2819,8 @@ Resources:
   SimpleStringReplaceFunction:
     Type: AWS::Lambda::Function
     Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-SimpleStringReplaceFunction
       Description: |-
         Used as a CloudFormation custom resource to make a simple string 
         replacement.
@@ -2798,7 +2841,7 @@ Resources:
               }
               cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, None)
       Runtime: python2.7
-      Timeout: '300'
+      Timeout: 300
 
   SimpleStringReplaceFunctionRole:
     Type: AWS::IAM::Role
@@ -2823,6 +2866,68 @@ Resources:
         Fn::Sub: ${CorsOriginListVariable.CorsOriginList}
       OldSubstring: ','
       NewSubstring: ';'
+  
+  
+  #
+  #   Stack Global Prefix Generator
+  #   
+  #   For proper IAM restrictions, it helps to have a unique prefix. For 
+  #   example:
+  #     arn:sqs:us-east-1:000011112222:MyUniquePrefix-*
+  #   
+  #   Normally I'd use the stack name, but it can be up to 128 characters. 
+  #   That means I risk exceeding the 80 character limits for an SQS queue 
+  #   name (for example) if I just use that.
+  #   
+  #   This function just generates a unique global prefix that can be used 
+  #   by all resources to indicate "this resource belongs to this stack / 
+  #   project deployment".
+  #
+  
+  ProjectGlobalPrefixGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a short sufficiently-random string for stack resources.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${SimpleStringReplaceFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import random
+          import string
+          import cfnresponse
+          
+          # The zbase32 alphabet.
+          prefix_characters = "ybndrfg8ejkmcpqxot1uwisza345h769"
+          
+          def lambda_handler(event, context):
+              response_dict = {
+                  "Prefix": random.choice(string.ascii_lowercase) + ''.join(random.choice(prefix_characters) for _ in range(5))
+              }
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, None)
+      Runtime: python2.7
+      Timeout: 300
+
+  ProjectGlobalPrefixGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ProjectGlobalPrefix:
+    Type: Custom::ProjectGlobalPrefixGeneration
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunction.Arn}
     
           
 Outputs:

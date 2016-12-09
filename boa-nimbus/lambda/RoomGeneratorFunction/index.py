@@ -8,8 +8,6 @@ When doing this, it also:
  * Sets up a CloudWatch log group for success / failure delivery notifications.
  * Sets the SNS topic to log success and failure content.
  * Creates a CloudWatch metric filter for the SNS message dwell time.
- * Creates a pointer record in S3 so that the resources above can be found and
-   cleaned up later.
 
 """
 
@@ -23,9 +21,13 @@ import boto3
 from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
+room_duration_seconds = 7200 # 7200 seconds == Two hours
+room_duration_seconds = 30
+
 sns_client = boto3.client("sns")
 sts_client = boto3.client("sts")
 logs_client = boto3.client("logs")
+sfn_client = boto3.client("stepfunctions")
 
 
 def lambda_handler(event, context):
@@ -38,7 +40,7 @@ def lambda_handler(event, context):
     
     new_room_id = generate_new_room_id()
     
-    new_topic_name = generate_room_sns_topic_name(event, new_room_id)
+    new_topic_name = generate_room_sns_topic_name(new_room_id)
     
     sns_response = sns_client.create_topic(
         Name = new_topic_name
@@ -78,28 +80,35 @@ def lambda_handler(event, context):
         ]
     )
     
-    s3_room_config_object = {
-        "created": int(time.time()),
+    created_timestamp_seconds = int(time.time())
+    
+    room_config_object = {
+        "created": created_timestamp_seconds,
+        "duration": room_duration_seconds,
         "sns-topic-arn": topic_arn,
         "log-group": log_group_name
     }
     
-    s3_bucket_name = os.environ["SHARED_BUCKET"]
+    room_lifecycle_state_machine_arn = os.environ["ROOM_LIFECYCLE_STATE_MACHINE_ARN"]
     
-    boto3.client("s3").put_object(
-        Bucket = s3_bucket_name,
-        Key = "room-topics/{}.json".format(new_room_id),
-        Body = json.dumps(s3_room_config_object, indent=4)
+    response = sfn_client.start_execution(
+        stateMachineArn = room_lifecycle_state_machine_arn,
+        name = new_room_id,
+        input = json.dumps({
+            "id": new_room_id,
+            "config": room_config_object
+        })
     )
+    
+    print("Room lifecycle state machine execution ARN: {}".format(response["executionArn"]))
     
     return {
         "id": new_room_id
     }
 
-def generate_room_sns_topic_name(event, room_id):
-    return "web-chat-{}-{}-{}".format(
-        event["requestContext"]["apiId"],
-        event["requestContext"]["stage"],
+def generate_room_sns_topic_name(room_id):
+    return "{}-{}".format(
+        os.environ["PROJECT_GLOBAL_PREFIX"],
         room_id
     )
 
@@ -116,12 +125,10 @@ def get_own_account_id():
     return account_id
 
 def get_sns_cloudwatch_log_group_name(event, room_id):
-    return "sns/{region}/{account_id}/{app_prefix}-{api_id}-{stage}-{room_id}".format(
+    return "sns/{region}/{account_id}/{app_prefix}-{room_id}".format(
         region = os.environ["AWS_DEFAULT_REGION"],
         account_id = get_own_account_id(),
-        app_prefix = "web-chat",
-        api_id = event["requestContext"]["apiId"],
-        stage = event["requestContext"]["stage"],
+        app_prefix = os.environ["PROJECT_GLOBAL_PREFIX"],
         room_id = room_id
     )
     
@@ -145,6 +152,15 @@ def get_default_topic_policy(sns_topic_arn):
                     "AWS": os.environ["PUBLISH_ROOM_TOPIC_ROLE"]
                 },
                 "Action": "sns:Publish",
+                "Resource": sns_topic_arn
+            },
+            {
+                "Sid": "AllowRoomLifecycleManagement",
+                "Effect": "Allow",
+                "Principal": {
+                    "AWS": os.environ["ROOM_LIFECYCLE_FUNCTION_ROLE"]
+                },
+                "Action": "sns:SetTopicAttributes",
                 "Resource": sns_topic_arn
             },
             {
