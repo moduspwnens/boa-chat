@@ -11,6 +11,7 @@ new template.
 from __future__ import print_function
 
 import json
+import uuid
 import boto3
 import botocore
 import cfnresponse
@@ -23,9 +24,20 @@ def lambda_handler(event, context):
     request_type = event.get("RequestType")
     resource_props = event["ResourceProperties"]
     
+    physical_resource_id = event.get("PhysicalResourceId")
+    
     response_data = {}
     
+    if request_type in ["Update", "Delete"]:
+        s3_client.delete_object(
+            Bucket = resource_props["OutputBucket"],
+            Key = get_s3_key_for_physical_resource_id(physical_resource_id)
+        )
+    
     if request_type in ["Create", "Update"]:
+        
+        if physical_resource_id is None:
+            physical_resource_id = "{}".format(uuid.uuid4())
         
         source_file_content = s3_client.get_object(Bucket = resource_props["SourceBucket"], Key = resource_props["SourceKey"])["Body"].read()
         
@@ -46,19 +58,18 @@ def lambda_handler(event, context):
         
         s3_client.put_object(
             Bucket = resource_props["OutputBucket"],
-            Key = resource_props["OutputKey"],
+            Key = get_s3_key_for_physical_resource_id(physical_resource_id),
             Body = dest_file_content
         )
         
         response_data["OutputBucket"] = resource_props["OutputBucket"]
-        response_data["OutputKey"] = resource_props["OutputKey"]
-    
-    elif request_type == "Delete":
-        s3_client.delete_object(
-            Bucket = resource_props["OutputBucket"],
-            Key = resource_props["OutputKey"]
-        )
+        response_data["OutputKey"] = get_s3_key_for_physical_resource_id(physical_resource_id)
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, None)
 
     return {}
+
+def get_s3_key_for_physical_resource_id(physical_resource_id):
+    return "swagger-apigateway/{}.yaml".format(
+        physical_resource_id
+    )

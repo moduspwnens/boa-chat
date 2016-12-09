@@ -2034,7 +2034,16 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource:
-                  Fn::Sub: arn:aws:s3:::${SharedBucket}/swagger-apigateway.yaml
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/swagger-apigateway/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - swagger-apigateway/*
   
   SwaggerTemplatePresetFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2051,7 +2060,6 @@ Resources:
         Fn::Sub: ${SwaggerTemplatePresetFunction.Arn}
       OutputBucket:
         Ref: SharedBucket
-      OutputKey: swagger-apigateway.yaml
       SourceBucket:
         Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
       SourceKey: swagger-apigateway.yaml
