@@ -208,17 +208,23 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
-  webchatService.postNewRoomMessage = function(roomId, message) {
+  webchatService.postNewRoomMessage = function(roomId, message, clientMessageId) {
     var postNewRoomMessageEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/message';
+    
+    var postMessageData = {
+      'version': '1',
+      'message': message
+    };
+    
+    if (!angular.isUndefined(clientMessageId)) {
+      postMessageData['client-message-id'] = clientMessageId;
+    }
     
     return $q(function(resolve, reject) {
       $http({
         method: 'POST',
         url: postNewRoomMessageEndpoint,
-        data: {
-          'version': '1',
-          'message': message
-        }
+        data: postMessageData
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject["message-id"]);
@@ -250,19 +256,47 @@ angular.module('webchatService', ['webchatApiEndpoint'])
   var roomSessionMessageWatchActive = false;
   var roomSessionMessageWatchPollLiveCounter = 0;
   var consecutiveRoomSessionMessagePollErrors = 0;
+  var exponentialBackoffMaxSeconds = 30;
   
-  var startWatchingRoomSessionMessages = function(messagesEndpoint, messagesReceivedCallback) {
+  var clientSessionWatchIdCancelerMap = {};
+  var canceledClientSessionWatchIdMap = {};
+  var roomClosedReceivedEndpointMap = {};
+  
+  var getRetryDelaySeconds = function() {
+    var exponentialDelaySeconds = Math.pow(consecutiveRoomSessionMessagePollErrors, 2);
+    
+    return Math.min(exponentialDelaySeconds, exponentialBackoffMaxSeconds);
+  }
+  
+  var startWatchingRoomSessionMessages = function(clientSessionWatchId, messagesEndpoint, messagesReceivedCallback) {
+    // Ensure we haven't already received the signal to stop.
+    if (canceledClientSessionWatchIdMap.hasOwnProperty(clientSessionWatchId)) {
+      return;
+    }
+    
     roomSessionMessageWatchPollLiveCounter++;
     
     var recursiveThis = this;
     var recursiveArgs = arguments;
     var liveCounterDecremented = false;
     
+    var canceler = $q.defer();
+    clientSessionWatchIdCancelerMap[clientSessionWatchId].push(canceler);
+    
+    var removeCancelerReference = function() {
+      var index = clientSessionWatchIdCancelerMap[clientSessionWatchId].indexOf(canceler);
+      if (index > -1) {
+        clientSessionWatchIdCancelerMap[clientSessionWatchId].splice(index, 1);
+      }
+    }
+    
     $http({
       method: 'GET',
-      url: messagesEndpoint
+      url: messagesEndpoint,
+      timeout: canceler.promise
     })
     .success(function(angResponseObject) {
+      removeCancelerReference();
       if (!liveCounterDecremented) {
         roomSessionMessageWatchPollLiveCounter--;
         liveCounterDecremented = true;
@@ -274,21 +308,45 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       consecutiveRoomSessionMessagePollErrors = 0;
       
       if (messagesArray.length > 0) {
+        for (var i = 0; i < messagesArray.length; i++) {
+          var eachMessage = messagesArray[i];
+          if (eachMessage.type == "ROOM_CLOSED") {
+            roomClosedReceivedEndpointMap[messagesEndpoint] = true;
+          }
+        }
         messagesReceivedCallback(messagesArray);
         webchatService.acknowledgeRoomSessionMessages(messagesEndpoint, receiptHandles);
       }
       
       startWatchingRoomSessionMessages.apply(recursiveThis, recursiveArgs);
     })
-    .error(function() {
+    .error(function(errorReason, errorCode) {
+      
+      removeCancelerReference();
       if (!liveCounterDecremented) {
         roomSessionMessageWatchPollLiveCounter--;
         liveCounterDecremented = true;
       }
       
-      consecutiveRoomSessionMessagePollErrors++;
-      console.log("Error polling for room session messages (" + consecutiveRoomSessionMessagePollErrors + ").");
-      startWatchingRoomSessionMessages.apply(recursiveThis, recursiveArgs);
+      if (errorReason == null && errorCode == -1 && canceledClientSessionWatchIdMap.hasOwnProperty(clientSessionWatchId)) {
+        // Cancelled. No further action necessary.
+      }
+      else if (errorCode == 400 && roomClosedReceivedEndpointMap.hasOwnProperty(messagesEndpoint)) {
+        console.log("Room assumed to be closed.");
+      }
+      else {
+        consecutiveRoomSessionMessagePollErrors++;
+        
+        var retryDelaySeconds = getRetryDelaySeconds();
+        console.log(
+          "Error polling for room session messages (" + consecutiveRoomSessionMessagePollErrors + "). " + 
+          "Retrying in " + retryDelaySeconds + " second(s)."
+        );
+        
+        setTimeout(function() {
+          startWatchingRoomSessionMessages.apply(recursiveThis, recursiveArgs);
+        }, retryDelaySeconds * 1000);
+      }
     })
   }
   
@@ -298,8 +356,27 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     
     var getSessionMessagesEndpoint = sessionUrl + '/message';
     
+    var newClientSessionWatchId = Guid.raw();
+    clientSessionWatchIdCancelerMap[newClientSessionWatchId] = [];
+    
     for (var i=0; i < concurrentRequestCount; i++) {
-      startWatchingRoomSessionMessages(getSessionMessagesEndpoint, messagesReceivedCallback);
+      startWatchingRoomSessionMessages(newClientSessionWatchId, getSessionMessagesEndpoint, messagesReceivedCallback);
+    }
+    
+    return newClientSessionWatchId;
+  }
+  
+  webchatService.stopWatchingForRoomSessionMessages = function(clientSessionWatchId) {
+    
+    canceledClientSessionWatchIdMap[clientSessionWatchId] = true;
+    
+    var cancelerArray = clientSessionWatchIdCancelerMap[clientSessionWatchId];
+    
+    if (!angular.isUndefined(cancelerArray)) {
+      for (var i = 0; i < cancelerArray.length; i++) {
+        var eachCanceler = cancelerArray[i];
+        eachCanceler.resolve();
+      }
     }
   }
   

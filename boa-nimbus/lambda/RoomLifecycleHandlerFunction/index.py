@@ -14,7 +14,7 @@ import botocore
 
 # Number of seconds to wait after closing the room to new messages before 
 # deleting its resources.
-inflight_wait_delay_seconds = 30
+inflight_wait_delay_seconds = 15
 
 sns_client = boto3.client("sns")
 sqs_client = boto3.client("sqs")

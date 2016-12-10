@@ -13,6 +13,9 @@ angular
   
   var noSignSuffixes = [".html", ".js", ".css", ".woff2"];
   
+  // Login refresh endpoint requires only API key.
+  noSignSuffixes.push("user/refresh")
+  
   /*
     endsWith function for string, in case browser doesn't have native method.
   */

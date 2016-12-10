@@ -31,5 +31,8 @@
     "jquery": "^1.11.2",
     "lesshat": "^3.0.2",
     "requirejs": "^2.1.16"
+  },
+  "dependencies": {
+    "guid": "0.0.12"
   }
 }

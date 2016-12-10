@@ -33,11 +33,16 @@ def lambda_handler(event, context):
             raise APIGatewayException("Room session doesn't exist or you don't have access to it.", 400)
         raise
     
-    response = sqs_client.receive_message(
-        QueueUrl = queue_url,
-        MaxNumberOfMessages = 10,
-        WaitTimeSeconds = 20
-    )
+    try:
+        response = sqs_client.receive_message(
+            QueueUrl = queue_url,
+            MaxNumberOfMessages = 10,
+            WaitTimeSeconds = 20
+        )
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'AWS.SimpleQueueService.NonExistentQueue':
+            raise APIGatewayException("Room session doesn't exist or you don't have access to it.", 400)
+        raise
     
     receipt_handles = []
     return_messages = []

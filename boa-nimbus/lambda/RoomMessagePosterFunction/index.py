@@ -15,6 +15,8 @@ import botocore
 from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
+client_message_id_max_length = 36
+
 sns_client = boto3.client("sns")
 cognito_sync_client = boto3.client("cognito-sync")
 
@@ -32,6 +34,11 @@ def lambda_handler(event, context):
     
     if event["request-body"].get("version", "1") != "1":
         raise APIGatewayException("Unsupported message version: {}".format(event["request-body"]["version"]), 400)
+    
+    client_message_id = event["request-body"].get("client-message-id")
+    
+    if client_message_id is not None and len(client_message_id) > client_message_id_max_length:
+        raise APIGatewayException("Parameter \"client-message-id\" must be {} bytes or fewer.".format(client_message_id_max_length), 400)
     
     room_id = event["pathParameters"]["room-id"]
     
@@ -52,15 +59,20 @@ def lambda_handler(event, context):
             author_name = each_record["Value"]
             break
     
+    message_object = {
+        "identity-id": cognito_identity_id,
+        "author-name": author_name,
+        "message": event["request-body"].get("message", ""),
+        "timestamp": int(time.time())
+    }
+    
+    if client_message_id is not None:
+        message_object["client-message-id"] = client_message_id
+    
     try:
         response = sns_client.publish(
             TopicArn = sns_topic_arn,
-            Message = json.dumps({
-                "identity-id": cognito_identity_id,
-                "author-name": author_name,
-                "message": event["request-body"].get("message", ""),
-                "timestamp": int(time.time())
-            })
+            Message = json.dumps(message_object)
         )
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] in ['InvalidParameter', 'AuthorizationError']:

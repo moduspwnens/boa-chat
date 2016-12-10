@@ -140,6 +140,11 @@ gulp.task('template-cache', function () {
     .pipe(gulp.dest('./www/lib/template-cache/'));
 });
 
+gulp.task('guid', function () {
+  return gulp.src('./node_modules/guid/guid.js')
+    .pipe(gulp.dest('./www/lib/guid/'));
+});
+
 gulp.task(
   'install', 
   [
@@ -152,7 +157,8 @@ gulp.task(
     'angular-cookies', 
     'crypto-js', 
     'aws-sign-web', 
-    'template-cache'
+    'template-cache',
+    'guid'
   ], 
   function(done) {
     done()

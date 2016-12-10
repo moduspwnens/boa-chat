@@ -603,12 +603,18 @@ definitions:
       author-name:
         type: string
         description: User-visible name for the message sender
+      client-message-id:
+        type: string
+        description: An optional identifier chosen by the sending client
       identity-id:
         type: string
         description: Unique and permanent id for the message sender
       message:
         type: string
         description: The text of the message sent
+      message-id:
+        type: string
+        description: A server-generated unique identifier for the message
       timestamp:
         type: integer
         description: Unix timestamp of message sent time
@@ -702,6 +708,11 @@ definitions:
           - '1'
       message:
         type: string
+      client-message-id:
+        type: string
+        description: |+
+          Optional client-specified identifier. Will be returned with message 
+          when pulled from room session
   
   RegisterUserRequest:
     type: object

@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('roomController', function($scope, $http, $stateParams, webchatService) {
+app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, webchatService) {
   
   $scope.roomChatEvents = [];
   $scope.messageInputDisabled = true;
@@ -11,8 +11,10 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
   var roomId = $stateParams.roomId;
   var userId = "Me";
   
-  var unsentMessageIdIndex = 0;
-  var sentUnsentMessageIdMap = {};
+  var unsentMessageMap = {};
+  var confirmedSentMessageIdMap = {};
+  
+  var clientRoomSessionWatchId = undefined;
   
   var roomChatEventComparator = function(a, b) {
     // Try to sort by timestamp first.
@@ -34,14 +36,30 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     return 0;
   }
   
-  var newMessagesReceived = function(messageArray) {
+  var newMessagesReceived = function(messageArray, unsent = false) {
     for (var i=0; i < messageArray.length; i++) {
       var eachMessage = messageArray[i];
       
-      if (sentUnsentMessageIdMap.hasOwnProperty(eachMessage["message-id"])) {
-        var unsentMessage = sentUnsentMessageIdMap[eachMessage["message-id"]];
-        unpostUnsentMessage(unsentMessage);
-        delete sentUnsentMessageIdMap[eachMessage["message-id"]];
+      if (!unsent) {
+        // Make sure we haven't already shown this message on the screen in 
+        // anticipation of its sending being confirmed.
+        
+        var eachClientMessageId = eachMessage["client-message-id"];
+        
+        if (!angular.isUndefined(eachClientMessageId)) {
+          // This message has already been shown on the screen.
+          
+          if (unsentMessageMap.hasOwnProperty(eachClientMessageId)) {
+            // Receiving it now confirms its sending was successful.
+            unsentMessageConfirmed(eachClientMessageId, eachMessage["message-id"]);
+            continue;
+          }
+          
+          if (confirmedSentMessageIdMap.hasOwnProperty(eachClientMessageId)) {
+            // We already know this message was confirmed.
+            continue;
+          }
+        }
       }
       
       $scope.identityIdAuthorNameMap[eachMessage["identity-id"]] = eachMessage["author-name"];
@@ -52,23 +70,25 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     }
   }
   
-  var unpostUnsentMessage = function(unsentMessage) {
-    var unsentMessageIndex = $scope.roomChatEvents.indexOf(unsentMessage);
-    if (unsentMessageIndex > -1) {
-      $scope.roomChatEvents.splice(unsentMessageIndex, 1);
-    }
-  }
-  
   var focusSendMessageBox = function() {
     window.setTimeout(function() {
       document.getElementById("message-input").focus();
     }, 0);
   }
   
+  var stopSessionWatchingSession = function(clientSessionId) {
+    webchatService.stopWatchingForRoomSessionMessages(clientSessionId);
+  }
+  
   webchatService.createNewRoomSession(roomId)
     .then(function(sessionId) {
       
-      webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
+      if (!angular.isUndefined(clientRoomSessionWatchId)) {
+        stopSessionWatchingSession(clientRoomSessionWatchId);
+        clientRoomSessionWatchId = undefined;
+      }
+      
+      clientRoomSessionWatchId = webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
       $scope.messageInputTextPlaceholder = "Send a message";
       $scope.messageInputDisabled = false;
       
@@ -79,10 +99,27 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
       alert("An error occurred in trying to enter the room.");
     });
   
+  var unsentMessageConfirmed = function(clientMessageId, serverMessageId) {
+    var unsentMessage = unsentMessageMap[clientMessageId];
+    if (angular.isUndefined(unsentMessage)) {
+      return;
+    }
+    
+    confirmedSentMessageIdMap[clientMessageId] = true;
+    unsentMessage["message-id"] = serverMessageId;
+    if (unsentMessage.hasOwnProperty("send-failure")) {
+      delete unsentMessage["send-failure"];
+    }
+    delete unsentMessage["unsent"];
+    
+    delete unsentMessageMap[clientMessageId];
+  }
   
   var postUnsentMessage = function(messageText) {
+    
     var unsentMessageObject = {
-      "message-id": unsentMessageIdIndex,
+      "message-id": Guid.raw(),
+      "client-message-id": Guid.raw(),
       "timestamp": Math.floor(Date.now() / 1000),
       "identity-id": userId,
       "author-name": userId,
@@ -90,9 +127,9 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
       "unsent": true
     };
     
-    newMessagesReceived([unsentMessageObject]);
+    unsentMessageMap[unsentMessageObject["client-message-id"]] = unsentMessageObject;
     
-    unsentMessageIdIndex++;
+    newMessagesReceived([unsentMessageObject], true);
     
     return unsentMessageObject;
   }
@@ -101,20 +138,35 @@ app.controller('roomController', function($scope, $http, $stateParams, webchatSe
     
     var messageText = $scope.messageInputText;
     
+    var clientMessageId = Guid.raw();
+    
     var unsentMessage = postUnsentMessage(messageText);
+    var clientMessageId = unsentMessage["client-message-id"];
     $scope.messageInputText = "";
     focusSendMessageBox();
     
     var postRoomId = roomId;
     
-    webchatService.postNewRoomMessage(postRoomId, messageText)
-      .then(function(messageId) {
-        sentUnsentMessageIdMap[messageId] = unsentMessage;
+    webchatService.postNewRoomMessage(postRoomId, messageText, clientMessageId)
+      .then(function(serverMessageId) {
+        unsentMessageConfirmed(clientMessageId, serverMessageId);
       })
       .catch(function() {
-        unsentMessage["send-failure"] = true;
+        if (unsentMessage.hasOwnProperty("unsent") && unsentMessage["unsent"]) {
+          unsentMessage["send-failure"] = true;
+        }
+        else {
+          console.log("Ignoring error in sending message already confirmed received.");
+        }
       })
     
   }
+  
+  $scope.$on("$destroy", function() {
+    if (!angular.isUndefined(clientRoomSessionWatchId)) {
+      stopSessionWatchingSession(clientRoomSessionWatchId);
+      clientRoomSessionWatchId = undefined;
+    }
+  });
   
 });
