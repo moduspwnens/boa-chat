@@ -46,6 +46,11 @@ var app = undefined;
 				templateUrl: "forgot.html",
         controller: 'forgotController'
 			})
+			.state('forgot-verify', {
+				url: "/forgot/verify/:emailAddress",
+				templateUrl: "forgot-verify.html",
+        controller: 'forgotVerifyController'
+			})
 			.state('room', {
 				url: "/room/:roomId",
 				templateUrl: "room.html",

@@ -5,9 +5,7 @@
     <input type="email" id="inputEmail" class="form-control" placeholder="Email address" ng-model="email" required autofocus>
     <div class="password-field-wrapper">
       <label for="inputPassword" class="sr-only">Password</label>
-      <input type="password" id="inputPassword" class="form-control" placeholder="Password" ng-model="password" required ng-class="{'pre-confirm': formMode == 'create'}">
-      <label for="inputPasswordConfirm" class="sr-only" ng-show="formMode == 'create'">Confirm Password</label>
-      <input type="password" id="inputPasswordConfirm" class="form-control" placeholder="Confirm Password" ng-model="passwordConfirm" ng-required="formMode == 'create'" ng-show="formMode == 'create'">
+      <input type="password" id="inputPassword" class="form-control" placeholder="Password" ng-model="password" required>
     </div>
     <button class="btn btn-lg btn-primary btn-block" type="submit" ng-disabled="ajaxOperationInProgress">Log in<span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span></button>
   </form>

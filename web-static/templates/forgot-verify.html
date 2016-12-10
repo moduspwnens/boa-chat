@@ -1,0 +1,22 @@
+<div class="container">
+  <form class="form-signin" ng-submit="forgotPasswordVerificationFormSubmitted()">
+    <h2 class="form-signin-heading">Reset Password</h2>
+    <p>
+      A password reset code has been sent to <strong ng-bind="emailAddress"></strong>.
+      Enter it with your new password below.
+    </p>
+    
+    <label for="inputCode" class="sr-only">Six digit code</label>
+    <input type="text" id="inputCode" class="form-control email-verify-code" placeholder="Six digit code" ng-model="code" required autofocus>
+    <div class="password-field-wrapper">
+      <label for="inputPassword" class="sr-only">Password</label>
+      <input type="password" id="inputPassword" class="form-control pre-forgot-confirm" placeholder="Password" ng-model="password" required>
+      <label for="inputPasswordConfirm" class="sr-only">Confirm Password</label>
+      <input type="password" id="inputPasswordConfirm" class="form-control" placeholder="Confirm Password" ng-model="passwordConfirm">
+    </div>
+    <button class="btn btn-lg btn-primary btn-block" type="submit" ng-disabled="ajaxOperationInProgress">
+      Change Password
+      <span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span>
+    </button>
+  </form>
+</div>

@@ -1,3 +1,16 @@
 <div class="container">
-  <p>Placeholder &quot;forgot password&quot; page.</p>
+  <form class="form-signin" ng-submit="forgotPasswordFormSubmitted()">
+    <h2 class="form-signin-heading">Forgot Password</h2>
+    
+    <div class="forgot-password-email-input-wrapper">
+      <label for="inputEmail" class="sr-only">Email address</label>
+      <input type="email" id="inputEmail" class="form-control" placeholder="Email address" ng-model="email" required autofocus>
+    </div>
+    
+    <button class="btn btn-lg btn-primary btn-block" type="submit" ng-disabled="ajaxOperationInProgress">Request Reset Link<span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span></button>
+  </form>
+  
+  <div class="form-signin form-forgot-password">
+    <a class="forgot-password-link" ng-click="$state.go('register')">Create a new account</a>
+  </div>
 </div>

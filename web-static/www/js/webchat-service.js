@@ -129,6 +129,58 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  webchatService.requestPasswordResetCode = function(emailAddress) {
+    var requestEndpoint = WebChatApiEndpoint + 'user/forgot';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'POST',
+        url: requestEndpoint,
+        data: {
+          "email-address": emailAddress
+        }
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject);
+      })
+      .error(function(angResponseObject, errorCode) {
+        
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
+  webchatService.changePasswordWithResetCode = function(emailAddress, password, resetCode) {
+    var requestEndpoint = WebChatApiEndpoint + 'user/forgot/password';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'POST',
+        url: requestEndpoint,
+        data: {
+          "email-address": emailAddress,
+          "password": password,
+          "token": resetCode
+        }
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject);
+      })
+      .error(function(angResponseObject, errorCode) {
+        
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
   var refreshCurrentUserCredentials = function() {
     console.log("Attempting to refresh credentials.");
     

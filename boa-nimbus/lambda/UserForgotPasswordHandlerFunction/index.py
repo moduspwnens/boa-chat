@@ -45,7 +45,7 @@ def lambda_handler(event, context):
         )
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'UserNotFoundException':
-            raise APIGatewayException("User with e-mail address ({}) not found.".format(email_address), 404)
+            raise APIGatewayException("User with e-mail address ({}) not found.".format(email_address), 400)
         else:
             raise
     
