@@ -999,6 +999,8 @@ Resources:
         Variables:
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1069,6 +1071,8 @@ Resources:
         Variables:
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1142,6 +1146,8 @@ Resources:
               - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7

@@ -8,7 +8,8 @@ sent out.
 
 from __future__ import print_function
 
-import json, time, hashlib
+import os
+import json
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
@@ -72,16 +73,10 @@ def lambda_handler(event, context):
     return {}
 
 def get_queue_name(event):
-    
-    hash_string_base = "{}-{}-{}-{}".format(
-        event["requestContext"]["apiId"],
-        event["requestContext"]["stage"],
-        event["pathParameters"]["room-id"],
-        event["pathParameters"]["session-id"]
-    )
-    
-    return "web-chat-{}".format(
-        hashlib.md5(hash_string_base).hexdigest()
+    return "{}-{}-{}".format(
+        os.environ["PROJECT_GLOBAL_PREFIX"],
+        event["pathParameters"]["room-id"].replace("-", ""),
+        event["pathParameters"]["session-id"].replace("-", "")
     )
 
 def get_queue_url(sqs_queue_name):
