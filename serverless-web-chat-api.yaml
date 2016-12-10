@@ -2501,6 +2501,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:PutObject
+                  - s3:DeleteObject
                 Resource:
                   Fn::Sub: arn:aws:s3:::${SharedBucket}/api-cors.json
   
@@ -2531,6 +2532,7 @@ Resources:
         AwsRegion:
           Ref: AWS::Region
     DependsOn:
+      - StackCleanupInvocation
       - RoomGeneratorFunction
       - RoomMessageAcknowledgerFunction
       - RoomMessagePollerFunction

@@ -12,6 +12,7 @@ Performs necessary API Gateway / Lambda setup.
 from __future__ import print_function
 
 import json
+import uuid
 import re
 import hashlib
 import boto3
@@ -42,12 +43,23 @@ def lambda_handler(event, context):
     request_type = event.get("RequestType")
     
     resource_props = event["ResourceProperties"]
+    
+    physical_resource_id = event.get("PhysicalResourceId")
+    
+    response_dict = {}
+    
+    bucket_name = resource_props["Bucket"]
+    
+    if request_type == "Delete":
+        s3_client.delete_object(
+            Bucket = bucket_name,
+            Key = cors_json_s3_key
+        )
 
     if request_type in ["Create", "Update"]:
         
         rest_api_id = resource_props["RestApi"]
         stage_name = resource_props["StageName"]
-        bucket_name = resource_props["Bucket"]
         cors_origin_list = resource_props.get("CorsOriginList", "")
         
         stage_redeploy_required = False
@@ -244,6 +256,6 @@ def lambda_handler(event, context):
             )
         
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, physical_resource_id)
 
     return {}
