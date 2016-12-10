@@ -83,7 +83,7 @@ Parameters:
   PreWarmingEnabled:
     Type: String
     Description: Ping resources each minute to keep initial response times fast.
-    Default: 'Yes'
+    Default: 'No'
     AllowedValues:
       - 'Yes'
       - 'No'
