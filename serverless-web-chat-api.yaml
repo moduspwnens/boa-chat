@@ -387,9 +387,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
+            Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+            Fn::Sub: ${CognitoUserPoolClient.Secret}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
@@ -460,9 +460,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
+            Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+            Fn::Sub: ${CognitoUserPoolClient.Secret}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
@@ -533,13 +533,13 @@ Resources:
           API_KEY_CREATOR_FUNCTION_ARN:
             Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           COGNITO_IDENTITY_POOL_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+            Fn::Sub: ${CognitoIdentityPool.Id}
           COGNITO_USER_POOL_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolId}
+            Fn::Sub: ${CognitoUserPool.Id}
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
+            Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+            Fn::Sub: ${CognitoUserPoolClient.Secret}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -580,18 +580,18 @@ Resources:
                 Action:
                   - cognito-idp:AdminInitiateAuth
                 Resource:
-                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
               - Effect: Allow
                 Action:
                   - cognito-sync:UpdateRecords
                 Resource:
                   Fn::Sub: 
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -641,9 +641,9 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
+            Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+            Fn::Sub: ${CognitoUserPoolClient.Secret}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
@@ -713,11 +713,11 @@ Resources:
       Environment:
         Variables:
           COGNITO_USER_POOL_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolId}
+            Fn::Sub: ${CognitoUserPool.Id}
           COGNITO_USER_POOL_CLIENT_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientId}
+            Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoUserPoolClientSecret}
+            Fn::Sub: ${CognitoUserPoolClient.Secret}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -758,13 +758,13 @@ Resources:
                 Action:
                   - cognito-idp:AdminInitiateAuth
                 Resource:
-                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoSharedResourceInvocation.CognitoUserPoolId}
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
                   Fn::Sub:
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -1180,7 +1180,7 @@ Resources:
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
   
   RoomMessagePosterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1220,7 +1220,7 @@ Resources:
       Environment:
         Variables:
           COGNITO_IDENTITY_POOL_ID:
-            Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+            Fn::Sub: ${CognitoIdentityPool.Id}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
@@ -1271,13 +1271,13 @@ Resources:
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
               - Effect: Allow
                 Action:
                   - cognito-sync:UpdateRecords
                 Resource:
                   Fn::Sub: 
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -1727,7 +1727,7 @@ Resources:
             Condition:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
-                  Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+                  Fn::Sub: ${CognitoIdentityPool.Id}
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': authenticated
       Path: "/"
@@ -1762,25 +1762,23 @@ Resources:
             Condition:
               StringEquals:
                 'cognito-identity.amazonaws.com:aud':
-                  Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+                  Fn::Sub: ${CognitoIdentityPool.Id}
               'ForAnyValue:StringLike':
                 'cognito-identity.amazonaws.com:amr': unauthenticated
       Path: "/"
   
   
+  
   #
-  #   Cognito Shared Resource Function
-  #   
-  #   Used as a CloudFormation custom resource to create / update / delete 
-  #   the Cognito User Pool, Pool Client, and Identity Pool.
+  #   Cognito User Pool
   #
   
-  CognitoSharedResourceFunction:
+  CognitoUserPoolCustomResourceFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoSharedResourceFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoUserPoolCustomResourceFunction
+      Description: Used as a CloudFormation custom resource to manage a Cognito User Pool.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -1788,15 +1786,19 @@ Resources:
           - LambdaMemoryClasses
           - StackCrudOperation
       Role:
-        Fn::Sub: ${CognitoSharedResourceFunctionRole.Arn}
+        Fn::Sub: ${CognitoUserPoolCustomResourceFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
-        S3Key: lambda/CognitoSharedResourceFunction.zip
+        S3Key: lambda/CognitoUserPoolCustomResourceFunction.zip
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
       Runtime: python2.7
       Timeout: 300
   
-  CognitoSharedResourceFunctionRole:
+  CognitoUserPoolCustomResourceFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -1819,17 +1821,166 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  Fn::Sub: ${CognitoSharedResourceFunctionLogGroup.Arn}
+                  Fn::Sub: ${CognitoUserPoolCustomResourceFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
                   - cognito-idp:CreateUserPool
                 Resource: '*'
               - Effect: Allow
                 Action:
-                  - cognito-idp:CreateUserPoolClient
                   - cognito-idp:DeleteUserPool
                 Resource:
                   Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+  
+  CognitoUserPoolCustomResourceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoUserPoolCustomResourceFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  CognitoUserPool:
+    Type: Custom::CognitoUserPool
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CognitoUserPoolCustomResourceFunction.Arn}
+  
+  
+  
+  
+  #
+  #   Cognito User Pool Client
+  #
+  
+  CognitoUserPoolClientCustomResourceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoUserPoolClientCustomResourceFunction
+      Description: Used as a CloudFormation custom resource to manage a Cognito User Pool client.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
+      Role:
+        Fn::Sub: ${CognitoUserPoolClientCustomResourceFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/CognitoUserPoolClientCustomResourceFunction.zip
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
+      Runtime: python2.7
+      Timeout: 300
+  
+  CognitoUserPoolClientCustomResourceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${CognitoUserPoolClientCustomResourceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:DeleteUserPoolClient
+                Resource:
+                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
+  
+  CognitoUserPoolClientCustomResourceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoUserPoolClientCustomResourceFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  CognitoUserPoolClient:
+    Type: Custom::CognitoUserPoolClient
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CognitoUserPoolClientCustomResourceFunction.Arn}
+      UserPoolId:
+        Fn::Sub: ${CognitoUserPool.Id}
+      
+  
+  
+  
+  #
+  #   Cognito Identity Pool
+  #
+  
+  CognitoIdentityPoolCustomResourceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoIdentityPoolCustomResourceFunction
+      Description: Used as a CloudFormation custom resource to manage a Cognito Identity Pool.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - StackCrudOperation
+      Role:
+        Fn::Sub: ${CognitoIdentityPoolCustomResourceFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/CognitoIdentityPoolCustomResourceFunction.zip
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
+      Runtime: python2.7
+      Timeout: 300
+  
+  CognitoIdentityPoolCustomResourceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${CognitoIdentityPoolCustomResourceFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
                   - cognito-identity:CreateIdentityPool
@@ -1840,42 +1991,27 @@ Resources:
                   - cognito-identity:DeleteIdentityPool
                 Resource:
                   Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource:
-                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-user-pool.json
-                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/cognito-identity-pool.json
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource:
-                  Fn::Sub: arn:aws:s3:::${SharedBucket}
-                Condition:
-                  StringEquals:
-                    s3:prefix:
-                      - cognito-user-pool.json
-                      - cognito-identity-pool.json
   
-  CognitoSharedResourceFunctionLogGroup:
+  CognitoIdentityPoolCustomResourceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoSharedResourceFunction
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoIdentityPoolCustomResourceFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
-  CognitoSharedResourceInvocation:
-    Type: Custom::CognitoSharedResourceInvocation
+  CognitoIdentityPool:
+    Type: Custom::CognitoIdentityPoolClient
     Properties:
       ServiceToken:
-        Fn::Sub: ${CognitoSharedResourceFunction.Arn}
-      SharedBucket:
-        Ref: SharedBucket
-    DependsOn:
-      - StackCleanupInvocation
+        Fn::Sub: ${CognitoIdentityPoolCustomResourceFunction.Arn}
+      CognitoIdentityProviders:
+        - ProviderName:
+            Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool.Id}
+          ClientId:
+            Fn::Sub: ${CognitoUserPoolClient.Id}
+      
+  
   
   
   
@@ -1945,7 +2081,7 @@ Resources:
                 Action:
                   - cognito-identity:SetIdentityPoolRoles
                 Resource:
-                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}
   
   CognitoIdentityPoolRoleLinkerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1961,7 +2097,7 @@ Resources:
       ServiceToken:
         Fn::Sub: ${CognitoIdentityPoolRoleLinkerFunction.Arn}
       IdentityPoolId:
-        Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+        Fn::Sub: ${CognitoIdentityPool.Id}
       UserRoles:
         AuthenticatedUserRole:
           Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
@@ -2461,13 +2597,13 @@ Resources:
                 Action:
                   - cognito-identity:ListIdentities
                 Resource:
-                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
                   Fn::Sub:
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoSharedResourceInvocation.CognitoIdentityPoolId}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -2498,14 +2634,14 @@ Resources:
       ServiceToken:
         Fn::Sub: ${UserResourceCleanupFunction.Arn}
       CognitoIdentityPoolId:
-        Fn::Sub: ${CognitoSharedResourceInvocation.CognitoIdentityPoolId}
+        Fn::Sub: ${CognitoIdentityPool.Id}
       CognitoIdentityUserProfileDatasetName:
         Fn::FindInMap:
           - StaticVariables
           - Main
           - CognitoIdentityUserProfileDatasetName
     DependsOn:
-      - CognitoSharedResourceInvocation
+      - CognitoIdentityPool
       
     
   #
