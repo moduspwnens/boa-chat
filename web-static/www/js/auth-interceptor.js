@@ -121,23 +121,17 @@ angular
 
   function onRequest(config) {
     
-    var shouldSign = true;
+    var shouldSign = config.sign;
     
     var deferred = $q.defer();
     
-    for (var i = 0; i < noSignSuffixes.length; i++) {
-      var eachSuffix = noSignSuffixes[i];
-      if (endsWith(config.url, eachSuffix)) {
-        shouldSign = false;
-        break;
-      }
-    }
-    
-    var userLoginObject = $cookieStore.get("login");
-    if (!angular.isUndefined(userLoginObject)) {
-      if (userLoginObject.user.hasOwnProperty("api-key")) {
-        var apiKey = userLoginObject.user["api-key"];
-        config.headers["x-api-key"] = apiKey;
+    if (config.includeApiKey) {
+      var userLoginObject = $cookieStore.get("login");
+      if (!angular.isUndefined(userLoginObject)) {
+        if (userLoginObject.user.hasOwnProperty("api-key")) {
+          var apiKey = userLoginObject.user["api-key"];
+          config.headers["x-api-key"] = apiKey;
+        }
       }
     }
     

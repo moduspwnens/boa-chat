@@ -195,7 +195,8 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       data: {
         "user-id": userObject["user-id"],
         "refresh-token": credentials["refresh-token"]
-      }
+      },
+      includeApiKey: true
     })
     .success(function(angResponseObject) {
       
@@ -230,7 +231,9 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       $http({
         method: 'POST',
         url: createRoomEndpoint,
-        data: ""
+        data: "",
+        sign: true,
+        includeApiKey: true
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject["id"]);
@@ -249,7 +252,9 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       $http({
         method: 'POST',
         url: createRoomSessionEndpoint,
-        data: ""
+        data: "",
+        sign: true,
+        includeApiKey: true
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject["id"]);
@@ -276,7 +281,9 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       $http({
         method: 'POST',
         url: postNewRoomMessageEndpoint,
-        data: postMessageData
+        data: postMessageData,
+        sign: true,
+        includeApiKey: true
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject["message-id"]);
@@ -294,7 +301,9 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         url: messagesEndpoint,
         data: {
           'receipt-handles': receiptHandleArray
-        }
+        },
+        sign: true,
+        includeApiKey: true
       })
       .success(function() {
         resolve();
@@ -345,7 +354,9 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     $http({
       method: 'GET',
       url: messagesEndpoint,
-      timeout: canceler.promise
+      timeout: canceler.promise,
+      sign: true,
+      includeApiKey: true
     })
     .success(function(angResponseObject) {
       removeCancelerReference();
