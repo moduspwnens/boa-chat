@@ -2,21 +2,21 @@
 
 app.controller('homeController', function($scope, $http, $state, $uibModal, webchatService) {
   $scope.title = globalProjectName;
-  $scope.createRoomButtonDisabled = false;
   
   $scope.createChatRoomButtonClicked = function() {
     
-    $scope.createRoomButtonDisabled = true;
+    $scope.ajaxOperationInProgress = true;
+    
     webchatService.createNewRoom()
       .then(function(roomId) {
-        $scope.createRoomButtonDisabled = false;
+        $scope.ajaxOperationInProgress = false;
         
         $state.go('room', { roomId: roomId });
         
       })
       .catch(function() {
+        $scope.ajaxOperationInProgress = false;
         alert("An error occurred in trying to create a room.");
-        $scope.createRoomButtonDisabled = false;
       })
     
     return false;

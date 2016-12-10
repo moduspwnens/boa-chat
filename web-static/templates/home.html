@@ -1,11 +1,13 @@
 
-    <div class="jumbotron">
-      <div class="container">
-        <h1 ng-bind="title"></h1>
-        <div class="new-chat-room-button-wrapper">
-          <a class="btn btn-primary btn-lg" href="#" role="button" ng-disabled="createRoomButtonDisabled" ng-click="createChatRoomButtonClicked()" disabled>New Chat Room</a>
-        </div>
-        <p></p>
-      </div>
+<div class="jumbotron">
+  <div class="container">
+    <h1 ng-bind="title"></h1>
+    <div class="form-signin">
+      <button class="btn btn-primary btn-lg btn-block" type="submit" ng-disabled="ajaxOperationInProgress" ng-click="createChatRoomButtonClicked()" disabled>
+        New Chat Room
+        <span class="glyphicon glyphicon-refresh spinning" ng-show="ajaxOperationInProgress"></span>
+      </button>
     </div>
+  </div>
+</div>
 

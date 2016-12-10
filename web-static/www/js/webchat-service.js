@@ -223,14 +223,14 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
-  var createRoomEndpoint = WebChatApiEndpoint + "room";
-  
   webchatService.createNewRoom = function() {
+    var requestEndpoint = WebChatApiEndpoint + "room";
+    
     return $q(function(resolve, reject) {
       
       $http({
         method: 'POST',
-        url: createRoomEndpoint,
+        url: requestEndpoint,
         data: "",
         sign: true,
         includeApiKey: true
