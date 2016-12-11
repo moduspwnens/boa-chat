@@ -241,7 +241,43 @@ paths:
       security:
         - sigv4: []
         - api_key: []
-
+  
+  /user:
+    patch:
+      summary: Update a user's profile attributes
+      x-boa-lambda-resource-name: UserUpdateHandlerFunction
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: 
+      responses:
+        '200':
+          description: Success
+          examples:
+            application/json:
+              message: User attributes updated successfully.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        '400':
+          description: Bad request
+          examples:
+            application/json:
+              message: Invalid attribute specified.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+            
+      security:
+        - sigv4: []
+        - api_key: []
+  
   /user/forgot:
     post:
       summary: Request a password reset code be e-mailed to the specified address
@@ -852,6 +888,13 @@ definitions:
         description: |+
           A longer duration token that can be used with an to request new 
           temporary credentials without re-entering a password
+  
+  UserUpdateRequest:
+    type: object
+    properties:
+      email-address:
+        type: string
+        description: The new e-mail address for the user
 
 securityDefinitions:
   

@@ -36,8 +36,7 @@ def lambda_handler(event, context):
     
     if request_type in ["Create", "Update"]:
         
-        if physical_resource_id is None:
-            physical_resource_id = "{}".format(uuid.uuid4())
+        physical_resource_id = "{}".format(uuid.uuid4())
         
         source_file_content = s3_client.get_object(Bucket = resource_props["SourceBucket"], Key = resource_props["SourceKey"])["Body"].read()
         

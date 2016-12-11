@@ -10,6 +10,7 @@ Metadata:
         Parameters:
           - S3SourceType
           - S3SourceName
+          - ApiDefinitionVersion
       - Label:
           default: Configuration
         Parameters:
@@ -25,6 +26,8 @@ Metadata:
     ParameterLabels:
       AdditionalCorsOrigins:
         default: Additional HTTP CORS Origins Allowed
+      ApiDefinitionVersion:
+        default: API Definition Version
       EmailFromAddress:
         default: E-mail From Address
       IncludeBucketSiteInCorsOrigin:
@@ -44,6 +47,10 @@ Parameters:
   AdditionalCorsOrigins:
     Type: CommaDelimitedList
     Description: Comma-separated list of additional domains allowed access to the API. Leave blank for default only.
+    Default: ''
+  ApiDefinitionVersion:
+    Type: String
+    Description: Change this value on stack update to reload API from definition file.
     Default: ''
   EmailFromAddress:
     Type: String
@@ -854,6 +861,75 @@ Resources:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserApiKeyResetHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
+  
+  
+  
+  #  
+  #   User Update Handler
+  #  
+    
+  UserUpdateHandlerFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserUpdateHandlerFunction
+      Description: Handles requests to update a user's attribute(s).
+      Handler: index.proxy_lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${UserUpdateHandlerFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/UserUpdateHandlerFunction.zip
+      Environment:
+        Variables:
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
+          SHARED_BUCKET:
+            Ref: SharedBucket
+      Runtime: python2.7
+      Timeout: 300
+  
+  UserUpdateHandlerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${UserUpdateHandlerFunctionLogGroup.Arn}
+  
+  UserUpdateHandlerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserUpdateHandlerFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
   
   
   
@@ -1827,6 +1903,7 @@ Resources:
                 Action:
                   - execute-api:invoke
                 Resource:
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PATCH/user
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/user/password
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PUT/user/api-key
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room
@@ -2282,6 +2359,8 @@ Resources:
     Properties:
       ServiceToken:
         Fn::Sub: ${SwaggerTemplatePresetFunction.Arn}
+      ApiDefinitionVersion:
+        Ref: ApiDefinitionVersion
       OutputBucket:
         Ref: SharedBucket
       SourceBucket:
@@ -2622,11 +2701,13 @@ Resources:
       - RoomMessagePollerFunction
       - RoomMessagePosterFunction
       - RoomSessionGeneratorFunction
+      - UserApiKeyResetHandlerFunction
       - UserChangePasswordHandlerFunction
       - UserForgotPasswordHandlerFunction
       - UserLoginHandlerFunction
       - UserRegistrationAliasVerificationHandlerFunction
       - UserRegistrationRequestHandlerFunction
+      - UserUpdateHandlerFunction
   
   
   
