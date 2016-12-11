@@ -1,0 +1,59 @@
+<div class="container">
+	<div class="user-profile">
+    <div class="user-image">
+      <img ng-src="//www.gravatar.com/avatar/{{gravatarHash}}?s=80&amp;r=pg&amp;d=identicon" alt="User Profile Image" ng-title="{{emailAddress}}" class="img-circle">
+    </div>
+    <div class="user-info-block">
+      <div class="user-heading">
+        <h3 ng-bind="emailAddress"></h3>
+        <span class="help-block"></span>
+      </div>
+      <div class="user-body">
+        <div class="tab-content">
+          <div>
+            <h4>Account Information</h4>
+            
+            <div class="user-info-part-wrapper">
+              <span class="part-value">Verified</span>
+              <span class="part-key">E-mail address</span>
+            </div>
+            
+            <div class="user-info-part-wrapper">
+              <span class="part-value">
+                
+              </span>
+              <span class="part-key">
+                Password
+                <a ng-click="$state.go('change-password')" title="Change Password">
+                  <i class="fa fa-pencil"></i>
+                </a>
+              </span>
+            </div>
+            
+            <div class="user-info-part-divider"></div>
+            
+            <div class="user-info-part-wrapper">
+              <span class="part-value">
+                <span ng-show="showApiKey">
+                  <span ng-bind="apiKey"></span>
+                </span>
+                <a ng-click="showApiKey = true" ng-hide="showApiKey">
+                  Show
+                </a>
+              </span>
+              <span class="part-key">
+                API Key
+                <!--
+                <a ng-click="resetApiKeyButtonClicked()" title="Reset API Key">
+                  <span class="glyphicon glyphicon-refresh api-key-reset-button" ng-class="{'spinning': ajaxOperationInProgress}"></span>
+                </a>
+                -->
+              </span>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

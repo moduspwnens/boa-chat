@@ -51,6 +51,16 @@ var app = undefined;
 				templateUrl: "forgot-verify.html",
         controller: 'forgotVerifyController'
 			})
+			.state('profile', {
+				url: "/profile",
+				templateUrl: "profile.html",
+        controller: 'profileController'
+			})
+			.state('change-password', {
+				url: "/profile/change-password",
+				templateUrl: "change-password.html",
+        controller: 'changePasswordController'
+			})
 			.state('room', {
 				url: "/room/:roomId",
 				templateUrl: "room.html",

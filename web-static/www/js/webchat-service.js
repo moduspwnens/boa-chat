@@ -181,6 +181,34 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  webchatService.changePasswordWithExistingPassword = function(existingPassword, newPassword) {
+    var requestEndpoint = WebChatApiEndpoint + 'user/password';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'POST',
+        url: requestEndpoint,
+        data: {
+          "old-password": existingPassword,
+          "password": newPassword
+        },
+        includeApiKey: true,
+        sign: true
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject);
+      })
+      .error(function(angResponseObject, errorCode) {
+        
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
   var refreshCurrentUserCredentials = function() {
     console.log("Attempting to refresh credentials.");
     
