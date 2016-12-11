@@ -19,15 +19,30 @@ app.controller('profileController', function($scope, $http, $state, $uibModal, $
   
   
   $scope.resetApiKeyButtonClicked = function() {
-    console.log("Reset API key");
     
-    $scope.ajaxOperationInProgress = true;
+    if ($scope.apiKeyResetInProgress) {
+      return false;
+    }
     
-    setTimeout(function() {
-      $scope.ajaxOperationInProgress = false;
-      $scope.$apply();
-      alert("Not yet implemented.");
-    }, 3000)
+    $scope.apiKeyChangeSuccessful = false;
+    $scope.apiKeyResetInProgress = true;
+    
+    webchatService.resetApiKey()
+      .then(function(newApiKey) {
+        $scope.showApiKey = false;
+        $scope.apiKeyChangeSuccessful = true;
+        $scope.apiKeyResetInProgress = false;
+        $scope.apiKey = newApiKey;
+      })
+      .catch(function(errorReason) {
+        $scope.apiKeyResetInProgress = false;
+        if (errorReason !== "Other") {
+          alert(errorReason);
+        }
+        else {
+          alert("An unexpected error occurred.");
+        }
+      })
   }
   
 });

@@ -209,6 +209,36 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  webchatService.resetApiKey = function() {
+    var requestEndpoint = WebChatApiEndpoint + 'user/api-key';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'PUT',
+        url: requestEndpoint,
+        data: "",
+        includeApiKey: true,
+        sign: true
+      })
+      .success(function(angResponseObject) {
+        var newApiKey = angResponseObject["api-key"];
+        
+        var cookieStoreObject = $cookieStore.get("login");
+        cookieStoreObject["user"]["api-key"] = newApiKey;
+        $cookieStore.put("login", cookieStoreObject);
+        
+        resolve(newApiKey);
+      })
+      .error(function(angResponseObject, errorCode) {
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
   var refreshCurrentUserCredentials = function() {
     console.log("Attempting to refresh credentials.");
     

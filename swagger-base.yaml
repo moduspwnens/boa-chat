@@ -311,7 +311,7 @@ paths:
               message: The password reset code specified is invalid.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
-
+  
   /user/password:
     post:
       summary: Use a user's existing password to change the user's password
@@ -343,6 +343,26 @@ paths:
               message: The password reset code specified is invalid.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
+  
+  /user/api-key:
+    put:
+      summary: Reset a user's API key
+      x-boa-lambda-resource-name: UserApiKeyResetHandlerFunction
+      tags:
+        - user
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Success
+          examples:
+            application/json:
+              api-key: kn6eaex93b8ajprzx6hyrt9erwp9o6
+          schema:
+            $ref: '#/definitions/ApiKeyResetResponse'
       security:
         - sigv4: []
         - api_key: []
@@ -532,7 +552,16 @@ definitions:
         description: An array of receipt handles received from a previous chat room session poll
         items:
           $ref: '#/definitions/ChatMessageReceiptHandle'
-    
+  
+  ApiKeyResetResponse:
+    type: object
+    required:
+      - api-key
+    properties:
+      api-key:
+        type: string
+        description: API key to use in x-api-key header for authenticated requests
+  
   AwsV4SignatureSettings:
     type: object
     description: Parameters necessary for AWS v4 signature authentication

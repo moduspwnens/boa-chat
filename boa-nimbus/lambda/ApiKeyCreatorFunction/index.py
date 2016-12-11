@@ -32,8 +32,6 @@ def lambda_handler(event, context):
     user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
     identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
     
-    generated_api_key = generate_potential_api_key()
-    
     user_api_key_id = None
     user_api_key_value = None
     
@@ -45,26 +43,32 @@ def lambda_handler(event, context):
     
     key_sync_count_map = {}
     
+    old_user_api_key_id = None
+    
     for each_record in response.get("Records", []):
         key_sync_count_map[each_record["Key"]] = each_record.get("SyncCount", 0)
+        
+        if each_record["Key"] == "api-key-id":
+            old_user_api_key_id = each_record["Value"]
     
     sync_session_token = response["SyncSessionToken"]
     
+    # User needs new API key.
     api_key_name = "{} - {}".format(
         stack_name,
         identity_id
     )
-    
+
     response = apig_client.create_api_key(
         name = api_key_name,
         description = "Web chat API key for {}.".format(identity_id),
         enabled = True,
-        value = generated_api_key
+        value = generate_potential_api_key()
     )
-    
+
     user_api_key_id = response["id"]
     user_api_key_value = response["value"]
-    
+
     response = apig_client.create_usage_plan_key(
         usagePlanId = usage_plan_id,
         keyId = user_api_key_id,
@@ -102,6 +106,12 @@ def lambda_handler(event, context):
             DatasetName = user_profile_dataset_name,
             RecordPatches = record_patch_list,
             SyncSessionToken = sync_session_token
+        )
+    
+    if old_user_api_key_id is not None:
+        print("Deleting user's previous API key ({}).".format(old_user_api_key_id))
+        apig_client.delete_api_key(
+            apiKey = old_user_api_key_id
         )
     
     return {
