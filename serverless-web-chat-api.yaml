@@ -393,6 +393,8 @@ Resources:
         S3Key: lambda/UserRegistrationRequestHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
@@ -466,6 +468,8 @@ Resources:
         S3Key: lambda/UserRegistrationAliasVerificationHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           COGNITO_USER_POOL_ID:
             Fn::Sub: ${CognitoUserPool.Id}
           COGNITO_USER_POOL_CLIENT_ID:
@@ -561,6 +565,8 @@ Resources:
         S3Key: lambda/UserLoginHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           API_KEY_CREATOR_FUNCTION_ARN:
             Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           COGNITO_IDENTITY_POOL_ID:
@@ -671,6 +677,8 @@ Resources:
         S3Key: lambda/UserForgotPasswordHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
@@ -743,6 +751,8 @@ Resources:
         S3Key: lambda/UserChangePasswordHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           COGNITO_USER_POOL_ID:
             Fn::Sub: ${CognitoUserPool.Id}
           COGNITO_USER_POOL_CLIENT_ID:
@@ -834,6 +844,8 @@ Resources:
         S3Key: lambda/UserApiKeyResetHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           API_KEY_CREATOR_FUNCTION_ARN:
             Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           CORS_ORIGINS:
@@ -909,6 +921,8 @@ Resources:
         S3Key: lambda/UserUpdateHandlerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
@@ -984,6 +998,8 @@ Resources:
         S3Key: lambda/RoomGeneratorFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           DELETE_ROOM_TOPIC_ROLE:
@@ -1088,6 +1104,8 @@ Resources:
         Variables:
           ACKNOWLEDGER_FUNCTION_ROLE:
             Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           POLLER_FUNCTION_ROLE:
@@ -1174,6 +1192,8 @@ Resources:
         S3Key: lambda/RoomMessagePollerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
@@ -1246,6 +1266,8 @@ Resources:
         S3Key: lambda/RoomMessageAcknowledgerFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
@@ -1316,6 +1338,8 @@ Resources:
         S3Key: lambda/RoomMessagePosterFunction.zip
       Environment:
         Variables:
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           COGNITO_USER_PROFILE_DATASET_NAME:
             Fn::FindInMap:
               - StaticVariables
