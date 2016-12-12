@@ -18,6 +18,7 @@ Metadata:
           - MetricAlarmEmailAddress
           - PreWarmingEnabled
           - LogRetentionDays
+          - CustomApiBaseUrl
       - Label:
           default: Cross-Origin Resource Sharing
         Parameters:
@@ -28,6 +29,8 @@ Metadata:
         default: Additional HTTP CORS Origins Allowed
       ApiDefinitionVersion:
         default: API Definition Version
+      CustomApiBaseUrl:
+        default: Custom API Base URL
       EmailFromAddress:
         default: E-mail From Address
       IncludeBucketSiteInCorsOrigin:
@@ -52,6 +55,12 @@ Parameters:
     Type: String
     Description: Change this value on stack update to reload API from definition file.
     Default: ''
+  CustomApiBaseUrl:
+    Type: String
+    Description: Change this to point the web interface at a different API URL. Include the trailing slash. Leave blank for default.
+    Default: ''
+    AllowedPattern: ^[^"]*$
+    ConstraintDescription: must not contain double quotes
   EmailFromAddress:
     Type: String
     Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
@@ -127,6 +136,11 @@ Mappings:
       StageName: v1
       
 Conditions:
+  CustomApiBaseUrlSpecifiedCondition:
+    Fn::Not:
+      - Fn::Equals:
+        - Ref: CustomApiBaseUrl
+        - ''
   IncludeBucketSiteInCorsOriginCondition:
     Fn::Equals:
       - Ref: IncludeBucketSiteInCorsOrigin
@@ -3094,13 +3108,17 @@ Resources:
             */
             var GlobalWebChatApiEndpoint = "${RestApiEndpoint}";
           - RestApiEndpoint:
-              Fn::Sub:
-                - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
-                - MainStageName:
-                    Fn::FindInMap:
-                    - StaticVariables
-                    - Main
-                    - StageName
+              Fn::If:
+                - CustomApiBaseUrlSpecifiedCondition
+                - Ref: CustomApiBaseUrl
+                - Fn::Sub:
+                  - https://${WebChatApi}.execute-api.${AWS::Region}.amazonaws.com/${MainStageName}/
+                  - MainStageName:
+                      Fn::FindInMap:
+                      - StaticVariables
+                      - Main
+                      - StageName
+              
       Content-Type: text/javascript
     
     
