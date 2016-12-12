@@ -177,17 +177,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
-      LifecycleConfiguration:
-        Rules:
-          
-          # Login request pointers should expire as soon as possible after 
-          # 15 minutes. The 15 minute expiry will be verified separately, but 
-          # this avoids needing a separate process for cleaning up these over 
-          # time.
-          - Id: LoginRequestPointerExpiration
-            ExpirationInDays: 1
-            Prefix: login-requests/
-            Status: Enabled
   
   SharedBucketPolicy:
     Type: AWS::S3::BucketPolicy
