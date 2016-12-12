@@ -1,7 +1,8 @@
-"""UserRegistrationAliasVerificationHandlerFunction
+"""UserEmailAddressVerificationHandlerFunction
 
-Validates a user login verification token and returns an API key for the 
-logged-in user.
+Validates an e-mail address for a new user registration or a changed e-mail 
+address from an existing user with a token provided by the user after being 
+retrieved from the message sent to their e-mail address.
 
 """
 

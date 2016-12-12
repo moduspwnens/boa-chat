@@ -443,16 +443,16 @@ Resources:
   
   
   #  
-  #   User Login Response Handler Function
+  #   User E-mail Address Verification Handler Function
   #  
     
-  UserRegistrationAliasVerificationHandlerFunction:
+  UserEmailAddressVerificationHandlerFunction:
     Type: AWS::Lambda::Function
     Metadata:
       PreWarming: true
     Properties:
       FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserRegistrationAliasVerificationHandlerFunction
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserEmailAddressVerificationHandlerFunction
       Description: Generates a unique identifier for a user.
       Handler: index.proxy_lambda_handler
       MemorySize: 
@@ -461,11 +461,11 @@ Resources:
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::Sub: ${UserRegistrationAliasVerificationHandlerFunctionRole.Arn}
+        Fn::Sub: ${UserEmailAddressVerificationHandlerFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
-        S3Key: lambda/UserRegistrationAliasVerificationHandlerFunction.zip
+        S3Key: lambda/UserEmailAddressVerificationHandlerFunction.zip
       Environment:
         Variables:
           API_DEFINITION_KEY:
@@ -488,7 +488,7 @@ Resources:
       Runtime: python2.7
       Timeout: 300
   
-  UserRegistrationAliasVerificationHandlerFunctionRole:
+  UserEmailAddressVerificationHandlerFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -511,7 +511,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  Fn::Sub: ${UserRegistrationAliasVerificationHandlerFunctionLogGroup.Arn}
+                  Fn::Sub: ${UserEmailAddressVerificationHandlerFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
                   - cognito-idp:AdminGetUser
@@ -530,11 +530,11 @@ Resources:
                           - Main
                           - CognitoIdentityUserProfileDatasetName
   
-  UserRegistrationAliasVerificationHandlerFunctionLogGroup:
+  UserEmailAddressVerificationHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserRegistrationAliasVerificationHandlerFunction
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserEmailAddressVerificationHandlerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -2755,7 +2755,7 @@ Resources:
       - UserChangePasswordHandlerFunction
       - UserForgotPasswordHandlerFunction
       - UserLoginHandlerFunction
-      - UserRegistrationAliasVerificationHandlerFunction
+      - UserEmailAddressVerificationHandlerFunction
       - UserRegistrationRequestHandlerFunction
       - UserUpdateHandlerFunction
   

@@ -537,7 +537,7 @@ paths:
   /user/register/verify:
     get:
       summary: Confirm a new user registration with a confirmation code
-      x-boa-lambda-resource-name: UserRegistrationAliasVerificationHandlerFunction
+      x-boa-lambda-resource-name: UserEmailAddressVerificationHandlerFunction
       tags:
         - user
       consumes:
@@ -576,7 +576,7 @@ paths:
   /user/email/verify:
     get:
       summary: Confirm an e-mail address change with existing credentials and a confirmation code
-      x-boa-lambda-resource-name: UserRegistrationAliasVerificationHandlerFunction
+      x-boa-lambda-resource-name: UserEmailAddressVerificationHandlerFunction
       tags:
         - user
       consumes:
