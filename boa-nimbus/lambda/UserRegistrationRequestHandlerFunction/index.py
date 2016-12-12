@@ -40,9 +40,6 @@ def lambda_handler(event, context):
     if new_password == "":
         raise APIGatewayException("Value for \"password\" must be specified in message.", 400)
     
-    if len(new_password) < 6:
-        raise APIGatewayException("Password must be at least six characters long.", 400)
-    
     validate_email_address(email_address)
     
     new_username = "{}".format(uuid.uuid4())
@@ -50,18 +47,26 @@ def lambda_handler(event, context):
     client_id = os.environ["COGNITO_USER_POOL_CLIENT_ID"]
     client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     
-    cognito_client.sign_up(
-        ClientId = client_id,
-        SecretHash = generate_cognito_sign_up_secret_hash(new_username, client_id, client_secret),
-        Username = new_username,
-        Password = new_password,
-        UserAttributes = [
-            {
-                "Name": "email",
-                "Value": email_address
-            }
-        ]
-    )
+    try:
+        cognito_client.sign_up(
+            ClientId = client_id,
+            SecretHash = generate_cognito_sign_up_secret_hash(new_username, client_id, client_secret),
+            Username = new_username,
+            Password = new_password,
+            UserAttributes = [
+                {
+                    "Name": "email",
+                    "Value": email_address
+                }
+            ]
+        )
+    except botocore.exceptions.ParamValidationError as e:
+        raise APIGatewayException("Password does not meet complexity requirements.", 400)
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'InvalidPasswordException':
+            raise APIGatewayException("Password does not meet complexity requirements.", 400)
+        elif e.response['Error']['Code'] == 'CodeDeliveryFailureException':
+            raise APIGatewayException("Unable to deliver code to the e-mail address specified.", 400)
     
     return {
         "registration-id": new_username,

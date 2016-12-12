@@ -26,10 +26,15 @@ var app = undefined;
 				templateUrl: "register.html",
         controller: 'registerController'
 			})
-			.state('register-verify', {
-				url: "/register/verify/:registrationId",
-				templateUrl: "register-verify.html",
-        controller: 'registerVerifyController'
+			.state('email-change', {
+				url: "/email/change",
+				templateUrl: "change-email.html",
+        controller: 'emailChangeController'
+			})
+			.state('email-verify', {
+				url: "/email/verify/:mode/:uniqueId",
+				templateUrl: "email-verify.html",
+        controller: 'emailVerifyController'
 			})
 			.state('login', {
 				url: "/login",

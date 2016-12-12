@@ -48,7 +48,6 @@ def lambda_handler(event, context):
 def proxy_lambda_handler(event, context):
     
     response_headers = get_response_headers(event, context)
-    print(response_headers)
     
     try:
         return_dict = lambda_handler(event, context)

@@ -108,18 +108,19 @@ def lambda_handler(event, context):
         )
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'UserNotFoundException':
-            raise APIGatewayException("User with e-mail address ({}) not found.".format(email_address), 404)
+            raise APIGatewayException("User with e-mail address ({}) not found.".format(email_address), 400)
         elif e.response['Error']['Code'] == 'NotAuthorizedException':
             if auth_flow == "ADMIN_NO_SRP_AUTH":
-                raise APIGatewayException("Password entered is not correct.", 403)
+                raise APIGatewayException("Password entered is not correct.", 400)
             elif auth_flow == "REFRESH_TOKEN_AUTH":
-                raise APIGatewayException("Refresh token specified is invalid or expired.", 403)
+                raise APIGatewayException("Refresh token specified is invalid or expired.", 400)
         raise
     
     cognito_id_token = response["AuthenticationResult"]["IdToken"]
     cognito_refresh_token = response["AuthenticationResult"].get("RefreshToken", submitted_refresh_token)
     cognito_access_token = response["AuthenticationResult"]["AccessToken"]
     cognito_access_token_type = response["AuthenticationResult"]["TokenType"]
+    cognito_access_token_expires = response["AuthenticationResult"]["ExpiresIn"]
     
     response = cognito_idp_client.get_user(
         AccessToken = cognito_access_token
@@ -153,11 +154,16 @@ def lambda_handler(event, context):
     user_api_key_id = None
     user_api_key_value = None
     
+    key_sync_count_map = {}
+    
     response = cognito_sync_client.list_records(
         IdentityPoolId = identity_pool_id,
         IdentityId = identity_id,
         DatasetName = user_profile_dataset_name
     )
+    
+    for each_record in response.get("Records", []):
+        key_sync_count_map[each_record["Key"]] = each_record.get("SyncCount", 0)
     
     sync_session_token = response["SyncSessionToken"]
     
@@ -168,13 +174,13 @@ def lambda_handler(event, context):
             user_api_key_value = each_record["Value"]
     
     if user_api_key_value is None:
-        response = lambda_client.invoke(
+        invoke_response = lambda_client.invoke(
             FunctionName = api_key_creator_function_arn,
             Payload = json.dumps({
                 "identity-id": identity_id
             })
         )
-        response_object = json.loads(response["Payload"].read())
+        response_object = json.loads(invoke_response["Payload"].read())
         
         if "api-key-id" not in response_object:
             print(json.dumps(response_object))
@@ -185,8 +191,13 @@ def lambda_handler(event, context):
         
         
     records_to_replace = {
-        "email-address": user_email,
-        "user-id": user_id
+        "user-id": user_id,
+        "idp-credentials": json.dumps({
+            "id-token": cognito_id_token,
+            "access-token": cognito_access_token,
+            "refresh-token": cognito_refresh_token,
+            "expires": calendar.timegm(datetime.datetime.utcnow().utctimetuple()) + cognito_access_token_expires
+        })
     }
     
     for each_record in response.get("Records", []):
@@ -201,7 +212,7 @@ def lambda_handler(event, context):
             "Op": "replace",
             "Key": each_key,
             "Value": each_value,
-            "SyncCount": 0
+            "SyncCount": key_sync_count_map.get(each_key, 0)
         })
     
     if len(record_patch_list) > 0:

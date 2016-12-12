@@ -8,6 +8,7 @@ from __future__ import print_function
 
 import os
 import json
+import time
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
@@ -96,26 +97,23 @@ def lambda_handler(event, context):
     
     if password_change_method == "Authenticated":
         
-        try:
-            response = cognito_idp_client.admin_initiate_auth(
-                AuthFlow = "ADMIN_NO_SRP_AUTH",
-                UserPoolId = user_pool_id,
-                ClientId = user_pool_client_id,
-                AuthParameters = {
-                    "USERNAME": user_id,
-                    "SECRET_HASH": secret_hash,
-                    "PASSWORD": old_password
-                }
-            )
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == 'NotAuthorizedException':
-                raise APIGatewayException("Password provided is incorrect.", 400)
-            elif e.response['Error']['Code'] == 'ParamValidationError':
-                raise APIGatewayException("New password does not meet password requirements.", 400)
-            else:
-                raise
+        response = cognito_sync_client.list_records(
+            IdentityPoolId = identity_pool_id,
+            IdentityId = identity_id,
+            DatasetName = user_profile_dataset_name
+        )
         
-        access_token = response["AuthenticationResult"]["AccessToken"]
+        idp_credentials = None
+        
+        for each_record in response.get("Records", []):
+            if each_record["Key"] == "idp-credentials":
+                idp_credentials = json.loads(each_record["Value"])
+                break
+        
+        if idp_credentials is None or idp_credentials.get("expires", 0) < int(time.time()):
+            raise APIGatewayException("Identity provider credentials expired. Please log in and try again.", 400)
+        
+        access_token = idp_credentials["access-token"]
         
         try:
             cognito_idp_client.change_password(
@@ -124,10 +122,16 @@ def lambda_handler(event, context):
                 AccessToken = access_token
             )
         except botocore.exceptions.ParamValidationError as e:
-            raise APIGatewayException("New password does not meet password requirements.", 400)
+            raise APIGatewayException("Password does not meet complexity requirements.", 400)
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'InvalidPasswordException':
-                raise APIGatewayException("New password does not meet password requirements.", 400)
+                raise APIGatewayException("Password does not meet complexity requirements.", 400)
+            elif e.response['Error']['Code'] == 'LimitExceededException':
+                raise APIGatewayException("Password change attempt limit reached. Please wait a while and try again.", 400)
+            elif e.response['Error']['Code'] == 'NotAuthorizedException':
+                raise APIGatewayException("Existing password entered is not correct.", 400)
+            else:
+                raise
         
         
     elif password_change_method == "Unauthenticated":

@@ -53,9 +53,22 @@ def lambda_handler(event, context):
         identity_pool_id = response["IdentityPoolId"]
         identity_pool_name = response["IdentityPoolName"]
         
+        aws_region = context.invoked_function_arn.split(":")[3]
+        aws_account_id = context.invoked_function_arn.split(":")[4]
+        
         physical_resource_id = identity_pool_id
         response_data["Id"] = identity_pool_id
         response_data["Name"] = identity_pool_name
+        response_data["Arn"] = "arn:aws:cognito-identity:{aws_region}:{aws_account_id}:identitypool/{identity_pool_id}".format(
+            aws_region = aws_region,
+            aws_account_id = aws_account_id,
+            identity_pool_id = identity_pool_id
+        )
+        response_data["SyncArn"] = "arn:aws:cognito-sync:{aws_region}:{aws_account_id}:identitypool/{identity_pool_id}".format(
+            aws_region = aws_region,
+            aws_account_id = aws_account_id,
+            identity_pool_id = identity_pool_id
+        )
     
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, physical_resource_id)
 

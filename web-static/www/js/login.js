@@ -24,12 +24,9 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
       .catch(function(errorReason) {
         $scope.ajaxOperationInProgress = false;
         
-        if (errorReason == "UserNotFound") {
-          alert("No user found with the given e-mail address." + "\n\n" + "Note that the e-mail address must be confirmed to log in.");
+        if (errorReason !== "Other") {
+          alert(errorReason);
           focusEmailField();
-        }
-        else if (errorReason == "PasswordIncorrect") {
-          alert("The password entered is not correct.");
         }
         else {
           alert("An unexpected error occurred when trying to log in.");

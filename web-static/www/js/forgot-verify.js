@@ -27,8 +27,15 @@ app.controller('forgotVerifyController', function($scope, $state, $stateParams, 
         console.log("Password changed successfully.");
         
         $uibModal.open({
-          templateUrl: 'modal-forgot-password-change-confirmed.html',
-          controller: 'modalSimpleController'
+          templateUrl: 'modal-simple.html',
+          controller: 'modalSimpleController',
+          resolve: {
+            config: function() {
+              return {
+                mode: 'forgot-password-changed'
+              }
+            }
+          }
         });
         
       })

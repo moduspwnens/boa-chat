@@ -263,9 +263,10 @@ paths:
           description: Success
           examples:
             application/json:
-              message: User attributes updated successfully.
+              message: E-mail address verification message sent.
+              registration-id: db69f82d-1627-4a64-ad19-6edc6053fa45
           schema:
-            $ref: '#/definitions/BasicAcknowledgementResponse'
+            $ref: '#/definitions/UserUpdateResponse'
         '400':
           description: Bad request
           examples:
@@ -571,6 +572,43 @@ paths:
               message: The confirmation code given is invalid or expired.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
+  
+  /user/email/verify:
+    get:
+      summary: Confirm an e-mail address change with existing credentials and a confirmation code
+      x-boa-lambda-resource-name: UserRegistrationAliasVerificationHandlerFunction
+      tags:
+        - user
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: query
+          name: token
+          description: |+
+            The confirmation code found in the message sent to the user's e-mail 
+            address
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Success
+          examples:
+            application/json:
+              message: E-mail address confirmed successfully.
+          schema:
+            $ref: '#/definitions/BasicAcknowledgementResponse'
+        '400':
+          description: Bad request
+          examples:
+            application/json:
+              message: The confirmation code given is invalid or expired.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      security:
+        - sigv4: []
+        - api_key: []
 
 definitions:
   
@@ -895,6 +933,22 @@ definitions:
       email-address:
         type: string
         description: The new e-mail address for the user
+  
+  UserUpdateResponse:
+    type: object
+    required:
+      - message
+    properties:
+      message:
+        type: string
+        description: |+
+          A human-readable message confirming the request was received and 
+          processed normally
+      registration-id:
+        type: string
+        description: |+
+          Unique registration id to be sent with the confirmation code to 
+          confirm the new e-mail address
 
 securityDefinitions:
   

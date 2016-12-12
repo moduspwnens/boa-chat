@@ -1,10 +1,14 @@
 <div class="container">
-  <form class="form-signin" ng-submit="registrationVerificationFormSubmitted()">
+  <form class="form-signin" ng-submit="emailVerificationFormSubmitted()">
     <h2 class="form-signin-heading">Verify E-mail Address</h2>
-    <p>
-      <span ng-show="registrationEmail">A verification code has been sent to <strong ng-bind="registrationEmail"></strong>.</span>
-      <span ng-show="!registrationEmail">A verification code has been sent to the e-mail address specified.</span>
+    <p ng-show="mode == 'register'">
+      <span ng-show="emailAddress">A verification code has been sent to <strong ng-bind="emailAddress"></strong>.</span>
+      <span ng-show="!emailAddress">A verification code has been sent to the e-mail address specified.</span>
       Enter it below to confirm your registration.
+    </p>
+    <p ng-show="mode == 'update'">
+      A verification code has been sent to the e-mail address specified. 
+      Enter it below to confirm the address.
     </p>
     
     <label for="inputCode" class="sr-only">Six digit code</label>

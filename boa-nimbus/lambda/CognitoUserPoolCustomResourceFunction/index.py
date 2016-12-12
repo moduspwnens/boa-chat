@@ -59,6 +59,9 @@ def lambda_handler(event, context):
             "Policies": {
                 "PasswordPolicy": resource_props.get("PasswordPolicy", default_password_policy_dict)
             },
+            "AdminCreateUserConfig": {
+                #"AllowAdminCreateUserOnly": True
+            },
             "Schema": [
                 {
                     "Name": "email",
@@ -99,9 +102,21 @@ def lambda_handler(event, context):
         user_pool_id = response["UserPool"]["Id"]
         user_pool_name = response["UserPool"]["Name"]
         
+        aws_region = context.invoked_function_arn.split(":")[3]
+        aws_account_id = context.invoked_function_arn.split(":")[4]
+        
         physical_resource_id = user_pool_id
         response_data["Id"] = user_pool_id
         response_data["Name"] = user_pool_name
+        response_data["Arn"] = "arn:aws:cognito-idp:{aws_region}:{aws_account_id}:userpool/{user_pool_id}".format(
+            aws_region = aws_region,
+            aws_account_id = aws_account_id,
+            user_pool_id = user_pool_id
+        )
+        response_data["ProviderName"] = "cognito-idp.{aws_region}.amazonaws.com/{user_pool_id}".format(
+            aws_region = aws_region,
+            user_pool_id = user_pool_id
+        )
     
     
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, physical_resource_id)

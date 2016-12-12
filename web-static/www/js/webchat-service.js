@@ -30,20 +30,49 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
-  webchatService.confirmUserEmailAddress = function(registrationId, token) {
+  webchatService.confirmRegistrationEmailAddress = function(registrationId, token) {
     var registerEndpoint = WebChatApiEndpoint + 'user/register/verify';
+    
+    var requestParams = {
+      "registration-id": registrationId,
+      "token": token
+    };
+    
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'GET',
+        url: registerEndpoint,
+        params: requestParams
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject["email-address"]);
+      })
+      .error(function(angResponseObject, errorCode) {
+        if (errorCode == 400 && angResponseObject.hasOwnProperty("message")) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
+  webchatService.confirmChangedEmailAddress = function(token) {
+    var registerEndpoint = WebChatApiEndpoint + 'user/email/verify';
     
     return $q(function(resolve, reject) {
       $http({
         method: 'GET',
         url: registerEndpoint,
         params: {
-          "registration-id": registrationId,
           "token": token
-        }
+        },
+        includeApiKey: true,
+        sign: true
       })
       .success(function(angResponseObject) {
-        resolve(true);
+        resolve(angResponseObject["email-address"]);
       })
       .error(function(angResponseObject, errorCode) {
         if (errorCode == 400 && angResponseObject.hasOwnProperty("message")) {
@@ -115,12 +144,8 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         resolve(angResponseObject);
       })
       .error(function(angResponseObject, errorCode) {
-        console.log(arguments);
-        if (errorCode == 404) {
-          reject("UserNotFound");
-        }
-        else if (errorCode == 403 && angResponseObject.message == "Password entered is not correct.") {
-          reject("PasswordIncorrect");
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
         }
         else {
           reject("Other");
@@ -196,6 +221,33 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       })
       .success(function(angResponseObject) {
         resolve(angResponseObject);
+      })
+      .error(function(angResponseObject, errorCode) {
+        
+        if (errorCode == 400) {
+          reject(angResponseObject.message);
+        }
+        else {
+          reject("Other");
+        }
+      })
+    });
+  }
+  
+  webchatService.requestEmailAddressChange = function(newEmailAddress) {
+    var requestEndpoint = WebChatApiEndpoint + 'user';
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'PATCH',
+        url: requestEndpoint,
+        data: {
+          "email-address": newEmailAddress
+        },
+        includeApiKey: true,
+        sign: true
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject["registration-id"]);
       })
       .error(function(angResponseObject, errorCode) {
         

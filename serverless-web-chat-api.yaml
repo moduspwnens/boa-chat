@@ -466,10 +466,17 @@ Resources:
         S3Key: lambda/UserRegistrationAliasVerificationHandlerFunction.zip
       Environment:
         Variables:
+          COGNITO_USER_POOL_ID:
+            Fn::Sub: ${CognitoUserPool.Id}
           COGNITO_USER_POOL_CLIENT_ID:
             Fn::Sub: ${CognitoUserPoolClient.Id}
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoUserPoolClient.Secret}
+          COGNITO_USER_PROFILE_DATASET_NAME:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginListEscaped.Output}
           SHARED_BUCKET:
@@ -501,6 +508,23 @@ Resources:
                   - logs:PutLogEvents
                 Resource:
                   Fn::Sub: ${UserRegistrationAliasVerificationHandlerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
+                Resource:
+                  Fn::Sub: ${CognitoUserPool.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub:
+                    - ${CognitoIdentityPool.SyncArn}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
   
   UserRegistrationAliasVerificationHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -587,18 +611,18 @@ Resources:
                 Action:
                   - cognito-idp:AdminInitiateAuth
                 Resource:
-                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
+                  Fn::Sub: ${CognitoUserPool.Arn}
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
+                  Fn::Sub: ${CognitoIdentityPool.SyncArn}/identity/*
               - Effect: Allow
                 Action:
                   - cognito-sync:UpdateRecords
                 Resource:
                   Fn::Sub: 
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - ${CognitoIdentityPool.SyncArn}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -763,15 +787,10 @@ Resources:
                   Fn::Sub: ${UserChangePasswordHandlerFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
-                  - cognito-idp:AdminInitiateAuth
-                Resource:
-                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
-              - Effect: Allow
-                Action:
                   - cognito-sync:ListRecords
                 Resource:
                   Fn::Sub:
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - ${CognitoIdentityPool.SyncArn}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables
@@ -921,6 +940,12 @@ Resources:
                   - logs:PutLogEvents
                 Resource:
                   Fn::Sub: ${UserUpdateHandlerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:ListUsers
+                Resource:
+                  Fn::Sub: ${CognitoUserPool.Arn}
   
   UserUpdateHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1904,6 +1929,7 @@ Resources:
                   - execute-api:invoke
                 Resource:
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PATCH/user
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/GET/user/email/verify
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/user/password
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PUT/user/api-key
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room
@@ -2072,7 +2098,7 @@ Resources:
                   - cognito-idp:CreateUserPoolClient
                   - cognito-idp:DeleteUserPoolClient
                 Resource:
-                  Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPool.Id}
+                  Fn::Sub: ${CognitoUserPool.Arn}
   
   CognitoUserPoolClientCustomResourceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2166,13 +2192,13 @@ Resources:
         Ref: LogRetentionDays
   
   CognitoIdentityPool:
-    Type: Custom::CognitoIdentityPoolClient
+    Type: Custom::CognitoIdentityPool
     Properties:
       ServiceToken:
         Fn::Sub: ${CognitoIdentityPoolCustomResourceFunction.Arn}
       CognitoIdentityProviders:
         - ProviderName:
-            Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool.Id}
+            Fn::Sub: ${CognitoUserPool.ProviderName}
           ClientId:
             Fn::Sub: ${CognitoUserPoolClient.Id}
       
@@ -2246,7 +2272,7 @@ Resources:
                 Action:
                   - cognito-identity:SetIdentityPoolRoles
                 Resource:
-                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}
+                  Fn::Sub: ${CognitoIdentityPool.Arn}
   
   CognitoIdentityPoolRoleLinkerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2770,13 +2796,13 @@ Resources:
                 Action:
                   - cognito-identity:ListIdentities
                 Resource:
-                  Fn::Sub: arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}
+                  Fn::Sub: ${CognitoIdentityPool.Arn}
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
                   Fn::Sub:
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - ${CognitoIdentityPool.SyncArn}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
                     - CognitoIdentityUserProfileDatasetName:
                         Fn::FindInMap:
                           - StaticVariables

@@ -25,8 +25,15 @@ app.controller('changePasswordController', function($scope, $http, $state, $cook
         $scope.ajaxOperationInProgress = false;
         
         $uibModal.open({
-          templateUrl: 'modal-authenticated-password-change-confirmed.html',
-          controller: 'modalSimpleController'
+          templateUrl: 'modal-simple.html',
+          controller: 'modalSimpleController',
+          resolve: {
+            config: function() {
+              return {
+                mode: 'authenticated-password-changed'
+              }
+            }
+          }
         });
         
       })

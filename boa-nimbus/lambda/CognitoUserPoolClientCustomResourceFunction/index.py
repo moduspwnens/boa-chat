@@ -47,6 +47,7 @@ def lambda_handler(event, context):
                 os.environ["PROJECT_GLOBAL_PREFIX"],
                 uuid.uuid4()
             ),
+            RefreshTokenValidity = 1,
             GenerateSecret = True,
             ExplicitAuthFlows = [
                 "ADMIN_NO_SRP_AUTH"

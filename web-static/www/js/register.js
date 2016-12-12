@@ -21,7 +21,7 @@ app.controller('registerController', function($scope, $http, $state, $cookieStor
         registrationEmailMap[registrationId] = $scope.email;
         $cookieStore.put("registration-email-map", registrationEmailMap);
         
-        $state.go('register-verify', { registrationId: registrationId });
+        $state.go('email-verify', { mode: 'register', uniqueId: registrationId });
         
       })
       .catch(function(errorReason) {
