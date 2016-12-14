@@ -13,7 +13,6 @@ import boto3
 
 s3_client = boto3.client("s3")
 
-handler_object = None
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
     

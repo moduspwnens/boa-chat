@@ -18,7 +18,10 @@ from apigateway_helpers.headers import get_response_headers
 client_message_id_max_length = 36
 
 sns_client = boto3.client("sns")
-cognito_sync_client = boto3.client("cognito-sync")
+cognito_idp_client = boto3.client("cognito-idp")
+logs_client = boto3.client("logs")
+
+room_streams_created_map = {}
 
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
@@ -47,17 +50,22 @@ def lambda_handler(event, context):
     user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
     identity_pool_id = event["requestContext"]["identity"]["cognitoIdentityPoolId"]
     
-    response = cognito_sync_client.list_records(
-        IdentityPoolId = identity_pool_id,
-        IdentityId = cognito_identity_id,
-        DatasetName = user_profile_dataset_name
-    )
+    cognito_auth_provider_string = event["requestContext"]["identity"]["cognitoAuthenticationProvider"]
+    cognito_idp_name = cognito_auth_provider_string.split(",")[0]
+    user_pool_id = "/".join(cognito_idp_name.split("/")[1:])
+    cognito_user_pool_sub_value = cognito_auth_provider_string.split(",")[1].split(":")[2]
+    
     
     author_name = cognito_identity_id
-    for each_record in response["Records"]:
-        if each_record["Key"] == "email-address":
-            author_name = each_record["Value"]
-            break
+    
+    response = cognito_idp_client.list_users(
+        UserPoolId = user_pool_id,
+        AttributesToGet = ["email"],
+        Filter = "sub = \"{}\"".format(cognito_user_pool_sub_value),
+        Limit = 1
+    )
+
+    author_name = response["Users"][0]["Attributes"][0]["Value"]
     
     message_object = {
         "identity-id": cognito_identity_id,

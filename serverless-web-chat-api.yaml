@@ -368,8 +368,6 @@ Resources:
                 Resource: '*'
   
   
-  
-  
   #  
   #   User Registration Request Handler Function
   #  
@@ -1015,6 +1013,10 @@ Resources:
             Fn::Sub: ${RoomLifecycleHandlerFunctionRole.Arn}
           ROOM_LIFECYCLE_STATE_MACHINE_ARN:
             Fn::Sub: ${RoomLifecycleStateMachine.StateMachineArn}
+          ROOM_LOG_EVENT_PROCESSOR_FUNCTION_ARN:
+            Fn::Sub: ${RoomLogEventProcessorFunction.Arn}
+          OWN_FUNCTION_ROLE:
+            Fn::Sub: ${RoomGeneratorFunctionRole.Arn}
           SHARED_BUCKET:
             Ref: SharedBucket
           SUBSCRIBE_ROOM_TOPIC_ROLE:
@@ -1023,6 +1025,7 @@ Resources:
             Fn::Sub: ${SNSFailureFeedbackRole.Arn}
           SNS_SUCCESS_FEEDBACK_ROLE:
             Fn::Sub: ${SNSSuccessFeedbackRole.Arn}
+            
       Runtime: python2.7
       Timeout: 300
   
@@ -1060,8 +1063,9 @@ Resources:
                 Action: 
                   - logs:CreateLogGroup
                   - logs:PutMetricFilter
+                  - logs:PutSubscriptionFilter
                 Resource: 
-                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
               - Effect: Allow
                 Action:
                   - states:StartExecution
@@ -1075,8 +1079,6 @@ Resources:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomGeneratorFunction
       RetentionInDays:
         Ref: LogRetentionDays
-  
-  
   
   
   #  
@@ -1380,17 +1382,18 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  Fn::Sub: ${RoomMessagePosterFunctionLogGroup.Arn}
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                Resource:
-                  Fn::Sub: arn:aws:s3:::${SharedBucket}/room-topics/*
+                  - Fn::Sub: ${RoomMessagePosterFunctionLogGroup.Arn}
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${ProjectGlobalPrefix.Prefix}-Room-*
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
                 Resource:
                   Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:ListUsers
+                Resource:
+                  Fn::Sub: ${CognitoUserPool.Arn}
   
   RoomMessagePosterFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1414,7 +1417,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Creates a new API key and assigns it to a user.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -1509,6 +1512,79 @@ Resources:
   
   
   
+  
+  #
+  #   Room Log Event Processor
+  #
+  
+  RoomLogEventProcessorFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomLogEventProcessorFunction
+      Description: Processes CloudWatch room event logs
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${RoomLogEventProcessorFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/RoomLogEventProcessorFunction.zip
+      Runtime: python2.7
+      Timeout: 300
+  
+  RoomLogEventProcessorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${RoomLogEventProcessorFunctionLogGroup.Arn}
+  
+  RoomLogEventProcessorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomLogEventProcessorFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  RoomLogEventProcessorSnsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: RoomLogEventProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-*
+      
+  
+  
   #
   #   Room Lifecycle Handler
   #   
@@ -1518,12 +1594,12 @@ Resources:
   
   RoomLifecycleHandlerFunction:
     Type: AWS::Lambda::Function
-    #Metadata:
-    #  PreWarming: true
+    Metadata:
+      PreWarming: true
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomLifecycleHandlerFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Handles room lifecycle events as part of a state machine.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -1575,7 +1651,7 @@ Resources:
                 Action:
                   - logs:DeleteLogGroup
                 Resource: 
-                  Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
               - Effect: Allow
                 Action:
                   - sqs:ListQueues
@@ -2543,7 +2619,7 @@ Resources:
   #
   #   Step Function State Machine
   #   
-  #   CloudFormation custom resource a for Step Function State Machine.
+  #   CloudFormation custom resource for a Step Functions State Machine.
   #
   
   StepFunctionStateMachineCustomResourceFunction:
@@ -2551,7 +2627,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: CloudFormation custom resource for a Step Functions State Machine.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -2645,7 +2721,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiGatewayLambdaSetupFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Performs grunt work with linking API Gateway with Lambda functions
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -2779,7 +2855,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserResourceCleanupFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Cleans up user-specific resources on resource deletion
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -3007,7 +3083,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3ObjectWriterFunction
-      Description: Performs cleanup of associated resources on stack deletion.
+      Description: Used as a CloudFormation custom resource for writing an object to S3.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
@@ -3265,7 +3341,7 @@ Resources:
       Handler: index.lambda_handler
       MemorySize: 128
       Role:
-        Fn::Sub: ${SimpleStringReplaceFunctionRole.Arn}
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunctionRole.Arn}
       Code:
         ZipFile: |-
           import random

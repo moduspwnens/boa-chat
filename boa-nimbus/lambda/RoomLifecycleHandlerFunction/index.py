@@ -30,12 +30,11 @@ def lambda_handler(event, context):
         }
     
     room_id = event["id"]
-    log_group_name = event["config"]["log-group"]
     sns_topic_arn = event["config"]["sns-topic-arn"]
     
     if not event.get("new-posts-disabled", False):
         try:
-            close_room_to_new_posts(sns_topic_arn)
+            close_room_to_new_posts(sns_topic_arn, room_id)
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "AuthorizationError":
                 print("Unable to set room topic policy. Presumed already deleted.")
@@ -57,14 +56,17 @@ def lambda_handler(event, context):
             else:
                 raise
         
-        print("Deleting log group ({}).".format(log_group_name))
-        try:
-            logs_client.delete_log_group(logGroupName=log_group_name)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                print("Log group already deleted.")
-            else:
-                raise
+        for each_log_group_name_key in ["sns-log-group"]:
+            each_log_group_name = event["config"][each_log_group_name_key]
+            
+            print("Deleting log group ({}).".format(each_log_group_name))
+            try:
+                logs_client.delete_log_group(logGroupName=each_log_group_name)
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                    print("Log group already deleted.")
+                else:
+                    raise
         
         deleted_queue_url_map = {}
         
@@ -112,7 +114,7 @@ def lambda_handler(event, context):
     
     return dict(event, **{})
 
-def close_room_to_new_posts(sns_topic_arn):
+def close_room_to_new_posts(sns_topic_arn, room_id):
     print("Setting room topic to disallow new subscriptions and user posts.")
     
     sns_client.set_topic_attributes(
@@ -123,16 +125,24 @@ def close_room_to_new_posts(sns_topic_arn):
     
     print("Posting final room closure message.")
     
+    message_object = {
+        "identity-id": "SYSTEM",
+        "author-name": "System Message",
+        "message": "The room is now closed.",
+        "type": "ROOM_CLOSED",
+        "timestamp": int(time.time())
+    }
+    
     sns_client.publish(
         TopicArn = sns_topic_arn,
-        Message = json.dumps({
-            "identity-id": "SYSTEM",
-            "author-name": "System Message",
-            "message": "The room is now closed.",
-            "type": "ROOM_CLOSED",
-            "timestamp": int(time.time())
-        })
+        Message = json.dumps(message_object)
     )
+    
+    # Export message as plain JSON for Firehose.
+    print(json.dumps({
+        "room-id": room_id,
+        "message": message_object
+    }))
     
 def get_default_closed_sns_topic_policy(sns_topic_arn):
     return json.dumps({
