@@ -1,0 +1,433 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Continuous integration stack for serverless web chat project.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Configuration
+        Parameters:
+          - IncludeCodePipeline
+    ParameterLabels:
+      IncludeCodePipeline:
+        default: Include CodePipeline
+
+Parameters:
+  SourceLocationType:
+    Type: String
+    Default: CODECOMMIT
+    AllowedValues:
+      - CODECOMMIT
+      - CODEPIPELINE
+      - GITHUB
+      - S3
+  SourceLocation:
+    Type: String
+    Default: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-serverless-web-chat
+  IncludeCodePipeline:
+    Type: String
+    Default: 'No'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+
+Conditions:
+  IncludeCodePipelineCondition:
+    Fn::Equals:
+      - Ref: IncludeCodePipeline
+      - 'Yes'
+
+Resources:
+  
+  MainRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
+  
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+  
+  DockerBuilderImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-builder
+  
+  DockerBuilderCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${DockerBuilderCodeBuildLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:137112412989:repository/amazonlinux
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectGlobalPrefix.Prefix}-webchat-builder
+        - PolicyName: BennActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
+  
+  DockerBuilderCodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-builder
+  
+  DockerBuilderCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/docker:1.12.1
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value:
+              Ref: AWS::Region
+          - Name: AWS_ACCOUNT_ID
+            Value:
+              Ref: AWS::AccountId
+          - Name: IMAGE_REPO_NAME
+            Value:
+              Ref: DockerBuilderImageRepository
+          - Name: IMAGE_TAG
+            Value: latest
+      Name:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-builder
+      Description: Builds the Docker image used for normal Lambda package builds.
+      ServiceRole:
+        Fn::Sub: ${DockerBuilderCodeBuildRole.Arn}
+      Source:
+        Location:
+          Ref: SourceLocation
+        Type:
+          Ref: SourceLocationType
+        BuildSpec: |-
+          version: 0.1
+          
+          phases:
+            pre_build:
+              commands:
+                - echo Logging in to Amazon ECR...
+                - $(aws ecr get-login --region $AWS_DEFAULT_REGION --registry-ids 137112412989)
+                - docker pull 137112412989.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/amazonlinux:latest
+                - docker tag 137112412989.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/amazonlinux:latest amazonlinux:latest
+                - $(aws ecr get-login --region $AWS_DEFAULT_REGION)
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker build -f continuous-integration/Dockerfile -t $IMAGE_REPO_NAME .
+                - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      TimeoutInMinutes: 30
+  
+  MainCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 137112412989.dkr.ecr.${AWS::Region}.amazonaws.com/amazonlinux:latest
+        Type: LINUX_CONTAINER
+      Name:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
+      ServiceRole:
+        Fn::Sub: ${MainCodeBuildRole.Arn}
+      Source:
+        Location: CODEPIPELINE
+        Type: CODEPIPELINE
+  
+  MainCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: CodeBuildRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudWatchLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                - "*"
+              - Sid: CodeCommitPolicy
+                Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - "*"
+              - Sid: S3GetObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource:
+                  - "*"
+              - Sid: S3PutObjectPolicy
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - "*"
+  
+  BuildPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Condition: IncludeCodePipelineCondition
+    Properties:
+      ArtifactStore:
+        Location:
+          Ref: ArtifactStoreBucket
+        Type: S3
+      RoleArn:
+        Fn::Sub: ${BuildPipelineRole.Arn}
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                BranchName: master
+                RepositoryName:
+                  Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
+              OutputArtifacts:
+                - Name: MyApp
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: AWS CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName:
+                  Ref: MainCodeBuildProject
+              OutputArtifacts:
+                - Name: MyAppBuild
+  
+  BuildPipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: BuildPipelineRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::codepipeline*
+                  - arn:aws:s3:::elasticbeanstalk*
+                Effect: Allow
+              - Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:RegisterApplicationRevision
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - elasticbeanstalk:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - s3:*
+                  - sns:*
+                  - cloudformation:*
+                  - rds:*
+                  - sqs:*
+                  - ecs:*
+                  - iam:PassRole
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - lambda:InvokeFunction
+                  - lambda:ListFunctions
+                Resource: "*"
+                Effect: Allow
+              - Action:
+                  - opsworks:CreateDeployment
+                  - opsworks:DescribeApps
+                  - opsworks:DescribeCommands
+                  - opsworks:DescribeDeployments
+                  - opsworks:DescribeInstances
+                  - opsworks:DescribeStacks
+                  - opsworks:UpdateApp
+                  - opsworks:UpdateStack
+                Resource: "*"
+                Effect: Allow
+          
+  
+  #
+  #   Stack Global Prefix Generator
+  #   
+  #   For proper IAM restrictions, it helps to have a unique prefix. For 
+  #   example:
+  #     arn:sqs:us-east-1:000011112222:MyUniquePrefix-*
+  #   
+  #   Normally I'd use the stack name, but it can be up to 128 characters. 
+  #   That means I risk exceeding the 80 character limits for an SQS queue 
+  #   name (for example) if I just use that.
+  #   
+  #   This function just generates a unique global prefix that can be used 
+  #   by all resources to indicate "this resource belongs to this stack / 
+  #   project deployment".
+  #
+  
+  ProjectGlobalPrefixGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a short sufficiently-random string for stack resources.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import random
+          import string
+          import cfnresponse
+          
+          # The zbase32 alphabet.
+          prefix_characters = "ybndrfg8ejkmcpqxot1uwisza345h769"
+          
+          def lambda_handler(event, context):
+              response_dict = {
+                  "Prefix": random.choice(string.ascii_lowercase) + ''.join(random.choice(prefix_characters) for _ in range(5))
+              }
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, None)
+      Runtime: python2.7
+      Timeout: 300
+
+  ProjectGlobalPrefixGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ProjectGlobalPrefix:
+    Type: Custom::ProjectGlobalPrefixGeneration
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunction.Arn}
+
+Outputs:
+  ArtifactStoreBucket:
+    Value:
+      Ref: ArtifactStoreBucket
+  RepositoryCloneUrlHttp:
+    Value:
+      Fn::GetAtt:
+        - MainRepository
+        - CloneUrlHttp
+  RepositoryCloneUrlSsh:
+    Value:
+      Fn::GetAtt:
+        - MainRepository
+        - CloneUrlSsh
