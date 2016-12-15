@@ -1383,7 +1383,6 @@ Resources:
                   - logs:PutLogEvents
                 Resource:
                   - Fn::Sub: ${RoomMessagePosterFunctionLogGroup.Arn}
-                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${ProjectGlobalPrefix.Prefix}-Room-*
               - Effect: Allow
                 Action:
                   - cognito-sync:ListRecords
@@ -1404,49 +1403,45 @@ Resources:
         Ref: LogRetentionDays
   
   
-  #
-  #   API Key Creator
-  #   
-  #   Used with a state machine to create a new API key for a user.
-  #
   
-  ApiKeyCreatorFunction:
+  #  
+  #   Room Message Log Fetcher Function
+  #  
+    
+  RoomMessageLogFetcherFunction:
     Type: AWS::Lambda::Function
     Metadata:
       PreWarming: true
     Properties:
       FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
-      Description: Creates a new API key and assigns it to a user.
-      Handler: index.lambda_handler
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessageLogFetcherFunction
+      Description: Returns any new messages sent to the requested room.
+      Handler: index.proxy_lambda_handler
       MemorySize:
         Fn::FindInMap:
           - StaticVariables
           - LambdaMemoryClasses
           - ApiOccasional
       Role:
-        Fn::Sub: ${ApiKeyCreatorFunctionRole.Arn}
+        Fn::Sub: ${RoomMessageLogFetcherFunctionRole.Arn}
       Code:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
-        S3Key: lambda/ApiKeyCreatorFunction.zip
+        S3Key: lambda/RoomMessageLogFetcherFunction.zip
       Environment:
         Variables:
-          COGNITO_IDENTITY_POOL_ID:
-            Fn::Sub: ${CognitoIdentityPool.Id}
-          COGNITO_USER_PROFILE_DATASET_NAME:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - CognitoIdentityUserProfileDatasetName
-          STACK_NAME:
-            Ref: AWS::StackName
-          USAGE_PLAN_ID:
-            Ref: WebChatApiBasicUsagePlan
+          API_DEFINITION_KEY:
+            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
+          CORS_ORIGINS:
+            Fn::Sub: ${CorsOriginListEscaped.Output}
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
+          SHARED_BUCKET:
+            Ref: SharedBucket
       Runtime: python2.7
       Timeout: 300
   
-  ApiKeyCreatorFunctionRole:
+  RoomMessageLogFetcherFunctionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -1469,47 +1464,29 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  Fn::Sub: ${ApiKeyCreatorFunctionLogGroup.Arn}
+                  - Fn::Sub: ${RoomMessageLogFetcherFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
-                  - apigateway:POST
+                  - s3:GetObject
                 Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/room-event-logs/*
               - Effect: Allow
                 Action:
-                  - apigateway:DELETE
+                  - s3:ListBucket
                 Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
-              - Effect: Allow
-                Action:
-                  - apigateway:POST
-                Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
-              - Effect: Allow
-                Action:
-                  - cognito-sync:ListRecords
-                Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
-              - Effect: Allow
-                Action:
-                  - cognito-sync:UpdateRecords
-                Resource:
-                  Fn::Sub: 
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                    - CognitoIdentityUserProfileDatasetName:
-                        Fn::FindInMap:
-                          - StaticVariables
-                          - Main
-                          - CognitoIdentityUserProfileDatasetName
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - room-event-logs/*
   
-  ApiKeyCreatorFunctionLogGroup:
+  RoomMessageLogFetcherFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessageLogFetcherFunction
       RetentionInDays:
         Ref: LogRetentionDays
-  
   
   
   
@@ -1537,6 +1514,10 @@ Resources:
         S3Bucket:
           Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
         S3Key: lambda/RoomLogEventProcessorFunction.zip
+      Environment:
+        Variables:
+          SHARED_BUCKET:
+            Ref: SharedBucket
       Runtime: python2.7
       Timeout: 300
   
@@ -1564,6 +1545,11 @@ Resources:
                   - logs:PutLogEvents
                 Resource:
                   Fn::Sub: ${RoomLogEventProcessorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${SharedBucket}/room-event-logs/*
   
   RoomLogEventProcessorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1742,6 +1728,114 @@ Resources:
           }
       RoleArn:
         Fn::Sub: ${RoomLifecycleStateMachineRole.Arn}
+  
+  
+  
+  #
+  #   API Key Creator
+  #   
+  #   Used with a state machine to create a new API key for a user.
+  #
+  
+  ApiKeyCreatorFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      PreWarming: true
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
+      Description: Creates a new API key and assigns it to a user.
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${ApiKeyCreatorFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${CloudFormationPresetVariables.S3SourceBucket}
+        S3Key: lambda/ApiKeyCreatorFunction.zip
+      Environment:
+        Variables:
+          COGNITO_IDENTITY_POOL_ID:
+            Fn::Sub: ${CognitoIdentityPool.Id}
+          COGNITO_USER_PROFILE_DATASET_NAME:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - CognitoIdentityUserProfileDatasetName
+          STACK_NAME:
+            Ref: AWS::StackName
+          USAGE_PLAN_ID:
+            Ref: WebChatApiBasicUsagePlan
+      Runtime: python2.7
+      Timeout: 300
+  
+  ApiKeyCreatorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${ApiKeyCreatorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
+              - Effect: Allow
+                Action:
+                  - apigateway:DELETE
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
+              - Effect: Allow
+                Action:
+                  - apigateway:POST
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
+              - Effect: Allow
+                Action:
+                  - cognito-sync:ListRecords
+                Resource:
+                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
+              - Effect: Allow
+                Action:
+                  - cognito-sync:UpdateRecords
+                Resource:
+                  Fn::Sub: 
+                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
+                    - CognitoIdentityUserProfileDatasetName:
+                        Fn::FindInMap:
+                          - StaticVariables
+                          - Main
+                          - CognitoIdentityUserProfileDatasetName
+  
+  ApiKeyCreatorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   
   
@@ -2037,6 +2131,7 @@ Resources:
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PUT/user/api-key
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room/*/session
+                  - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/GET/room/*/message
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/POST/room/*/message
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/GET/room/*/session/*/message
                   - Fn::Sub: arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebChatApi}/${WebChatApiStage}/PUT/room/*/session/*/message
@@ -2827,6 +2922,7 @@ Resources:
       - StackCleanupInvocation
       - RoomGeneratorFunction
       - RoomMessageAcknowledgerFunction
+      - RoomMessageLogFetcherFunction
       - RoomMessagePollerFunction
       - RoomMessagePosterFunction
       - RoomSessionGeneratorFunction

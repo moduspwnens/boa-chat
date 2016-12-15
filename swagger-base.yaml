@@ -70,6 +70,32 @@ paths:
         - api_key: []
   
   /room/{room-id}/message:
+    get:
+      summary: Get messages from the room's message log
+      description: |+
+        The room's message log doesn't allow for long polling or notification 
+        of new messages, so this method is most suitable for fetching prior 
+        messages.
+        
+        Examples would include fetching the prior messages from a room after 
+        joining, or fetching a closed room's history.
+      x-boa-lambda-resource-name: RoomMessageLogFetcherFunction
+      tags:
+        - chat
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Success
+          examples:
+            application/json:
+              placeholder: true
+      security:
+        - sigv4: []
+        - api_key: []
+        
     post:
       summary: Post a new message to a chat room
       description: Returns the message's unique id.
@@ -144,7 +170,7 @@ paths:
   
   /room/{room-id}/session/{session-id}/message:
     get:
-      summary: Fetch messages a chat room session
+      summary: Fetch messages from a chat room session
       description: |+
         This method will wait up to 20 seconds to return, but will return as 
         soon as at least one message is available.
