@@ -60,10 +60,17 @@ def lambda_handler(event, context):
         })
     
     for each_receipt_handle_group in chunker(receipt_handle_entries, sqs_max_batch_delete):
-        response = sqs_client.delete_message_batch(
-            QueueUrl = queue_url,
-            Entries = each_receipt_handle_group
-        )
+        try:
+            response = sqs_client.delete_message_batch(
+                QueueUrl = queue_url,
+                Entries = each_receipt_handle_group
+            )
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'AWS.SimpleQueueService.NonExistentQueue':
+                print("Room session queue doesn't exist any more.")
+                break
+            else:
+                raise
         
         failed_deletes = response.get("Failed", [])
         
