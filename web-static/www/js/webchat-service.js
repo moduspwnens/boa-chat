@@ -424,6 +424,34 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     });
   }
   
+  webchatService.getRoomMessageHistory = function(roomId, nextToken) {
+    var requestEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/message';
+    
+    var params = {
+      direction: "reverse"
+    };
+    
+    if (!angular.isUndefined(nextToken)) {
+      params["next-token"] = nextToken;
+    }
+    
+    return $q(function(resolve, reject) {
+      $http({
+        method: 'GET',
+        url: requestEndpoint,
+        params: params,
+        sign: true,
+        includeApiKey: true
+      })
+      .success(function(angResponseObject) {
+        resolve(angResponseObject);
+      })
+      .error(function() {
+        reject(arguments);
+      })
+    });
+  }
+  
   var roomSessionMessageWatchActive = false;
   var roomSessionMessageWatchPollLiveCounter = 0;
   var consecutiveRoomSessionMessagePollErrors = 0;

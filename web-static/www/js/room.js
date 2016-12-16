@@ -80,6 +80,23 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     webchatService.stopWatchingForRoomSessionMessages(clientSessionId);
   }
   
+  var fetchRecentRoomMessages = function() {
+    webchatService.getRoomMessageHistory(roomId)
+      .then(function(response) {
+        var messageArray = response.messages;
+        
+        newMessagesReceived(messageArray);
+        
+        if (response.truncated) {
+          console.log("Room has prior messages, too.");
+        }
+      })
+      .catch(function(errorReason) {
+        console.log("Error occurred fetching recent room messages.");
+        console.log(errorReason);
+      })
+  }
+  
   webchatService.createNewRoomSession(roomId)
     .then(function(sessionId) {
       
@@ -93,6 +110,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       $scope.messageInputDisabled = false;
       
       focusSendMessageBox();
+      
+      fetchRecentRoomMessages();
       
     })
     .catch(function() {
