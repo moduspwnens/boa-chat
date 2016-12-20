@@ -5,6 +5,7 @@ import boto3
 s3_client = boto3.client('s3')
 env_var_name = "SHARED_BUCKET"
 cors_json_s3_key = "api-cors.json"
+cors_max_age_seconds = 3600
 
 cached_cors_config = None
 
@@ -51,6 +52,9 @@ def get_response_headers(event, context):
     cors_origin_string = ",".join(os.environ.get("CORS_ORIGINS", "").strip(";").split(";"))
     if len(resource_cors_config) > 0 and len(cors_origin_string) > 0:
         return_headers["Access-Control-Allow-Origin"] = cors_origin_string
+    
+    if len(return_headers) > 1:
+        return_headers["Access-Control-Max-Age"] = "{}".format(cors_max_age_seconds)
     
     return return_headers
 

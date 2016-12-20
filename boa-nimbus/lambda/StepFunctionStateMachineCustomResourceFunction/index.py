@@ -23,7 +23,6 @@ def lambda_handler(event, context):
     resource_props = event["ResourceProperties"]
     
     stack_id = event["StackId"]
-    stack_name = stack_id.split(":")[5].split("/")[1]
     
     physical_resource_id = event.get("PhysicalResourceId")
     

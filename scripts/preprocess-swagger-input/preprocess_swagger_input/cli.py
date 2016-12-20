@@ -49,6 +49,11 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
             each_path
         ))
     
+    response_mapping_headers = ["Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"]
+    
+    if "x-boa-cors-max-age" in input_template:
+        response_mapping_headers.append("Access-Control-Max-Age")
+    
     cors_headers_list = []
     if "x-boa-cors-headers" in input_template:
         cors_headers_list.extend(input_template["x-boa-cors-headers"].split(","))
@@ -97,7 +102,7 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
             each_response_headers = responses_dict.get("headers", {})
             
             if add_cors_response_headers:
-                for each_cors_header in ["Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"]:
+                for each_cors_header in response_mapping_headers:
                     each_response_headers[each_cors_header] = {
                         "type": "string"
                     }
@@ -166,7 +171,12 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
                     "application/json"
                 )
                 
-                for each_cors_header in ["Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"]:
+                if "x-boa-cors-max-age" in input_template:
+                    response_parameters["method.response.header.Access-Control-Max-Age"] = "'{}'".format(
+                        input_template["x-boa-cors-max-age"]
+                    )
+                
+                for each_cors_header in response_mapping_headers:
                     each_method_def["responses"][each_response_key]["headers"][each_cors_header] = {
                         "type": "string"
                     }
@@ -210,7 +220,7 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
         }
     }
     
-    for each_cors_header in ["Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"]:
+    for each_cors_header in response_mapping_headers:
         options_method_def["responses"]["200"]["headers"][each_cors_header] = {
             "type": "string"
         }
@@ -231,6 +241,11 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
     response_parameters["method.response.header.Content-Type"] = "'{}'".format(
         "application/json"
     )
+    
+    if "x-boa-cors-max-age" in input_template:
+        response_parameters["method.response.header.Access-Control-Max-Age"] = "'{}'".format(
+            input_template["x-boa-cors-max-age"]
+        )
     
     
     input_template["paths"][each_path]["options"] = options_method_def

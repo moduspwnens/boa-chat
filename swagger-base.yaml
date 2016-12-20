@@ -11,6 +11,7 @@ schemes:
 
 x-boa-cors-enable: true
 x-boa-cors-headers: Content-Type
+x-boa-cors-max-age: 3600
 
 tags:
   - name: global
