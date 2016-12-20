@@ -6,14 +6,23 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: Configuration
+          default: Deployment
         Parameters:
-          - IncludeCodePipeline
+          - SourceLocationType
+          - SourceLocation
     ParameterLabels:
-      IncludeCodePipeline:
-        default: Include CodePipeline
+      DockerImageBuildVersion:
+        default: Docker Image Build Version
+      SourceLocation:
+        default: Source Location
+      SourceLocationType:
+        default: Source Location Type
 
 Parameters:
+  DockerImageBuildVersion:
+    Type: String
+    Description: Change this value on stack update to rebuild the Docker image used for building.
+    Default: ''
   SourceLocationType:
     Type: String
     Default: CODECOMMIT
@@ -25,18 +34,12 @@ Parameters:
   SourceLocation:
     Type: String
     Default: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-serverless-web-chat
-  IncludeCodePipeline:
-    Type: String
-    Default: 'No'
-    AllowedValues:
-      - 'Yes'
-      - 'No'
 
-Conditions:
-  IncludeCodePipelineCondition:
-    Fn::Equals:
-      - Ref: IncludeCodePipeline
-      - 'Yes'
+
+Mappings:
+  StaticVariables:
+    Main:
+      DockerImageBuildTimeoutMinutes: 30
 
 Resources:
   
@@ -173,7 +176,11 @@ Resources:
                 - echo Build completed on `date`
                 - echo Pushing the Docker image...
                 - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      TimeoutInMinutes: 30
+      TimeoutInMinutes:
+        Fn::FindInMap:
+          - StaticVariables
+          - Main
+          - DockerImageBuildTimeoutMinutes
   
   MainCodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -210,37 +217,35 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Sid: CloudWatchLogsPolicy
-                Effect: Allow
+              - Effect: Allow
                 Action:
-                  - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                - "*"
-              - Sid: CodeCommitPolicy
-                Effect: Allow
+                  - Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat:*
+              - Effect: Allow
                 Action:
                   - codecommit:GitPull
                 Resource:
-                  - "*"
-              - Sid: S3GetObjectPolicy
-                Effect: Allow
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
+        - PolicyName: BennActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
                 Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
+                  - codecommit:GitPull
                 Resource:
-                  - "*"
-              - Sid: S3PutObjectPolicy
-                Effect: Allow
-                Action:
-                  - s3:PutObject
-                Resource:
-                  - "*"
+                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
+  
+  MainCodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat
   
   BuildPipeline:
     Type: AWS::CodePipeline::Pipeline
-    Condition: IncludeCodePipelineCondition
     Properties:
       ArtifactStore:
         Location:
@@ -269,8 +274,10 @@ Resources:
               ActionTypeId:
                 Category: Build
                 Owner: AWS
-                Provider: AWS CodeBuild
+                Provider: CodeBuild
                 Version: 1
+              InputArtifacts:
+                - Name: MyApp
               Configuration:
                 ProjectName:
                   Ref: MainCodeBuildProject
@@ -343,18 +350,564 @@ Resources:
                   - lambda:ListFunctions
                 Resource: "*"
                 Effect: Allow
-              - Action:
-                  - opsworks:CreateDeployment
-                  - opsworks:DescribeApps
-                  - opsworks:DescribeCommands
-                  - opsworks:DescribeDeployments
-                  - opsworks:DescribeInstances
-                  - opsworks:DescribeStacks
-                  - opsworks:UpdateApp
-                  - opsworks:UpdateStack
-                Resource: "*"
-                Effect: Allow
           
+  
+  CodeBuildInstanceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+      Description: Perform a CodeBuild build as a CloudFormation custom resource
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${CodeBuildInstanceFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import json
+          import uuid
+          import boto3
+          import botocore
+          import cfnresponse
+          
+          codebuild_client = boto3.client("codebuild")
+          sfn_client = boto3.client("stepfunctions")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if event.get("RequestType") in ["Create", "Update"]:
+                  # This is the initial call from CloudFormation.
+                  
+                  resource_props = event["ResourceProperties"]
+                  
+                  response = sfn_client.start_execution(
+                      stateMachineArn = resource_props["StateMachineArn"],
+                      name = str(uuid.uuid4()),
+                      input = json.dumps({
+                          "cf-event": event,
+                          "fatal-error": False,
+                          "build-complete": False
+                      })
+                  )
+                  
+                  print("Execution ARN: {}".format(response["executionArn"]))
+                
+              elif event.get("RequestType") in ["Delete"]:
+                  # This is also an update or delete call from CloudFormation.
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+                  
+                  return {}
+              
+              else:
+                  return safe_state_machine_handler(event, context)
+              
+          
+          def safe_state_machine_handler(event, context):
+              try:
+                  return state_machine_handler(event, context)
+              except Exception as e:
+                  event["error-message"] = str(e)
+                  event["fatal-error"] = True
+                  return event
+              
+          def state_machine_handler(event, context):
+              
+              if event.get("fatal-error", False):
+                  # The state machine encountered a fatal error.
+                  cfnresponse.send(event["cf-event"], context, cfnresponse.FAILED, {}, None)
+              
+                  return {}
+          
+              elif "cf-event" in event:
+                  # This is an invocation from the Step Functions state machine.
+              
+                  if "build-id" not in event:
+                      # The build hasn't been started yet.
+                  
+                      resource_props = event["cf-event"]["ResourceProperties"]
+                  
+                      response = codebuild_client.start_build(
+                          projectName = resource_props["CodeBuildProject"]
+                      )
+                  
+                      event["build-id"] = response["build"]["id"]
+                  
+                      return event
+              
+                  else:
+                      # The build has been started. Check on its progress.
+                  
+                      response = codebuild_client.batch_get_builds(
+                          ids = [event["build-id"]]
+                      )
+                  
+                      this_build = response["builds"][0]
+                      
+                      if this_build["buildComplete"]:
+                          if this_build["buildStatus"] == "SUCCEEDED":
+                              
+                              cfnresponse.send(event["cf-event"], context, cfnresponse.SUCCESS, {}, None)
+                              event["build-complete"] = True
+                          else:
+                              
+                              cfnresponse.send(event["cf-event"], context, cfnresponse.FAILED, {}, None)
+                              
+                              event["fatal-error"] = True
+                              event["error-message"] = "Build completed with status: {}".format(this_build["buildStatus"])
+                              
+                  
+                      return event
+              
+              else:
+                  raise Exception("Unexpected input event.")
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  CodeBuildInstanceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${CodeBuildInstanceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  Fn::Sub: ${DockerBuilderCodeBuildProject.Arn}
+  
+  CodeBuildInstanceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+  
+  InitialDockerImageBuild:
+    Type: Custom::CodeBuildInstance
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CodeBuildInstanceFunction.Arn}
+      CodeBuildProject:
+        Ref: DockerBuilderCodeBuildProject
+      StateMachineArn:
+        Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
+      Version:
+        Ref: DockerImageBuildVersion
+  
+  CodeBuildInstanceStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - Fn::Sub: states.${AWS::Region}.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+  
+  CodeBuildInstanceStateMachine:
+    Type: Custom::StepFunctionStateMachine
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${StepFunctionStateMachineCustomResourceFunction.Arn}
+      Definition:
+        Fn::Sub: |-
+          {
+            "Comment": "A state machine for starting a CodeBuild build and waiting for it to complete.",
+            "StartAt": "StartBuild",
+            "States": {
+              "StartBuild": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Next": "WaitForBuildToRun"
+              },
+              "WaitForBuildToRun": {
+                "Type": "Wait",
+                "Seconds": 30,
+                "Next": "CheckIfBuildIsComplete"
+              },
+              "CheckIfBuildIsComplete": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Next": "IsBuildCompleteChoice"
+              },
+              "IsBuildCompleteChoice": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Variable": "$.build-complete",
+                    "BooleanEquals": true,
+                    "Next": "BuildIsComplete"
+                  },
+                  {
+                    "Variable": "$.fatal-error",
+                    "BooleanEquals": true,
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Default": "WaitForBuildToRun"
+              },
+              "BuildIsComplete": {
+                "Type": "Pass",
+                "End": true
+              },
+              "FatalErrorFallback": {
+                "Type": "Pass",
+                "Result": true,
+                "ResultPath": "$.fatal-error",
+                "Next": "FatalErrorComplete"
+              },
+              "FatalErrorComplete": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Retry": [
+                  {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 5,
+                    "MaxAttempts": 10
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+      RoleArn:
+        Fn::Sub: ${CodeBuildInstanceStateMachineRole.Arn}
+  
+  
+  #
+  #   Step Function State Machine
+  #
+  
+  StepFunctionStateMachineCustomResourceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
+      Description: CloudFormation custom resource for a Step Functions State Machine.
+      Handler: index.lambda_handler
+      MemorySize: 1536
+      Role:
+        Fn::Sub: ${StepFunctionStateMachineCustomResourceFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          """StepFunctionStateMachineCustomResourceFunction
+
+          AWS CloudFormation Custom Resource for a Step Functions State Machine.
+
+          """
+
+          from __future__ import print_function
+
+          import os
+          import json
+          import uuid
+          import time
+          import boto3
+          import botocore
+          import cfnresponse
+
+          sfn_client = boto3.client('stepfunctions')
+
+          def lambda_handler(event, context):
+              print('Event: {}'.format(json.dumps(event)))
+    
+              request_type = event.get("RequestType")
+              resource_props = event["ResourceProperties"]
+    
+              stack_id = event["StackId"]
+    
+              physical_resource_id = event.get("PhysicalResourceId")
+    
+              response_dict = {}
+    
+              if request_type in ["Update", "Delete"]:
+                  state_machine_arn = physical_resource_id
+                  
+                  if state_machine_arn != "Invalid":
+                      sfn_client.delete_state_machine(
+                          stateMachineArn = state_machine_arn
+                      )
+    
+              if request_type == "Update":
+                  state_machine_arn = physical_resource_id
+        
+                  print("Waiting for state machine to be deleted.")
+        
+                  while True:
+                      try:
+                          response = sfn_client.describe_state_machine(
+                              stateMachineArn = state_machine_arn
+                          )
+                          print(response["status"])
+                      except botocore.exceptions.ClientError as e:
+                          if e.response['Error']['Code'] == 'StateMachineDoesNotExist':
+                              break
+                          else:
+                              raise
+            
+                      time.sleep(5)
+    
+              if request_type in ["Create", "Update"]:
+        
+                  state_machine_name = get_state_machine_name()
+                  
+                  try:
+                      definition_dict = json.loads(resource_props["Definition"])
+                  except ValueError as e:
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {}, "Invalid")
+                      raise
+                  
+                  try:
+                      response = sfn_client.create_state_machine(
+                          name = state_machine_name,
+                          definition = json.dumps(definition_dict, indent=4),
+                          roleArn = resource_props["RoleArn"]
+                      )
+                  except botocore.exceptions.ClientError as e:
+                      if e.response['Error']['Code'] == 'InvalidDefinition':
+                          cfnresponse.send(event, context, cfnresponse.FAILED, {}, "Invalid")
+                      raise
+        
+                  state_machine_arn = response["stateMachineArn"]
+        
+                  physical_resource_id = state_machine_arn
+        
+                  response_dict["StateMachineArn"] = state_machine_arn
+                  response_dict["StateMachineName"] = state_machine_name
+        
+        
+
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, physical_resource_id)
+
+              return {}
+
+          def get_state_machine_name():
+              return "{}-{}".format(
+                  os.environ["PROJECT_GLOBAL_PREFIX"],
+                  "{}".format(
+                      uuid.uuid4()
+                  ).replace("-", "")
+              )
+      Environment:
+        Variables:
+          PROJECT_GLOBAL_PREFIX:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
+      Runtime: python2.7
+      Timeout: 300
+  
+  StepFunctionStateMachineCustomResourceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${StepFunctionStateMachineCustomResourceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - states:CreateStateMachine
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - states:DeleteStateMachine
+                  - states:DescribeStateMachine
+                  - states:ListExecutions
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - states:StopExecution
+                Resource:
+                  Fn::Sub: arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectGlobalPrefix.Prefix}-*
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  Fn::Sub: ${CodeBuildInstanceStateMachineRole.Arn}
+  
+  StepFunctionStateMachineCustomResourceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
+  
+  #
+  #   Docker Image Repository Cleanup
+  #   
+  #   An ECR repository can't be deleted unless it contains no images. This 
+  #   deletes those images so the stack can be deleted.
+  #
+  
+  DockerImageRepositoryCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-DockerImageRepositoryCleanupFunction
+      Description: Clears an ECR repository upon stack deletion
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${DockerImageRepositoryCleanupFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import json
+          import boto3
+          import botocore
+          import cfnresponse
+          
+          ecr_client = boto3.client("ecr")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              resource_props = event["ResourceProperties"]
+              
+              if event["RequestType"] == "Delete":
+                  
+                  repository_name = resource_props["EcrRepositoryName"]
+                  
+                  response_iterator = ecr_client.get_paginator("list_images").paginate(
+                      repositoryName = repository_name
+                  )
+                  
+                  for each_response in response_iterator:
+                      image_id_list = []
+                      
+                      for each_image_dict in each_response["imageIds"]:
+                          image_id_list.append({
+                              "imageDigest": each_image_dict["imageDigest"]
+                          })
+                      
+                      if len(image_id_list) == 0:
+                          continue
+                      
+                      delete_response = ecr_client.batch_delete_image(
+                          repositoryName = repository_name,
+                          imageIds = image_id_list
+                      )
+                      
+                      if len(delete_response.get("failures", [])) > 0:
+                          raise Exception("Failure occurred in deleting one or more ECR images.")
+                  
+              
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  DockerImageRepositoryCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${DockerImageRepositoryCleanupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                  - ecr:BatchDeleteImage
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${DockerBuilderImageRepository}
+  
+  DockerImageRepositoryCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-DockerImageRepositoryCleanupFunction
+  
+  DockerImageRepositoryCleanupInvocation:
+    Type: Custom::DockerImageRepositoryCleanup
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${DockerImageRepositoryCleanupFunction.Arn}
+      EcrRepositoryName:
+        Ref: DockerBuilderImageRepository
   
   #
   #   Stack Global Prefix Generator
