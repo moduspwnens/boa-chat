@@ -1,0 +1,22 @@
+version: 0.1
+
+phases:
+  pre_build:
+    commands:
+      - pip install git+git://github.com/moduspwnens/boa-nimbus.git
+      - pip install scripts/preprocess-swagger-input
+  build:
+    commands:
+      - echo Build started on `date`
+      - /bin/bash scripts/build-web-zip.sh
+      - preprocess-swagger-input process --input-swagger-file swagger-base.yaml --output-swagger-file boa-nimbus/s3/swagger-apigateway.yaml
+  post_build:
+    commands:
+      - echo Build completed on `date`
+
+artifacts:
+  discard-paths: yes
+  files:
+    - boa-nimbus/s3/swagger-apigateway.yaml
+    - boa-nimbus/s3/web-static.zip
+  

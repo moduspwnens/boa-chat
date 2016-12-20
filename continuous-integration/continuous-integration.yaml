@@ -35,12 +35,6 @@ Parameters:
     Type: String
     Default: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-serverless-web-chat
 
-
-Mappings:
-  StaticVariables:
-    Main:
-      DockerImageBuildTimeoutMinutes: 30
-
 Resources:
   
   MainRepository:
@@ -52,11 +46,39 @@ Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
   
+  
+  
   DockerBuilderImageRepository:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-builder
+        
+      # Note that the account IDs below are internal CodeCommit account IDs.
+      # https://docs.aws.amazon.com/codebuild/latest/userguide/sample-ecr.html
+      RepositoryPolicyText:
+        Fn::Sub: |-
+          {
+            "Version": "2008-10-17",
+            "Statement": [
+              {
+                "Sid": "CodeBuildAccess",
+                "Effect": "Allow",
+                "Principal": {
+                  "AWS": [
+                    "arn:aws:iam::201349592320:root",
+                    "arn:aws:iam::570169269855:root",
+                    "arn:aws:iam::964771811575:root"
+                  ]
+                },
+                "Action": [
+                  "ecr:GetDownloadUrlForLayer",
+                  "ecr:BatchGetImage",
+                  "ecr:BatchCheckLayerAvailability"
+                ]
+              }
+            ]
+          }
   
   DockerBuilderCodeBuildRole:
     Type: AWS::IAM::Role
@@ -176,11 +198,7 @@ Resources:
                 - echo Build completed on `date`
                 - echo Pushing the Docker image...
                 - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
-      TimeoutInMinutes:
-        Fn::FindInMap:
-          - StaticVariables
-          - Main
-          - DockerImageBuildTimeoutMinutes
+      TimeoutInMinutes: 30
   
   MainCodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -189,7 +207,8 @@ Resources:
         Type: CODEPIPELINE
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: 137112412989.dkr.ecr.${AWS::Region}.amazonaws.com/amazonlinux:latest
+        Image:
+          Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectGlobalPrefix.Prefix}-webchat-builder:latest
         Type: LINUX_CONTAINER
       Name:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
@@ -198,6 +217,7 @@ Resources:
       Source:
         Location: CODEPIPELINE
         Type: CODEPIPELINE
+      TimeoutInMinutes: 30
   
   MainCodeBuildRole:
     Type: AWS::IAM::Role
@@ -228,6 +248,16 @@ Resources:
                   - codecommit:GitPull
                 Resource:
                   - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}
         - PolicyName: BennActions
           PolicyDocument:
             Version: '2012-10-17'
@@ -302,54 +332,33 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Action:
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:GetBucketVersioning
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - s3:PutObject
-                Resource:
-                  - arn:aws:s3:::codepipeline*
-                  - arn:aws:s3:::elasticbeanstalk*
-                Effect: Allow
-              - Action:
+              - Effect: Allow
+                Action:
                   - codecommit:CancelUploadArchive
                   - codecommit:GetBranch
                   - codecommit:GetCommit
                   - codecommit:GetUploadArchiveStatus
                   - codecommit:UploadArchive
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - codedeploy:CreateDeployment
-                  - codedeploy:GetApplicationRevision
-                  - codedeploy:GetDeployment
-                  - codedeploy:GetDeploymentConfig
-                  - codedeploy:RegisterApplicationRevision
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - elasticbeanstalk:*
-                  - ec2:*
-                  - elasticloadbalancing:*
-                  - autoscaling:*
-                  - cloudwatch:*
-                  - s3:*
-                  - sns:*
-                  - cloudformation:*
-                  - rds:*
-                  - sqs:*
-                  - ecs:*
-                  - iam:PassRole
-                Resource: "*"
-                Effect: Allow
-              - Action:
-                  - lambda:InvokeFunction
-                  - lambda:ListFunctions
-                Resource: "*"
-                Effect: Allow
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketVersioning
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  Fn::Sub: ${MainCodeBuildProject.Arn}
+                
           
   
   CodeBuildInstanceFunction:
@@ -908,6 +917,156 @@ Resources:
         Fn::Sub: ${DockerImageRepositoryCleanupFunction.Arn}
       EcrRepositoryName:
         Ref: DockerBuilderImageRepository
+  
+  
+  #
+  #   Stack Cleanup
+  #   
+  #   This function performs basic setup and cleanup functionality when the 
+  #   stack is deleted.
+  #   
+  #   On delete:
+  #     - Clears out artifact S3 bucket
+  #
+  
+  StackCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-StackCleanupFunction
+      Description: Clears out the stack's S3 bucket
+      Handler: index.lambda_handler
+      MemorySize: 1536
+      Role:
+        Fn::GetAtt:
+        - StackCleanupFunctionRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+
+          import json
+          import boto3
+          import botocore
+          import cfnresponse
+          
+          s3_client = boto3.client("s3")
+          
+          class LambdaHandler(object):
+              
+              def __init__(self, context):
+                  pass
+  
+              def handle_event(self, event, context):
+                  print("Event: {}".format(json.dumps(event)))
+        
+                  request_type = event.get("RequestType")
+        
+                  if request_type == "Delete":
+                      self.handle_cleanup_event(event, context)
+        
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+        
+                  return {}
+    
+              def handle_cleanup_event(self, event, context):
+        
+                  s3_bucket_name = event["ResourceProperties"]["Bucket"]
+        
+                  paginator = s3_client.get_paginator("list_objects_v2")
+        
+                  response_iterator = paginator.paginate(
+                      Bucket = s3_bucket_name
+                  )
+        
+                  for each_list_response in response_iterator:
+                    keys_to_delete = []
+          
+                    for each_item in each_list_response.get("Contents", []):
+                        keys_to_delete.append(each_item["Key"])
+          
+                    if len(keys_to_delete) == 0:
+                        print("Last request for objects in {} returned none.".format(
+                            s3_bucket_name
+                        ))
+                        break
+                    
+                    print("Deleting {} object(s) from {}.".format(
+                        len(keys_to_delete),
+                        s3_bucket_name
+                    ))
+          
+                    s3_client.delete_objects(
+                        Bucket = s3_bucket_name,
+                        Delete = {
+                            "Objects": list({"Key": x} for x in keys_to_delete)
+                        }
+                    )
+          
+                    print("Object(s) deleted.")
+
+          handler_object = None
+          def lambda_handler(event, context):
+              global handler_object
+    
+              if handler_object is None:
+                  handler_object = LambdaHandler(context)
+    
+              return handler_object.handle_event(event, context)
+              
+      Runtime: python2.7
+      Timeout: 300
+  
+  StackCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${StackCleanupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}
+  
+  StackCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StackCleanupFunction
+  
+  StackCleanupInvocation:
+    Type: Custom::StackCleanupInvocation
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${StackCleanupFunction.Arn}
+      Bucket:
+        Ref: ArtifactStoreBucket
+  
+  
   
   #
   #   Stack Global Prefix Generator
