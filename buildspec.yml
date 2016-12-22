@@ -1,24 +1,48 @@
 version: 0.1
 
 phases:
-  pre_build:
+  install:
     commands:
       - pip install git+git://github.com/moduspwnens/boa-nimbus.git
       - pip install scripts/preprocess-swagger-input
+  
+  pre_build:
+    commands:
       - echo '{ "allow_root":true }' >> /root/.bowerrc
+  
   build:
     commands:
       - echo Build started on `date`
+      
+      # Build static web content.
       - cd web-static && npm install && bower install && gulp install
       - /bin/bash scripts/build-web-zip.sh
+      
+      # Add API Gateway Swagger extensions to base definition.
       - preprocess-swagger-input process --input-swagger-file swagger-base.yaml --output-swagger-file boa-nimbus/s3/swagger-apigateway.yaml
+      
+      # Build Lambda function packages.
+      - boa-nimbus build --no-use-docker
+      
+      # Restructure output directory.
+      - mkdir -p output/lambda
+      - mv boa-nimbus/s3/swagger-apigateway.yaml output
+      - mv boa-nimbus/s3/web-static.zip output
+      - mv build/boa-nimbus/lambda/*.json output/lambda/
+      - mv build/boa-nimbus/lambda/*.zip output/lambda/
+      
+      # Move output directory.
+      - mv output /tmp/
+      - rm -rf *
+      - rm -rf .git
+      - mv /tmp/output/* .
+      - ls
+  
   post_build:
     commands:
       - echo Build completed on `date`
 
 artifacts:
-  discard-paths: yes
   files:
-    - boa-nimbus/s3/swagger-apigateway.yaml
-    - boa-nimbus/s3/web-static.zip
+    - '**/*'
   
