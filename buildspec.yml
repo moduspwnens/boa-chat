@@ -36,7 +36,6 @@ phases:
       - rm -rf *
       - rm -rf .git
       - mv /tmp/output/* .
-      - ls
   
   post_build:
     commands:
