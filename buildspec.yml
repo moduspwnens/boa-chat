@@ -30,6 +30,7 @@ phases:
       - mv boa-nimbus/s3/web-static.zip output
       - mv build/boa-nimbus/lambda/*.json output/lambda/
       - mv build/boa-nimbus/lambda/*.zip output/lambda/
+      - mv serverless-web-chat-api.yaml output
       
       # Move output directory.
       - mv output /tmp/
