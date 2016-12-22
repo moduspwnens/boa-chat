@@ -5,9 +5,11 @@ phases:
     commands:
       - pip install git+git://github.com/moduspwnens/boa-nimbus.git
       - pip install scripts/preprocess-swagger-input
+      - echo '{ "allow_root":true }' >> /root/.bowerrc
   build:
     commands:
       - echo Build started on `date`
+      - cd web-static && npm install && bower install && gulp install
       - /bin/bash scripts/build-web-zip.sh
       - preprocess-swagger-input process --input-swagger-file swagger-base.yaml --output-swagger-file boa-nimbus/s3/swagger-apigateway.yaml
   post_build:
