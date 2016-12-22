@@ -10,6 +10,7 @@ COPY boa-nimbus/ /project-source/boa-nimbus/
 COPY scripts/ /project-source/scripts/
 RUN virtualenv /cache-venv && \
   cd /project-source/ && \
-  ls -la && \
+  pip install git+git://github.com/moduspwnens/boa-nimbus.git && \
+  pip install scripts/preprocess-swagger-input && \
   find /project-source -name 'requirements.txt' | while read -r EACH_PATH ; do /cache-venv/bin/pip install -r "$EACH_PATH"; done && \
   rm -rf /cache-venv
