@@ -14,6 +14,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   var unsentMessageMap = {};
   var confirmedSentMessageIdMap = {};
   
+  var recentRoomMessagesFetched = false;
   var clientRoomSessionWatchId = undefined;
   
   var roomChatEventComparator = function(a, b) {
@@ -86,6 +87,9 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         var messageArray = response.messages;
         
         newMessagesReceived(messageArray);
+        recentRoomMessagesFetched = true;
+        
+        evaluateIfReadyToPost();
         
         if (response.truncated) {
           console.log("Room has prior messages, too.");
@@ -97,26 +101,49 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       })
   }
   
-  webchatService.createNewRoomSession(roomId)
-    .then(function(sessionId) {
+  var createNewRoomSession = function() {
+    webchatService.createNewRoomSession(roomId)
+      .then(function(sessionId) {
       
-      if (!angular.isUndefined(clientRoomSessionWatchId)) {
-        stopSessionWatchingSession(clientRoomSessionWatchId);
-        clientRoomSessionWatchId = undefined;
-      }
+        if (!angular.isUndefined(clientRoomSessionWatchId)) {
+          stopSessionWatchingSession(clientRoomSessionWatchId);
+          clientRoomSessionWatchId = undefined;
+        }
       
-      clientRoomSessionWatchId = webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
+        clientRoomSessionWatchId = webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
+      
+      
+        evaluateIfReadyToPost();
+      
+      })
+      .catch(function() {
+        alert("An error occurred in trying to enter the room.");
+      });
+  }
+  
+  // User is ready to post if the session is created and recent messages have been fetched.
+  var readyToPostConfirmed = false;
+  
+  var evaluateIfReadyToPost = function() {
+    
+    if (readyToPostConfirmed) {
+      return;
+    }
+    
+    if (recentRoomMessagesFetched && !angular.isUndefined(clientRoomSessionWatchId)) {
       $scope.messageInputTextPlaceholder = "Send a message";
       $scope.messageInputDisabled = false;
       
       focusSendMessageBox();
-      
-      fetchRecentRoomMessages();
-      
-    })
-    .catch(function() {
-      alert("An error occurred in trying to enter the room.");
-    });
+      readyToPostConfirmed = true;
+    }
+  }
+  
+  
+  
+  fetchRecentRoomMessages();
+  createNewRoomSession();
+  
   
   var unsentMessageConfirmed = function(clientMessageId, serverMessageId) {
     var unsentMessage = unsentMessageMap[clientMessageId];
