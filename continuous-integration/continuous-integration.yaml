@@ -52,7 +52,7 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-builder
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-docker-builder
         
       # Note that the account IDs below are internal CodeCommit account IDs.
       # https://docs.aws.amazon.com/codebuild/latest/userguide/sample-ecr.html
@@ -79,6 +79,115 @@ Resources:
               }
             ]
           }
+  
+  InitialSourceRepositoryPusherCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${InitialSourceRepositoryPusherCodeBuildLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPush
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
+        - PolicyName: BennActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
+  
+  InitialSourceRepositoryPusherCodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-source-push
+  
+  InitialSourceRepositoryPusherCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/docker:1.12.1
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value:
+              Ref: AWS::Region
+          - Name: CODECOMMIT_SOURCE_URL
+            Value:
+              Ref: SourceLocation
+          - Name: CODECOMMIT_TARGET_URL
+            Value:
+              Fn::GetAtt:
+                - MainRepository
+                - CloneUrlHttp
+      Name:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-source-push
+      Description: Performs the initial push into the new CodeCommit repository.
+      ServiceRole:
+        Fn::Sub: ${InitialSourceRepositoryPusherCodeBuildRole.Arn}
+      Source:
+        Location:
+          Ref: SourceLocation
+        Type:
+          Ref: SourceLocationType
+        BuildSpec: |-
+          version: 0.1
+          
+          phases:
+            pre_build:
+              commands:
+                - git config --global push.default simple
+                - git config --global credential.helper '!aws codecommit credential-helper $@'
+                - git config --global credential.UseHttpPath true
+                - rm -rf *
+                - rm -rf .git
+            build:
+              commands:
+                - echo Build started on `date`
+                - git clone "$CODECOMMIT_SOURCE_URL" src; mv src/* src/.git* .; rmdir src
+                - git remote add codecommit "$CODECOMMIT_TARGET_URL"
+                - git push codecommit
+            post_build:
+              commands:
+                - echo Build completed on `date`
+      TimeoutInMinutes: 15
+  
+  InitialSourceRepositoryPush:
+    Type: Custom::CodeBuildInstance
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CodeBuildInstanceFunction.Arn}
+      CodeBuildProject:
+        Ref: InitialSourceRepositoryPusherCodeBuildProject
+      StateMachineArn:
+        Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
+  
   
   DockerBuilderCodeBuildRole:
     Type: AWS::IAM::Role
@@ -128,22 +237,13 @@ Resources:
                   - ecr:PutImage
                   - ecr:UploadLayerPart
                 Resource:
-                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectGlobalPrefix.Prefix}-webchat-builder
-        - PolicyName: BennActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codecommit:GitPull
-                Resource:
-                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectGlobalPrefix.Prefix}-webchat-docker-builder
   
   DockerBuilderCodeBuildLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-builder
+        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-docker-builder
   
   DockerBuilderCodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -167,15 +267,14 @@ Resources:
           - Name: IMAGE_TAG
             Value: latest
       Name:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-builder
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-docker-builder
       Description: Builds the Docker image used for normal Lambda package builds.
       ServiceRole:
         Fn::Sub: ${DockerBuilderCodeBuildRole.Arn}
       Source:
         Location:
-          Ref: SourceLocation
-        Type:
-          Ref: SourceLocationType
+          Fn::Sub: ${MainRepository.CloneUrlHttp}
+        Type: CODECOMMIT
         BuildSpec: |-
           version: 0.1
           
@@ -200,6 +299,20 @@ Resources:
                 - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       TimeoutInMinutes: 30
   
+  InitialDockerImageBuild:
+    Type: Custom::CodeBuildInstance
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CodeBuildInstanceFunction.Arn}
+      CodeBuildProject:
+        Ref: DockerBuilderCodeBuildProject
+      StateMachineArn:
+        Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
+      Version:
+        Ref: DockerImageBuildVersion
+    DependsOn:
+      - InitialSourceRepositoryPush
+  
   MainCodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -208,7 +321,7 @@ Resources:
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image:
-          Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectGlobalPrefix.Prefix}-webchat-builder:latest
+          Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectGlobalPrefix.Prefix}-webchat-docker-builder:latest
         Type: LINUX_CONTAINER
       Name:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
@@ -251,6 +364,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:GetObject
+                  - s3:PutObject
                 Resource:
                   Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
               - Effect: Allow
@@ -258,15 +372,6 @@ Resources:
                   - s3:ListBucket
                 Resource:
                   Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}
-        - PolicyName: BennActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codecommit:GitPull
-                Resource:
-                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
   
   MainCodeBuildLogGroup:
     Type: AWS::Logs::LogGroup
@@ -313,6 +418,8 @@ Resources:
                   Ref: MainCodeBuildProject
               OutputArtifacts:
                 - Name: MyAppBuild
+    DependsOn:
+      - InitialDockerImageBuild
   
   BuildPipelineRole:
     Type: AWS::IAM::Role
@@ -509,25 +616,14 @@ Resources:
                   - codebuild:StartBuild
                   - codebuild:BatchGetBuilds
                 Resource:
-                  Fn::Sub: ${DockerBuilderCodeBuildProject.Arn}
+                  - Fn::Sub: ${DockerBuilderCodeBuildProject.Arn}
+                  - Fn::Sub: ${InitialSourceRepositoryPusherCodeBuildProject.Arn}
   
   CodeBuildInstanceFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
-  
-  InitialDockerImageBuild:
-    Type: Custom::CodeBuildInstance
-    Properties:
-      ServiceToken:
-        Fn::Sub: ${CodeBuildInstanceFunction.Arn}
-      CodeBuildProject:
-        Ref: DockerBuilderCodeBuildProject
-      StateMachineArn:
-        Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
-      Version:
-        Ref: DockerImageBuildVersion
   
   CodeBuildInstanceStateMachineRole:
     Type: AWS::IAM::Role
@@ -848,24 +944,32 @@ Resources:
                       repositoryName = repository_name
                   )
                   
-                  for each_response in response_iterator:
-                      image_id_list = []
+                  try:
+                      for each_response in response_iterator:
+                          image_id_list = []
                       
-                      for each_image_dict in each_response["imageIds"]:
-                          image_id_list.append({
-                              "imageDigest": each_image_dict["imageDigest"]
-                          })
+                          for each_image_dict in each_response["imageIds"]:
+                              image_id_list.append({
+                                  "imageDigest": each_image_dict["imageDigest"]
+                              })
                       
-                      if len(image_id_list) == 0:
-                          continue
+                          if len(image_id_list) == 0:
+                              continue
                       
-                      delete_response = ecr_client.batch_delete_image(
-                          repositoryName = repository_name,
-                          imageIds = image_id_list
-                      )
+                          delete_response = ecr_client.batch_delete_image(
+                              repositoryName = repository_name,
+                              imageIds = image_id_list
+                          )
                       
-                      if len(delete_response.get("failures", [])) > 0:
-                          raise Exception("Failure occurred in deleting one or more ECR images.")
+                          if len(delete_response.get("failures", [])) > 0:
+                              raise Exception("Failure occurred in deleting one or more ECR images.")
+                              
+                  except botocore.exceptions.ClientError as e:
+                      if e.response['Error']['Code'] == 'AccessDeniedException':
+                          print("Access denied. Assuming no images need deleting.")
+                          pass
+                      else:
+                          raise
                   
               
               cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
