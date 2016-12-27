@@ -391,7 +391,7 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: Source
+            - Name: CodeCommitSource
               ActionTypeId:
                 Category: Source
                 Owner: AWS
@@ -402,7 +402,7 @@ Resources:
                 RepositoryName:
                   Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat
               OutputArtifacts:
-                - Name: MyApp
+                - Name: AppSource
         - Name: Build
           Actions:
             - Name: Build
@@ -412,12 +412,51 @@ Resources:
                 Provider: CodeBuild
                 Version: 1
               InputArtifacts:
-                - Name: MyApp
+                - Name: AppSource
               Configuration:
                 ProjectName:
                   Ref: MainCodeBuildProject
               OutputArtifacts:
-                - Name: MyAppBuild
+                - Name: AppPackage
+            - Name: GetStackTemplate
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              InputArtifacts:
+                - Name: AppSource
+              Configuration:
+                FunctionName:
+                  Ref: CodePipelineArtifactExtractorFunction
+                UserParameters: |-
+                  {
+                    "FilePath": "serverless-web-chat-api.yaml"
+                  }
+              OutputArtifacts:
+                - Name: CloudFormationStackTemplate
+        - Name: Deploy
+          Actions:
+            - Name: DeployStack
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              InputArtifacts:
+                - Name: CloudFormationStackTemplate
+              Configuration:
+                FunctionName:
+                  Ref: CloudFormationS3StackDeployerFunction
+                UserParameters:
+                  Fn::Sub: |-
+                    {
+                      "Capabilities": "CAPABILITY_IAM",
+                      "RoleArn": "${StackDeployCloudFormationRole.Arn}",
+                      "StackName": "${ProjectGlobalPrefix.Prefix}-webchat"
+                    }
+              OutputArtifacts:
+                - Name: CloudFormationStack
     DependsOn:
       - InitialDockerImageBuild
   
@@ -435,7 +474,7 @@ Resources:
               - sts:AssumeRole
       Path: "/"
       Policies:
-        - PolicyName: BuildPipelineRoleActions
+        - PolicyName: RoleActions
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -465,8 +504,410 @@ Resources:
                   - codebuild:BatchGetBuilds
                 Resource:
                   Fn::Sub: ${MainCodeBuildProject.Arn}
+              - Effect: Allow
+                Action:
+                  - lambda:ListFunctions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - Fn::Sub: ${CodePipelineArtifactExtractorFunction.Arn}
+                  - Fn::Sub: ${CloudFormationS3StackDeployerFunction.Arn}
                 
+  StackDeployCloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+        - PolicyName: MainStackActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:PATCH
+                  - apigateway:POST
+                  - iam:AttachRolePolicy
+                  - iam:CreateRole
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - lambda:AddPermission
+                  - lambda:CreateFunction
+                  - logs:CreateLogGroup
+                  - logs:PutRetentionPolicy
+                  - s3:CreateBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketWebsite
+                  - s3:PutLifecycleConfiguration
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - iam:GetRole
+                  - iam:PassRole
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:InvokeFunction
+                  - logs:DescribeLogGroups
+                  - s3:GetObject
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - apigateway:DELETE
+                  - iam:DeleteRole
+                  - iam:DeleteRolePolicy
+                  - lambda:DeleteFunction
+                  - lambda:RemovePermission
+                  - logs:DeleteLogGroup
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketPolicy
+                Resource: '*'
+  
+  
+  
+  
+  CloudFormationS3StackDeployerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CloudFormationS3StackDeployerFunction
+      Description: Creates or updates a CloudFormation stack using a template on S3
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${CloudFormationS3StackDeployerFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import os
+          import json
+          import boto3
+          import botocore
+
+          cloudformation_client = boto3.client("cloudformation")
+          codepipeline_client = boto3.client("codepipeline")
+
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+    
+              job_props = event["CodePipeline.job"]
+              artifact_creds = job_props["data"]["artifactCredentials"]
+              user_params = json.loads(job_props["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+    
+              stack_name = user_params["StackName"]
+    
+              stack_already_exists = False
+              create_update_ok = False
+    
+              try:
+                  response = cloudformation_client.describe_stacks(
+                      StackName = stack_name
+                  )
+                  
+                  this_stack = response["Stacks"][0]
+                  
+                  if this_stack["StackStatus"] == "ROLLBACK_COMPLETE":
+                      cloudformation_client.delete_stack(
+                          StackName = this_stack["StackId"]
+                      )
+    
+                      stack_already_exists = True
+                      create_update_ok = False
+                  
+                  elif this_stack["StackStatus"].endswith("_COMPLETE"):
+                      stack_already_exists = True
+                      create_update_ok = True
+                      
+                  print(this_stack)
+        
+              except botocore.exceptions.ClientError as e:
+                  if e.response['Error']['Code'] == 'ValidationError':
+                      # Stack doesn't exist yet.
+                      create_update_ok = True
+                  else:
+                      raise
+    
+              input_artifact_s3_location = job_props["data"]["inputArtifacts"][0]["location"]["s3Location"]
+              s3_template_url = "https://s3.amazonaws.com/{}/{}".format(
+                  input_artifact_s3_location["bucketName"],
+                  input_artifact_s3_location["objectKey"]
+              )
+              cloudformation_role_arn = user_params["RoleArn"]
+              capabilities_list = user_params["Capabilities"].split(",")
+              
+              print("S3 template URL: {}".format(s3_template_url))
+              
+              stack_id = None
+              
+              if create_update_ok and not stack_already_exists:
+                  response = cloudformation_client.create_stack(
+                      StackName = stack_name,
+                      TemplateURL = s3_template_url,
+                      RoleARN = cloudformation_role_arn,
+                      Capabilities = capabilities_list
+                  )
+        
+                  stack_id = response["StackId"]
+              
+              elif create_update_ok:
+                  
+                  response = cloudformation_client.update_stack(
+                      StackName = stack_name,
+                      TemplateURL = s3_template_url,
+                      RoleARN = cloudformation_role_arn,
+                      Capabilities = capabilities_list
+                  )
+                  
+                  stack_id = response["StackId"]
+              
+              else:
+                  
+                  codepipeline_client.put_job_failure_result(
+                      jobId = job_props["id"],
+                      failureDetails = {
+                          "type": "JobFailed",
+                          "message": "Stack not in a valid state for a create / update."
+                      }
+                  )
+                  
+                  return {}
+                  
+              
+              print("Stack ID: {}".format(stack_id))
+    
+              codepipeline_client.put_job_success_result(
+                  jobId = job_props["id"]
+              )
+    
+              return {}
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  CloudFormationS3StackDeployerFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${CloudFormationS3StackDeployerFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                Resource:
+                  Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectGlobalPrefix.Prefix}-webchat/*
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  Fn::Sub: ${StackDeployCloudFormationRole.Arn}
+  
+  CloudFormationS3StackDeployerFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CloudFormationS3StackDeployerFunction
+  
+  
+  CodePipelineArtifactExtractorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CodePipelineArtifactExtractorFunction
+      Description: Extracts a single file from a CodePipeline artifact
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${CodePipelineArtifactExtractorFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import os
+          import json
+          import tempfile
+          import zipfile
+          import shutil
+          import boto3
+          import botocore
+          from botocore.client import Config
           
+          zip_output = False
+          
+          codepipeline_client = boto3.client("codepipeline")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              job_props = event["CodePipeline.job"]
+              artifact_creds = job_props["data"]["artifactCredentials"]
+              user_params = json.loads(job_props["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+              
+              artifact_session = boto3.session.Session(
+                  aws_access_key_id = artifact_creds["accessKeyId"],
+                  aws_secret_access_key = artifact_creds["secretAccessKey"],
+                  aws_session_token = artifact_creds["sessionToken"]
+              )
+              
+              artifact_s3_client = artifact_session.client("s3", config=Config(signature_version='s3v4'))
+              
+              f = tempfile.NamedTemporaryFile(delete=False)
+              f.close()
+              input_temp_file_path = f.name
+              f = tempfile.NamedTemporaryFile(delete=False)
+              f.close()
+              output_temp_file_path = f.name
+              f = tempfile.NamedTemporaryFile(delete=False)
+              f.close()
+              temp_dir_path = f.name
+              os.unlink(temp_dir_path)
+              os.makedirs(temp_dir_path)
+              
+              input_artifact_s3_location = job_props["data"]["inputArtifacts"][0]["location"]["s3Location"]
+              
+              input_artifact_bucket_name = input_artifact_s3_location["bucketName"]
+              input_artifact_object_key = input_artifact_s3_location["objectKey"]
+              
+              print("Downloading input artifact from {} {}".format(
+                  input_artifact_bucket_name,
+                  input_artifact_object_key
+              ))
+              
+              artifact_s3_client.download_file(
+                  input_artifact_bucket_name,
+                  input_artifact_object_key,
+                  input_temp_file_path
+              )
+              
+              input_zfile = zipfile.ZipFile(input_temp_file_path)
+              input_zfile.extractall(temp_dir_path)
+              input_zfile.close()
+              
+              output_artifact_s3_location = job_props["data"]["outputArtifacts"][0]["location"]["s3Location"]
+              
+              target_input_file_path = os.path.join(temp_dir_path, user_params["FilePath"])
+              
+              if zip_output:
+                  output_zfile = zipfile.ZipFile(output_temp_file_path, "w")
+                  output_zfile.write(
+                      target_input_file_path,
+                      user_params["FilePath"].split("/")[-1]
+                  )
+                  output_zfile.close()
+              else:
+                  shutil.copyfile(target_input_file_path, output_temp_file_path)
+              
+              print("Uploading {} to {} {}".format(
+                  user_params["FilePath"],
+                  output_artifact_s3_location["bucketName"],
+                  output_artifact_s3_location["objectKey"]
+              ))
+              
+              artifact_s3_client.upload_file(
+                  output_temp_file_path,
+                  output_artifact_s3_location["bucketName"],
+                  output_artifact_s3_location["objectKey"]
+              )
+              
+              codepipeline_client.put_job_success_result(
+                  jobId = job_props["id"]
+              )
+              
+              for each_path in [input_temp_file_path, output_temp_file_path]:
+                  if os.path.exists(each_path):
+                      os.unlink(each_path)
+              
+              if os.path.exists(temp_dir_path):
+                  shutil.rmtree(temp_dir_path)
+              
+              return {}
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  CodePipelineArtifactExtractorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${CodePipelineArtifactExtractorFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+  
+  CodePipelineArtifactExtractorFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodePipelineArtifactExtractorFunction
+  
+  
   
   CodeBuildInstanceFunction:
     Type: AWS::Lambda::Function
