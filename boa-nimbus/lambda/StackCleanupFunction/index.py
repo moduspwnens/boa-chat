@@ -188,18 +188,18 @@ def cleanup_s3_bucket(s3_bucket_name):
                 s3_bucket_name
             ))
             break
-                  
-      
-    print("Deleting {} object(s) from {}.".format(
-        len(keys_to_delete),
-        s3_bucket_name
-    ))
-
-    s3_client.delete_objects(
-        Bucket = s3_bucket_name,
-        Delete = {
-            "Objects": list({"Key": x} for x in keys_to_delete)
-        }
-    )
+    
+    if len(keys_to_delete) > 0:
+        print("Deleting {} object(s) from {}.".format(
+            len(keys_to_delete),
+            s3_bucket_name
+        ))
+    
+        s3_client.delete_objects(
+            Bucket = s3_bucket_name,
+            Delete = {
+                "Objects": list({"Key": x} for x in keys_to_delete)
+            }
+        )
 
     print("Object(s) deleted.")
