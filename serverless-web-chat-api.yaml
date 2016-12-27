@@ -2464,6 +2464,7 @@ Resources:
                   Fn::Sub: ${CognitoIdentityPoolRoleLinkerFunctionLogGroup.Arn}
               - Effect: Allow
                 Action:
+                  - iam:PassRole
                   - sts:PassRole
                 Resource:
                   - Fn::Sub: ${CognitoAuthenticatedUserRole.Arn}
