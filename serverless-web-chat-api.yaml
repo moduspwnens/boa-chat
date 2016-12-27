@@ -64,6 +64,7 @@ Parameters:
   EmailFromAddress:
     Type: String
     Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
+    Default: ''
   IncludeBucketSiteInCorsOrigin:
     Type: String
     Description: Allows the default site to access the API.
@@ -96,6 +97,7 @@ Parameters:
   MetricAlarmEmailAddress:
     Type: String
     Description: In case of errors. Leave blank to disable.
+    Default: ''
   PreWarmingEnabled:
     Type: String
     Description: Ping resources each minute to keep initial response times fast.
