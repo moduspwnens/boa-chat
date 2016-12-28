@@ -36,6 +36,7 @@ phases:
       - mv output /tmp/
       - rm -rf *
       - rm -rf .git
+      - rm -rf .gitignore
       - mv /tmp/output/* .
   
   post_build:
