@@ -20,12 +20,17 @@ angular.module('webchatService', ['webchatApiEndpoint'])
           "password": password
         }
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["registration-id"]);
-      })
-      .error(function(angResponseObject, errorCode) {
-        console.log(arguments);
-        reject("Other");
+      .then(function(response) {
+        resolve(response["data"]["registration-id"]);
+      }, function(response) {
+        
+        if (response.status == 400) {
+          reject(response["data"]["message"])
+        }
+        else {
+          reject("Other");
+        }
+        
       })
     });
   }
@@ -44,12 +49,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         url: registerEndpoint,
         params: requestParams
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["email-address"]);
-      })
-      .error(function(angResponseObject, errorCode) {
-        if (errorCode == 400 && angResponseObject.hasOwnProperty("message")) {
-          reject(angResponseObject.message);
+      .then(function(response) {
+        resolve(response["data"]["email-address"]);
+      }, function(response) {
+        
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -71,12 +76,11 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         includeApiKey: true,
         sign: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["email-address"]);
-      })
-      .error(function(angResponseObject, errorCode) {
-        if (errorCode == 400 && angResponseObject.hasOwnProperty("message")) {
-          reject(angResponseObject.message);
+      .then(function(response) {
+        resolve(response["data"]["email-address"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -137,15 +141,14 @@ angular.module('webchatService', ['webchatApiEndpoint'])
           "password": password
         }
       })
-      .success(function(angResponseObject) {
+      .then(function(response) {
         
-        processNewLoginResponse(angResponseObject);
+        processNewLoginResponse(response["data"]);
         
-        resolve(angResponseObject);
-      })
-      .error(function(angResponseObject, errorCode) {
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+        resolve(response["data"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -164,13 +167,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
           "email-address": emailAddress
         }
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject);
-      })
-      .error(function(angResponseObject, errorCode) {
+      .then(function(response) {
+        resolve(response["data"]);
+      }, function(response) {
         
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -191,13 +193,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
           "token": resetCode
         }
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject);
-      })
-      .error(function(angResponseObject, errorCode) {
+      .then(function(response) {
+        resolve(response["data"]);
+      }, function(response) {
         
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -219,13 +220,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         includeApiKey: true,
         sign: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject);
-      })
-      .error(function(angResponseObject, errorCode) {
+      .then(function(response) {
+        resolve(response["data"]);
+      }, function(response) {
         
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -246,13 +246,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         includeApiKey: true,
         sign: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["registration-id"]);
-      })
-      .error(function(angResponseObject, errorCode) {
+      .then(function(response) {
+        resolve(response["data"]["registration-id"]);
+      }, function(response) {
         
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -271,18 +270,17 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         includeApiKey: true,
         sign: true
       })
-      .success(function(angResponseObject) {
-        var newApiKey = angResponseObject["api-key"];
+      .then(function(response) {
+        var newApiKey = response["data"]["api-key"];
         
         var cookieStoreObject = $cookieStore.get("login");
         cookieStoreObject["user"]["api-key"] = newApiKey;
         $cookieStore.put("login", cookieStoreObject);
         
         resolve(newApiKey);
-      })
-      .error(function(angResponseObject, errorCode) {
-        if (errorCode == 400) {
-          reject(angResponseObject.message);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
         }
         else {
           reject("Other");
@@ -308,13 +306,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       },
       includeApiKey: true
     })
-    .success(function(angResponseObject) {
+    .then(function(response) {
       
-      processNewLoginResponse(angResponseObject);
+      processNewLoginResponse(response["data"]);
       
       console.log("Credentials refreshed successfully.");
-    })
-    .error(function(angResponseObject, errorCode) {
+    }, function(response) {
       console.log("An error occurred in refreshing credentials. Logging out.");
       console.log(arguments);
       
@@ -345,11 +342,15 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         sign: true,
         includeApiKey: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["id"]);
-      })
-      .error(function() {
-        reject(arguments);
+      .then(function(response) {
+        resolve(response["data"]["id"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -366,11 +367,15 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         sign: true,
         includeApiKey: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["id"]);
-      })
-      .error(function() {
-        reject(arguments);
+      .then(function(response) {
+        resolve(response["data"]["id"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -395,11 +400,15 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         sign: true,
         includeApiKey: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject["message-id"]);
-      })
-      .error(function() {
-        reject(arguments);
+      .then(function(response) {
+        resolve(response["data"]["message-id"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -415,11 +424,15 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         sign: true,
         includeApiKey: true
       })
-      .success(function() {
+      .then(function() {
         resolve();
-      })
-      .error(function() {
-        reject(arguments);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -443,11 +456,15 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         sign: true,
         includeApiKey: true
       })
-      .success(function(angResponseObject) {
-        resolve(angResponseObject);
-      })
-      .error(function() {
-        reject(arguments);
+      .then(function(response) {
+        resolve(response["data"]);
+      }, function(response) {
+        if (response.status == 400) {
+          reject(response["data"]["message"]);
+        }
+        else {
+          reject("Other");
+        }
       })
     });
   }
@@ -496,7 +513,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       sign: true,
       includeApiKey: true
     })
-    .success(function(angResponseObject) {
+    .then(function(angResponseObject) {
       removeCancelerReference();
       if (!liveCounterDecremented) {
         roomSessionMessageWatchPollLiveCounter--;
@@ -520,8 +537,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       }
       
       startWatchingRoomSessionMessages.apply(recursiveThis, recursiveArgs);
-    })
-    .error(function(errorReason, errorCode) {
+    }, function(errorReason, errorCode) {
       
       removeCancelerReference();
       if (!liveCounterDecremented) {

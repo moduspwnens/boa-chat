@@ -31,8 +31,7 @@ app.controller('emailChangeController', function($scope, $http, $state, $cookieS
           alert(errorReason);
         }
         else {
-          alert("An unexpected error occurred when trying to register.");
-          
+          alert("An unexpected error occurred when trying to request the e-mail address change.");
         }
       })
   }

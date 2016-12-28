@@ -27,8 +27,8 @@ app.controller('registerController', function($scope, $http, $state, $cookieStor
       .catch(function(errorReason) {
         $scope.ajaxOperationInProgress = false;
         
-        if (errorReason == "UserNotFound") {
-          alert("No user found with the given e-mail address." + "\n\n" + "Note that the e-mail address must be confirmed to log in.");
+        if (errorReason != "Other") {
+          alert(errorReason);
           focusEmailField();
         }
         else {
@@ -36,5 +36,11 @@ app.controller('registerController', function($scope, $http, $state, $cookieStor
           focusEmailField();
         }
       })
+  }
+  
+  var focusEmailField = function() {
+    window.setTimeout(function() {
+      document.getElementById("inputEmail").focus();
+    }, 0);
   }
 });

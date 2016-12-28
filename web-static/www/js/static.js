@@ -1,1 +1,1 @@
-var globalProjectName = "AWS Serverless Web Chat";
+var globalProjectName = "Boa Nimbus";
