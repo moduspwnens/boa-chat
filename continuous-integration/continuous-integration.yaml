@@ -1932,6 +1932,9 @@ Outputs:
   ArtifactStoreBucket:
     Value:
       Ref: ArtifactStoreBucket
+  CodePipelineViewUrl:
+    Value:
+      Fn::Sub: https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${BuildPipeline}
   RepositoryCloneUrlHttp:
     Value:
       Fn::GetAtt:
