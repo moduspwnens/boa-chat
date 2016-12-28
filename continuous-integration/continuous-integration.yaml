@@ -40,7 +40,7 @@ Parameters:
     Default: ''
   SourceLocationType:
     Type: String
-    Default: CODECOMMIT
+    Default: GITHUB
     AllowedValues:
       - CODECOMMIT
       - CODEPIPELINE
@@ -48,7 +48,7 @@ Parameters:
       - S3
   SourceLocation:
     Type: String
-    Default: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-serverless-web-chat
+    Default: https://github.com/moduspwnens/boa-chat.git
 
 Conditions:
   DeployS3ObjectsByFilenameCondition:
