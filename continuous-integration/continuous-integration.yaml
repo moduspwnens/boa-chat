@@ -437,6 +437,25 @@ Resources:
                 - Name: CloudFormationStackTemplate
         - Name: Deploy
           Actions:
+            - Name: DeployS3Artifacts
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              InputArtifacts:
+                - Name: AppPackage
+              Configuration:
+                FunctionName:
+                  Ref: S3UnzipUploaderFunction
+                UserParameters:
+                  Fn::Sub: |-
+                    {
+                      "Bucket": "${ArtifactStoreBucket}"
+                    }
+              OutputArtifacts:
+                - Name: DeployedArtifactMap
+              RunOrder: 1
             - Name: DeployStack
               ActionTypeId:
                 Category: Invoke
@@ -457,6 +476,7 @@ Resources:
                     }
               OutputArtifacts:
                 - Name: CloudFormationStack
+              RunOrder: 2
     DependsOn:
       - InitialDockerImageBuild
   
@@ -514,6 +534,7 @@ Resources:
                 Resource:
                   - Fn::Sub: ${CodePipelineArtifactExtractorFunction.Arn}
                   - Fn::Sub: ${CloudFormationS3StackDeployerFunction.Arn}
+                  - Fn::Sub: ${S3UnzipUploaderFunction.Arn}
                 
   StackDeployCloudFormationRole:
     Type: AWS::IAM::Role
@@ -669,14 +690,21 @@ Resources:
               
               elif create_update_ok:
                   
-                  response = cloudformation_client.update_stack(
-                      StackName = stack_name,
-                      TemplateURL = s3_template_url,
-                      RoleARN = cloudformation_role_arn,
-                      Capabilities = capabilities_list
-                  )
-                  
-                  stack_id = response["StackId"]
+                  try:
+                      response = cloudformation_client.update_stack(
+                          StackName = stack_name,
+                          TemplateURL = s3_template_url,
+                          RoleARN = cloudformation_role_arn,
+                          Capabilities = capabilities_list
+                      )
+                      
+                      stack_id = response["StackId"]
+                      
+                  except botocore.exceptions.ClientError as e:
+                      if e.response['Error']['Code'] == 'ValidationError' and 'No updates are to be performed.' in str(e):
+                          stack_id = "NoUpdatePerformed"
+                      else:
+                          raise
               
               else:
                   
@@ -755,6 +783,185 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CloudFormationS3StackDeployerFunction
+  
+  
+  
+  S3UnzipUploaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3UnzipUploaderFunction
+      Description: Downloads a ZIP file from S3, decompresses it, and uploads its contents to S3
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${S3UnzipUploaderFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import os
+          import json
+          import hashlib
+          import tempfile
+          import zipfile
+          import shutil
+          import boto3
+          import botocore
+          from botocore.client import Config
+          
+          codepipeline_client = boto3.client("codepipeline")
+          s3_client = boto3.client("s3", config=Config(signature_version='s3v4'))
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              job_props = event["CodePipeline.job"]
+              artifact_creds = job_props["data"]["artifactCredentials"]
+              user_params = json.loads(job_props["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+              
+              artifact_session = boto3.session.Session(
+                  aws_access_key_id = artifact_creds["accessKeyId"],
+                  aws_secret_access_key = artifact_creds["secretAccessKey"],
+                  aws_session_token = artifact_creds["sessionToken"]
+              )
+              
+              artifact_s3_client = artifact_session.client("s3", config=Config(signature_version='s3v4'))
+              
+              f = tempfile.NamedTemporaryFile(delete=False)
+              f.close()
+              input_temp_file_path = f.name
+              f = tempfile.NamedTemporaryFile(delete=False)
+              f.close()
+              temp_dir_path = f.name
+              os.unlink(temp_dir_path)
+              os.makedirs(temp_dir_path)
+              
+              input_artifact_s3_location = job_props["data"]["inputArtifacts"][0]["location"]["s3Location"]
+              input_artifact_bucket_name = input_artifact_s3_location["bucketName"]
+              input_artifact_object_key = input_artifact_s3_location["objectKey"]
+              
+              print("Downloading input artifact from {} {}".format(
+                  input_artifact_bucket_name,
+                  input_artifact_object_key
+              ))
+              
+              artifact_s3_client.download_file(
+                  input_artifact_bucket_name,
+                  input_artifact_object_key,
+                  input_temp_file_path
+              )
+              
+              input_zfile = zipfile.ZipFile(input_temp_file_path)
+              input_zfile.extractall(temp_dir_path)
+              input_zfile.close()
+              
+              output_artifact_map = {}
+              
+              target_bucket_name = user_params["Bucket"]
+              hash_object_prefix = "deploy-md5/" + job_props["id"] + "/"
+              
+              for root, dir_list, file_list in os.walk(temp_dir_path):
+                  for each_file in file_list:
+                      each_file_abs_path = os.path.join(root, each_file)
+                      each_file_relative_path = each_file_abs_path[len(temp_dir_path)+1:]
+                      
+                      target_object_key = hash_object_prefix + file_md5(each_file_abs_path)
+                      
+                      output_artifact_map[each_file_relative_path] = target_object_key
+                      
+                      print("Uploading {}.".format(each_file_relative_path))
+                      
+                      s3_client.upload_file(
+                          each_file_abs_path,
+                          target_bucket_name,
+                          target_object_key,
+                          ExtraArgs = {
+                              "Metadata": {
+                                  "sha256base64": file_sha256_checksum_base64(each_file_abs_path),
+                                  "filename": each_file_relative_path
+                              }
+                          }
+                      )
+              
+              output_artifact_s3_location = job_props["data"]["outputArtifacts"][0]["location"]["s3Location"]
+              
+              artifact_s3_client.put_object(
+                  Bucket = output_artifact_s3_location["bucketName"],
+                  Key = output_artifact_s3_location["objectKey"],
+                  Body = json.dumps(output_artifact_map)
+              )
+              
+              if os.path.exists(input_temp_file_path):
+                  os.unlink(input_temp_file_path)
+              
+              if os.path.exists(temp_dir_path):
+                  shutil.rmtree(temp_dir_path)
+              
+              codepipeline_client.put_job_success_result(
+                  jobId = job_props["id"]
+              )
+              
+              return {}
+          
+          #http://stackoverflow.com/a/3431838
+          def file_md5(fname):
+              hash_md5 = hashlib.md5()
+              with open(fname, "rb") as f:
+                  for chunk in iter(lambda: f.read(4096), b""):
+                      hash_md5.update(chunk)
+              return hash_md5.hexdigest()
+          
+          def file_sha256_checksum_base64(fname):
+              hash_sha256 = hashlib.sha256()
+              with open(fname, "rb") as f:
+                  for chunk in iter(lambda: f.read(4096), b""):
+                      hash_sha256.update(chunk)
+    
+              return hash_sha256.digest().encode('base64').strip()
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  S3UnzipUploaderFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${S3UnzipUploaderFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ArtifactStoreBucket}/*
+  
+  S3UnzipUploaderFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-S3UnzipUploaderFunction
+  
   
   
   CodePipelineArtifactExtractorFunction:
