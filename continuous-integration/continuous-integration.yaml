@@ -461,7 +461,7 @@ Resources:
                     "FilePath": "serverless-web-chat-api.yaml"
                   }
               OutputArtifacts:
-                - Name: CloudFormationStackTemplate
+                - Name: SourceCloudFormationStackTemplate
         - Name: Deploy
           Actions:
             - Name: DeployS3ArtifactsByHashes
@@ -484,6 +484,26 @@ Resources:
               OutputArtifacts:
                 - Name: DeployedArtifactMap
               RunOrder: 1
+            - Name: UpdateTemplateResourceS3Keys
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              InputArtifacts:
+                - Name: SourceCloudFormationStackTemplate
+                - Name: DeployedArtifactMap
+              Configuration:
+                FunctionName:
+                  Ref: CloudFormationTemplateS3KeyUpdaterFunction
+                UserParameters:
+                  Fn::Sub: |-
+                    {
+                      
+                    }
+              OutputArtifacts:
+                - Name: ResultCloudFormationStackTemplate
+              RunOrder: 2
             - Name: DeployStack
               ActionTypeId:
                 Category: Invoke
@@ -491,7 +511,7 @@ Resources:
                 Provider: Lambda
                 Version: 1
               InputArtifacts:
-                - Name: CloudFormationStackTemplate
+                - Name: ResultCloudFormationStackTemplate
               Configuration:
                 FunctionName:
                   Ref: CloudFormationS3StackDeployerFunction
@@ -500,11 +520,15 @@ Resources:
                     {
                       "Capabilities": "CAPABILITY_IAM",
                       "RoleArn": "${StackDeployCloudFormationRole.Arn}",
-                      "StackName": "${ProjectGlobalPrefix.Prefix}-webchat"
+                      "StackName": "${ProjectGlobalPrefix.Prefix}-webchat",
+                      "ParameterOverrides": {
+                          "S3SourceType": "S3 Bucket",
+                          "S3SourceName": "${ArtifactStoreBucket}"
+                      }
                     }
               OutputArtifacts:
                 - Name: CloudFormationStack
-              RunOrder: 2
+              RunOrder: 3
         - Name: DeployS3ArtifactsByFilenames
           Actions:
             - Name: DeployS3ArtifactsByFilenames
@@ -585,6 +609,7 @@ Resources:
                   - Fn::Sub: ${CodePipelineArtifactExtractorFunction.Arn}
                   - Fn::Sub: ${CloudFormationS3StackDeployerFunction.Arn}
                   - Fn::Sub: ${S3UnzipUploaderFunction.Arn}
+                  - Fn::Sub: ${CloudFormationTemplateS3KeyUpdaterFunction.Arn}
                 
   StackDeployCloudFormationRole:
     Type: AWS::IAM::Role
@@ -623,6 +648,7 @@ Resources:
                   - iam:PutRolePolicy
                   - lambda:AddPermission
                   - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
                   - logs:CreateLogGroup
                   - logs:PutRetentionPolicy
                   - s3:CreateBucket
@@ -684,6 +710,10 @@ Resources:
               user_params = json.loads(job_props["data"]["actionConfiguration"]["configuration"]["UserParameters"])
     
               stack_name = user_params["StackName"]
+              stack_parameters = user_params.get("ParameterOverrides", {})
+              
+              if isinstance(stack_parameters, basestring):
+                  stack_parameters = json.loads(stack_parameters)
     
               stack_already_exists = False
               create_update_ok = False
@@ -728,12 +758,21 @@ Resources:
               
               stack_id = None
               
+              parameter_list = []
+              
+              for each_key in stack_parameters.keys():
+                  parameter_list.append({
+                      "ParameterKey": each_key,
+                      "ParameterValue": stack_parameters[each_key]
+                  })
+              
               if create_update_ok and not stack_already_exists:
                   response = cloudformation_client.create_stack(
                       StackName = stack_name,
                       TemplateURL = s3_template_url,
                       RoleARN = cloudformation_role_arn,
-                      Capabilities = capabilities_list
+                      Capabilities = capabilities_list,
+                      Parameters = parameter_list
                   )
         
                   stack_id = response["StackId"]
@@ -745,7 +784,8 @@ Resources:
                           StackName = stack_name,
                           TemplateURL = s3_template_url,
                           RoleARN = cloudformation_role_arn,
-                          Capabilities = capabilities_list
+                          Capabilities = capabilities_list,
+                          Parameters = parameter_list
                       )
                       
                       stack_id = response["StackId"]
@@ -843,7 +883,7 @@ Resources:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3UnzipUploaderFunction
       Description: Downloads a ZIP file from S3, decompresses it, and uploads its contents to S3
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1536
       Role:
         Fn::Sub: ${S3UnzipUploaderFunctionRole.Arn}
       Code:
@@ -901,7 +941,7 @@ Resources:
               output_artifact_map = {}
               
               target_bucket_name = user_params["Bucket"]
-              hash_object_prefix = "deploy-md5/" + job_props["id"] + "/"
+              hash_object_prefix = "deploy-md5/"
               
               for root, dir_list, file_list in os.walk(temp_dir_path):
                   for each_file in file_list:
@@ -1011,6 +1051,137 @@ Resources:
   
   
   
+  CloudFormationTemplateS3KeyUpdaterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CloudFormationTemplateS3KeyUpdaterFunction
+      Description: Replaces the S3 keys in a CloudFormation template's resources
+      Handler: index.lambda_handler
+      MemorySize: 1536
+      Role:
+        Fn::Sub: ${CloudFormationTemplateS3KeyUpdaterFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import os
+          import json
+          import re
+          import boto3
+          import botocore
+          
+          codepipeline_client = boto3.client("codepipeline")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              job_props = event["CodePipeline.job"]
+              artifact_creds = job_props["data"]["artifactCredentials"]
+              user_params = json.loads(job_props["data"]["actionConfiguration"]["configuration"]["UserParameters"])
+              
+              artifact_session = boto3.session.Session(
+                  aws_access_key_id = artifact_creds["accessKeyId"],
+                  aws_secret_access_key = artifact_creds["secretAccessKey"],
+                  aws_session_token = artifact_creds["sessionToken"]
+              )
+              
+              artifact_s3_client = artifact_session.client("s3", config=botocore.client.Config(signature_version='s3v4'))
+              
+              input_artifact_map = {}
+              
+              for each_artifact_dict in job_props["data"]["inputArtifacts"]:
+                  input_artifact_s3_location = each_artifact_dict["location"]["s3Location"]
+              
+                  target_bucket_name = input_artifact_s3_location["bucketName"]
+                  target_object_key = input_artifact_s3_location["objectKey"]
+                  
+                  response = artifact_s3_client.get_object(
+                      Bucket = target_bucket_name,
+                      Key = target_object_key
+                  )
+                  
+                  input_artifact_map[each_artifact_dict["name"]] = response["Body"].read()
+              
+              deployed_artifact_map = json.loads(input_artifact_map["DeployedArtifactMap"])
+              template_string = input_artifact_map["SourceCloudFormationStackTemplate"]
+              
+              modified_template_string = str(template_string)
+              
+              change_count = 0
+              for each_artifact_key in deployed_artifact_map.keys():
+                  each_artifact_value = deployed_artifact_map[each_artifact_key]
+                  
+                  string_before = str(modified_template_string)
+                  modified_template_string = re.sub(":\s+" + re.escape(each_artifact_key), ": " + each_artifact_value, modified_template_string)
+                  if string_before != modified_template_string:
+                      change_count += 1
+                  else:
+                      print("No substitution made for {}.".format(each_artifact_key))
+              
+              print("Made changes to source template {} time(s).".format(change_count))
+              
+              output_artifact_s3_location = job_props["data"]["outputArtifacts"][0]["location"]["s3Location"]
+              
+              output_artifact_bucket_name = output_artifact_s3_location["bucketName"]
+              output_artifact_object_key = output_artifact_s3_location["objectKey"]
+              
+              print("Uploading to {} {}".format(
+                  output_artifact_bucket_name,
+                  output_artifact_object_key
+              ))
+              
+              artifact_s3_client.put_object(
+                  Bucket = output_artifact_bucket_name,
+                  Key = output_artifact_object_key,
+                  Body = modified_template_string
+              )
+              
+              codepipeline_client.put_job_success_result(
+                  jobId = job_props["id"]
+              )
+              
+              return {}
+              
+      Runtime: python2.7
+      Timeout: 300
+
+  CloudFormationTemplateS3KeyUpdaterFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${CloudFormationTemplateS3KeyUpdaterFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - codepipeline:PutJobSuccessResult
+                  - codepipeline:PutJobFailureResult
+                Resource: '*'
+  
+  CloudFormationTemplateS3KeyUpdaterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CloudFormationTemplateS3KeyUpdaterFunction
+  
+  
+  
   CodePipelineArtifactExtractorFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -1018,7 +1189,7 @@ Resources:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CodePipelineArtifactExtractorFunction
       Description: Extracts a single file from a CodePipeline artifact
       Handler: index.lambda_handler
-      MemorySize: 128
+      MemorySize: 1536
       Role:
         Fn::Sub: ${CodePipelineArtifactExtractorFunctionRole.Arn}
       Code:
