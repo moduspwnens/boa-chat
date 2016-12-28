@@ -2556,7 +2556,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/swagger-apigateway.yaml
+                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/*
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -3141,7 +3141,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/web-static.zip
+                  Fn::Sub: arn:aws:s3:::${CloudFormationPresetVariables.S3SourceBucket}/*
               - Effect: Allow
                 Action:
                   - s3:PutObject
