@@ -6,11 +6,17 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
+          default: Options
+        Parameters:
+          - DeployS3ObjectsByFilename
+      - Label:
           default: Deployment
         Parameters:
           - SourceLocationType
           - SourceLocation
     ParameterLabels:
+      DeployS3ObjectsByFilename:
+        default: Deploy S3 Objects By File Name
       DockerImageBuildVersion:
         default: Docker Image Build Version
       SourceLocation:
@@ -19,6 +25,15 @@ Metadata:
         default: Source Location Type
 
 Parameters:
+  DeployS3ObjectsByFilename:
+    Type: String
+    Default: 'No'
+    Description: |+
+      Not necessary unless you intend to make your Lambda packages available 
+      for others to launch the main stack easily.
+    AllowedValues:
+      - 'Yes'
+      - 'No'
   DockerImageBuildVersion:
     Type: String
     Description: Change this value on stack update to rebuild the Docker image used for building.
@@ -34,6 +49,12 @@ Parameters:
   SourceLocation:
     Type: String
     Default: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-serverless-web-chat
+
+Conditions:
+  DeployS3ObjectsByFilenameCondition:
+    Fn::Equals:
+      - Ref: DeployS3ObjectsByFilename
+      - 'Yes'
 
 Resources:
   
@@ -386,6 +407,12 @@ Resources:
         Location:
           Ref: ArtifactStoreBucket
         Type: S3
+      DisableInboundStageTransitions:
+        - Fn::If:
+            - DeployS3ObjectsByFilenameCondition
+            - Ref: AWS::NoValue
+            - StageName: DeployS3ArtifactsByFilenames
+              Reason: Disabled per continuous integration stack parameter
       RoleArn:
         Fn::Sub: ${BuildPipelineRole.Arn}
       Stages:
@@ -437,7 +464,7 @@ Resources:
                 - Name: CloudFormationStackTemplate
         - Name: Deploy
           Actions:
-            - Name: DeployS3Artifacts
+            - Name: DeployS3ArtifactsByHashes
               ActionTypeId:
                 Category: Invoke
                 Owner: AWS
@@ -451,7 +478,8 @@ Resources:
                 UserParameters:
                   Fn::Sub: |-
                     {
-                      "Bucket": "${ArtifactStoreBucket}"
+                      "Bucket": "${ArtifactStoreBucket}",
+                      "HashKeys": true
                     }
               OutputArtifacts:
                 - Name: DeployedArtifactMap
@@ -477,6 +505,28 @@ Resources:
               OutputArtifacts:
                 - Name: CloudFormationStack
               RunOrder: 2
+        - Name: DeployS3ArtifactsByFilenames
+          Actions:
+            - Name: DeployS3ArtifactsByFilenames
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              InputArtifacts:
+                - Name: AppPackage
+              Configuration:
+                FunctionName:
+                  Ref: S3UnzipUploaderFunction
+                UserParameters:
+                  Fn::Sub: |-
+                    {
+                      "Bucket": "${ArtifactStoreBucket}",
+                      "HashKeys": false
+                    }
+              OutputArtifacts:
+                - Name: DeployedArtifactsByFilenameMap
+              RunOrder: 1
     DependsOn:
       - InitialDockerImageBuild
   
@@ -798,14 +848,8 @@ Resources:
         Fn::Sub: ${S3UnzipUploaderFunctionRole.Arn}
       Code:
         ZipFile: |-
-          import os
-          import json
-          import hashlib
-          import tempfile
-          import zipfile
-          import shutil
-          import boto3
-          import botocore
+          import os, json, hashlib, tempfile, zipfile, shutil
+          import boto3, botocore
           from botocore.client import Config
           
           codepipeline_client = boto3.client("codepipeline")
@@ -863,13 +907,17 @@ Resources:
                   for each_file in file_list:
                       each_file_abs_path = os.path.join(root, each_file)
                       each_file_relative_path = each_file_abs_path[len(temp_dir_path)+1:]
-                      
-                      target_object_key = hash_object_prefix + file_md5(each_file_abs_path)
-                      
+                      md5_hash = file_md5(each_file_abs_path)
+          
+                      target_object_key = each_file_relative_path
+          
+                      if user_params.get("HashKeys"):
+                          target_object_key = hash_object_prefix + md5_hash
+          
                       output_artifact_map[each_file_relative_path] = target_object_key
-                      
+          
                       print("Uploading {}.".format(each_file_relative_path))
-                      
+            
                       s3_client.upload_file(
                           each_file_abs_path,
                           target_bucket_name,
@@ -877,7 +925,8 @@ Resources:
                           ExtraArgs = {
                               "Metadata": {
                                   "sha256base64": file_sha256_checksum_base64(each_file_abs_path),
-                                  "filename": each_file_relative_path
+                                  "filename": each_file_relative_path,
+                                  "md5": md5_hash
                               }
                           }
                       )
@@ -899,8 +948,6 @@ Resources:
               codepipeline_client.put_job_success_result(
                   jobId = job_props["id"]
               )
-              
-              return {}
           
           #http://stackoverflow.com/a/3431838
           def file_md5(fname):
