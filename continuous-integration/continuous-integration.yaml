@@ -200,14 +200,16 @@ Resources:
                 - git config --global push.default simple
                 - git config --global credential.helper '!aws codecommit credential-helper $@'
                 - git config --global credential.UseHttpPath true
+                - git config --global push.followTags true
                 - rm -rf *
                 - rm -rf .git
             build:
               commands:
                 - echo Build started on `date`
                 - git clone "$CODECOMMIT_SOURCE_URL" src; mv src/* src/.git* .; rmdir src
+                - git checkout -b newbranch "$CODECOMMIT_SOURCE_VERSION"
                 - git remote add codecommit "$CODECOMMIT_TARGET_URL"
-                - git push --tags codecommit "$CODECOMMIT_SOURCE_VERSION":master
+                - git push codecommit newbranch:master
             post_build:
               commands:
                 - echo Build completed on `date`
@@ -220,11 +222,6 @@ Resources:
         Fn::Sub: ${CodeBuildInstanceFunction.Arn}
       CodeBuildProject:
         Ref: InitialSourceRepositoryPusherCodeBuildProject
-      SourceVersion:
-        Fn::If:
-          - UseHeadOfLineSourceVersionCondition
-          - HEAD
-          - Ref: SourceVersion
       StateMachineArn:
         Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
   
