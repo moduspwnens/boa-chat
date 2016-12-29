@@ -290,6 +290,7 @@ Resources:
         
     DependsOn:
       - WebChatApiMainStageLogGroup
+      - ApiGatewayCloudWatchRole
   
   WebChatApiMainStageLogGroup:
     Type: AWS::Logs::LogGroup
