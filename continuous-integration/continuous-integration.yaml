@@ -529,8 +529,7 @@ Resources:
                       "RoleArn": "${StackDeployCloudFormationRole.Arn}",
                       "StackName": "${ProjectGlobalPrefix.Prefix}-webchat",
                       "ParameterOverrides": {
-                          "S3SourceType": "S3 Bucket",
-                          "S3SourceName": "${ArtifactStoreBucket}"
+                          "S3SourceBucket": "${ArtifactStoreBucket}"
                       }
                     }
               OutputArtifacts:

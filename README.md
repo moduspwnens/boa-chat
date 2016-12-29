@@ -5,9 +5,15 @@ A scalable, cheap, easy-to-deploy web chat platform built on AWS.
 
 Coming soon!
 
-## Quick deploy
+## Deploy
 
-Coming soon! For now, use the [Build and deploy from source method](#build-and-deploy-from-source). It's very easy--just requires an additional ~25 minutes.
+It only takes a few clicks. Just log into your AWS account (with appropriate permissions) and click this button:
+
+[![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=boa-chat&templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.1/serverless-web-chat-api.yaml)
+
+Simply click "Next" until you get to the **Review** page, then check the box for *I acknowledge that AWS CloudFormation might create IAM resources.* and click **Create**.
+
+The stack is now being created. It typically takes less than five minutes to finish. Use the refresh button (⟳) to check on it periodically. Once it reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
 
 This application has no region restrictions, although it does require [Step Functions](https://aws.amazon.com/step-functions/). These are [only available](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) in US East (Virginia), US West (Oregon), and EU (Ireland) at the time of writing.
 
@@ -93,7 +99,7 @@ The infrastructure creates no long-term credentials or secrets, so there are no 
 
 ## Build and deploy from source
 
-It only takes a few clicks. Just log into your AWS account (with appropriate permissions) and click this button:
+The process is very similar to the quick deployment. Just log into your AWS account (with appropriate permissions) and click this button:
 
 [![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=boa-chat-ci&templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.1/continuous-integration.yaml)
 
