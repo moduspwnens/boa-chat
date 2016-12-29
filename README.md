@@ -9,6 +9,8 @@ Coming soon!
 
 Coming soon! For now, use the [Build and deploy from source method](#build-and-deploy-from-source). It's very easy--just requires an additional ~25 minutes.
 
+This application has no region restrictions, although it does require [Step Functions](https://aws.amazon.com/step-functions/). These are [only available](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) in US East (Virginia), US West (Oregon), and EU (Ireland) at the time of writing.
+
 ## Features
 
 ### Platform
@@ -43,6 +45,19 @@ No need to install anything. Just launch the stack by clicking the button here. 
 
 #### AWS agnostic client
 A strong focus was also placed on keeping the client (web-based front end) agnostic to AWS. Because it requires no AWS API knowledge or libraries, the entire backend could be implemented without AWS and the front end would continue to work with only a change in the URL of the backend API.
+
+#### Security focused
+ * No IAM users or permanent access keys are created at any time
+ * No IAM roles or policies authorize creating or modifying any IAM resources†
+ * No IAM roles or policies authorize modifying Lambda function code†
+ * All IAM resources (roles, policies) are created **only** at deploy-time by CloudFormation
+ * All IAM policies are restricted to access only the resources required to the extent possible
+
+The end result is that everything the resources are allowed to do is statically defined. A concerned administrator could review the CloudFormation template and source code prior to deployment or the IAM policies applied and function code after deployment. The application resources have no way of modifying them.
+
+The infrastructure creates no long-term credentials or secrets, so there are no keys that can potentially be lost or compromised.
+
+† Except for the role used by the continuous integration stack, and assumable only by CloudFormation, to launch the application's own stack. It's not included unless you build and deploy from source.
 
 #### Services utilized
 
@@ -91,4 +106,4 @@ You'll be waiting primarily for:
 
 After the second stack is created and reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the second stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
 
-This application has no region restrictions, although it does require [Step Functions](https://aws.amazon.com/step-functions/) which are only available in US East (Virginia), US West (Oregon), and EU (Ireland).
+
