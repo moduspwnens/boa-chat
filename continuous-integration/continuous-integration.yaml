@@ -138,15 +138,6 @@ Resources:
                   - codecommit:GitPush
                 Resource:
                   - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${ProjectGlobalPrefix.Prefix}-webchat
-        - PolicyName: BennActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codecommit:GitPull
-                Resource:
-                  - arn:aws:codecommit:us-east-1:105745236650:aws-serverless-web-chat
   
   InitialSourceRepositoryPusherCodeBuildLogGroup:
     Type: AWS::Logs::LogGroup
