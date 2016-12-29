@@ -649,6 +649,7 @@ Resources:
                   - lambda:AddPermission
                   - lambda:CreateFunction
                   - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
                   - logs:CreateLogGroup
                   - logs:PutRetentionPolicy
                   - s3:CreateBucket
