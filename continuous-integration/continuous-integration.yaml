@@ -59,6 +59,10 @@ Conditions:
     Fn::Equals:
       - Ref: DeployS3ObjectsByFilename
       - 'Yes'
+  UseHeadOfLineSourceVersionCondition:
+    Fn::Equals:
+      - Ref: SourceVersion
+      - ''
 
 Resources:
   
@@ -173,7 +177,10 @@ Resources:
                 - CloneUrlHttp
           - Name: CODECOMMIT_SOURCE_VERSION
             Value:
-              Ref: SourceVersion
+              Fn::If:
+                - UseHeadOfLineSourceVersionCondition
+                - HEAD
+                - Ref: SourceVersion
       Name:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-source-push
       Description: Performs the initial push into the new CodeCommit repository.
@@ -214,7 +221,10 @@ Resources:
       CodeBuildProject:
         Ref: InitialSourceRepositoryPusherCodeBuildProject
       SourceVersion:
-        Ref: SourceVersion
+        Fn::If:
+          - UseHeadOfLineSourceVersionCondition
+          - HEAD
+          - Ref: SourceVersion
       StateMachineArn:
         Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
   
