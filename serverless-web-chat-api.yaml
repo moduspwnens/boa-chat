@@ -2072,7 +2072,7 @@ Resources:
                 Action:
                   - apigateway:PATCH
                 Resource:
-                  Fn::Sub: arn:aws:apigateway:us-east-1::/usageplans/${WebChatApiBasicUsagePlan}
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}
   
   ApiUsagePlanLinkerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
