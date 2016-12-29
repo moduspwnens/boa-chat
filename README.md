@@ -39,6 +39,7 @@ To delete all the resources, simply delete the stack. It's been built to clean u
  * Chat room message history logs stored durably on S3
  * All authenticated API requests are cryptographically signed, encrypted, and utilize timestamps for replay protection
  * API credentials are always temporary and last only one hour
+ * Optional CDN hosting, TLS encryption, and compression of static web interface assets
  * User avatars via [Gravatar](gravatar.com)
 
 
@@ -80,6 +81,7 @@ The infrastructure creates no long-term credentials or secrets, so there are no 
  * Simple Email Service (SES)
  * CloudWatch Logs
  * CloudWatch Metrics
+ * CloudFront
  * Cognito User Pool
  * Cognito Identity Pool
  * CloudFormation

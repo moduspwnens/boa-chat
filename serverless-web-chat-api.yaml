@@ -10,6 +10,7 @@ Metadata:
         Parameters:
           - S3SourceBucket
           - ApiDefinitionVersion
+          - IncludeCloudFrontDistribution
       - Label:
           default: Configuration
         Parameters:
@@ -21,7 +22,7 @@ Metadata:
       - Label:
           default: Cross-Origin Resource Sharing
         Parameters:
-          - IncludeBucketSiteInCorsOrigin
+          - IncludeDefaultSiteInCorsOrigin
           - AdditionalCorsOrigins
     ParameterLabels:
       AdditionalCorsOrigins:
@@ -32,8 +33,10 @@ Metadata:
         default: Custom API Base URL
       EmailFromAddress:
         default: E-mail From Address
-      IncludeBucketSiteInCorsOrigin:
-        default: Include Bucket Site in CORS Origin
+      IncludeCloudFrontDistribution:
+        default: Include CloudFront Distribution
+      IncludeDefaultSiteInCorsOrigin:
+        default: Include Default Site in CORS Origin
       LogRetentionDays:
         default: Log Retention (days)
       MetricAlarmEmailAddress:
@@ -62,7 +65,14 @@ Parameters:
     Type: String
     Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
     Default: ''
-  IncludeBucketSiteInCorsOrigin:
+  IncludeCloudFrontDistribution:
+    Type: String
+    Description: Allows usage of a custom domain name and TLS certificate. Adds 25+ minutes to deployment. Easy to enable later.
+    Default: 'No'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+  IncludeDefaultSiteInCorsOrigin:
     Type: String
     Description: Allows the default site to access the API.
     Default: 'Yes'
@@ -139,9 +149,13 @@ Conditions:
       - Fn::Equals:
         - Ref: CustomApiBaseUrl
         - ''
-  IncludeBucketSiteInCorsOriginCondition:
+  IncludeDefaultSiteInCorsOriginCondition:
     Fn::Equals:
-      - Ref: IncludeBucketSiteInCorsOrigin
+      - Ref: IncludeDefaultSiteInCorsOrigin
+      - 'Yes'
+  IncludeCloudFrontDistributionCondition:
+    Fn::Equals:
+      - Ref: IncludeCloudFrontDistribution
       - 'Yes'
   IncludeMetricAlarmsCondition:
     Fn::Not:
@@ -3216,7 +3230,41 @@ Resources:
     DependsOn:
       - CognitoIdentityPool
       
-    
+  
+  #
+  #   CloudFront Distribution
+  #   
+  #   For putting in front of the web interface to enable a custom domain 
+  #   name with TLS.
+  #
+  
+  StaticContentDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: IncludeCloudFrontDistributionCondition
+    Properties:
+      DistributionConfig:
+        Comment:
+          Ref: AWS::StackName
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - HEAD
+            - GET
+          Compress: True
+          DefaultTTL: 0
+          ForwardedValues:
+            QueryString: False
+          TargetOriginId: StaticContentBucket
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: True
+        Origins:
+          - Id: StaticContentBucket
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+            DomainName:
+              Fn::Sub: ${StaticContentBucket}.s3-website-${AWS::Region}.amazonaws.com
+        
+  
   #
   #   Static Content Bucket
   #   
@@ -3519,10 +3567,13 @@ Resources:
         Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
       CorsOriginList:
         Fn::If:
-          - IncludeBucketSiteInCorsOriginCondition
+          - IncludeDefaultSiteInCorsOriginCondition
           - Fn::Join:
               - ','
-              - - Fn::Sub: ${StaticContentBucket.WebsiteURL}
+              - - Fn::If:
+                   - IncludeCloudFrontDistributionCondition
+                   - Fn::Sub: https://${StaticContentDistribution.DomainName}
+                   - Fn::Sub: ${StaticContentBucket.WebsiteURL}
                 - Fn::If:
                    - NoAdditionalCorsOriginsSpecifiedCondition
                    - Ref: AWS::NoValue
@@ -3662,7 +3713,8 @@ Outputs:
             - StageName
   WebChatHome:
     Value:
-      Fn::Sub:
-        - ${WebChatHome}/
-        - WebChatHome:
-            Fn::Sub: ${StaticContentBucket.WebsiteURL}
+      Fn::If:
+        - IncludeCloudFrontDistributionCondition
+        - Fn::Sub: https://${StaticContentDistribution.DomainName}/
+        - Fn::Sub: ${StaticContentBucket.WebsiteURL}/
+      
