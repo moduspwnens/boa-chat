@@ -13,9 +13,13 @@ It only takes a few clicks. Just log into your AWS account (with appropriate per
 
 Simply click "Next" until you get to the **Review** page, then check the box for *I acknowledge that AWS CloudFormation might create IAM resources.* and click **Create**.
 
-The stack is now being created. It typically takes less than five minutes to finish. Use the refresh button (⟳) to check on it periodically. Once it reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
+The stack is now being created. It typically takes 5-7 minutes to finish. Use the refresh button (⟳) to check on it periodically. Once it reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
 
 This application has no region restrictions, although it does require [Step Functions](https://aws.amazon.com/step-functions/). These are [only available](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) in US East (Virginia), US West (Oregon), and EU (Ireland) at the time of writing.
+
+### Destroy
+
+To delete all the resources, simply delete the stack. It's been built to clean up all the resources it's created upon deletion.
 
 ## Features
 
@@ -112,4 +116,8 @@ You'll be waiting primarily for:
 
 After the second stack is created and reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the second stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
 
+### Destroy
 
+To delete all resources, it's as simple as deleting the stacks. 
+
+It is important, however, to delete the main stack before the continuous integration stack. This is because the CI stack contains the CloudFormation role used for stack operations on the main stack, which includes the ability to delete its stack resources.
