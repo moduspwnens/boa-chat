@@ -14,6 +14,7 @@ Metadata:
         Parameters:
           - SourceLocationType
           - SourceLocation
+          - SourceVersion
     ParameterLabels:
       DeployS3ObjectsByFilename:
         default: Deploy S3 Objects By File Name
@@ -23,6 +24,8 @@ Metadata:
         default: Source Location
       SourceLocationType:
         default: Source Location Type
+      SourceVersion:
+        default: Source Version
 
 Parameters:
   DeployS3ObjectsByFilename:
@@ -42,13 +45,14 @@ Parameters:
     Type: String
     Default: GITHUB
     AllowedValues:
-      - CODECOMMIT
-      - CODEPIPELINE
       - GITHUB
-      - S3
   SourceLocation:
     Type: String
     Default: https://github.com/moduspwnens/boa-chat.git
+  SourceVersion:
+    Type: String
+    Description: Commit ID, branch name, or tag name from the GitHub repository.
+    Default: 0.1
 
 Conditions:
   DeployS3ObjectsByFilenameCondition:
@@ -167,6 +171,9 @@ Resources:
               Fn::GetAtt:
                 - MainRepository
                 - CloneUrlHttp
+          - Name: CODECOMMIT_SOURCE_VERSION
+            Value:
+              Ref: SourceVersion
       Name:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-source-push
       Description: Performs the initial push into the new CodeCommit repository.
@@ -193,7 +200,7 @@ Resources:
                 - echo Build started on `date`
                 - git clone "$CODECOMMIT_SOURCE_URL" src; mv src/* src/.git* .; rmdir src
                 - git remote add codecommit "$CODECOMMIT_TARGET_URL"
-                - git push codecommit
+                - git push --tags codecommit "$CODECOMMIT_SOURCE_VERSION":master
             post_build:
               commands:
                 - echo Build completed on `date`
@@ -206,6 +213,8 @@ Resources:
         Fn::Sub: ${CodeBuildInstanceFunction.Arn}
       CodeBuildProject:
         Ref: InitialSourceRepositoryPusherCodeBuildProject
+      SourceVersion:
+        Ref: SourceVersion
       StateMachineArn:
         Fn::Sub: ${CodeBuildInstanceStateMachine.StateMachineArn}
   
@@ -1410,10 +1419,15 @@ Resources:
                       # The build hasn't been started yet.
                   
                       resource_props = event["cf-event"]["ResourceProperties"]
-                  
-                      response = codebuild_client.start_build(
-                          projectName = resource_props["CodeBuildProject"]
-                      )
+                      
+                      start_build_kwargs = {
+                          "projectName": resource_props["CodeBuildProject"]
+                      }
+                      
+                      if len(resource_props.get("SourceVersion", "")):
+                          start_build_kwargs["sourceVersion"] = resource_props["SourceVersion"]
+                      
+                      response = codebuild_client.start_build(**start_build_kwargs)
                   
                       event["build-id"] = response["build"]["id"]
                   
