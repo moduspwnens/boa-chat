@@ -7,20 +7,39 @@ Coming soon!
 
 ## Quick deploy
 
-Coming soon!
+Coming soon! For now, use the [Build and deploy from source method](#build-and-deploy-from-source). It's very easy--just requires an additional ~25 minutes.
 
 ## Features
 
+### Platform
+
+ * Users can create their own chat rooms
+ * Each chat room gets its own private but shareable URL
+ * Other users can join the chat room by opening the URL in their browser
+ * Each user is authenticated by his/her e-mail address and the password set during registration
+
+### Detail
+
+ * REST API with web-based user interface
+ * User registration
+ * E-mail address verification
+ * Per-user request throttling, rate limiting, and request tracking
+ * Chat room message history logs stored durably on S3
+ * All authenticated API requests are cryptographically signed, encrypted, and utilize timestamps for replay protection
+ * API credentials are always temporary and last only one hour
+ * User avatars via [Gravatar](gravatar.com)
 
 
 ## Design
-
 
 #### Serverless architecture
 The application is built on a microservice architecture with only services that cost virtually nothing when idle and charge based on usage. Most usage is also covered by [the free tier](https://aws.amazon.com/s/dm/optimization/server-side-test/free-tier/free_np/).
 
 #### Seamless scalability
 Only services with no architectural scaling limits are used, and only in ways that do not introduce issues with scaling.
+
+#### Easy CloudFormation-based deployment
+No need to install anything. Just launch the stack by clicking the button here. You don't need the AWS CLI, Python, pip, npm, or anything else. If you're reading this from a web browser, you've got all you need.
 
 #### AWS agnostic client
 A strong focus was also placed on keeping the client (web-based front end) agnostic to AWS. Because it requires no AWS API knowledge or libraries, the entire backend could be implemented without AWS and the front end would continue to work with only a change in the URL of the backend API.
@@ -42,7 +61,20 @@ A strong focus was also placed on keeping the client (web-based front end) agnos
  * CodeBuild
  * CodeCommit
  * CodePipeline
+ * EC2 Container Registry (ECR)
+
+#### Tools / frameworks / languages utilized
+
+ * Back end
+   * Python 2.7
+     * [boto3](https://github.com/boto/boto3)
+   * [Docker](https://www.docker.com/)
+   * [OpenAPI / Swagger](https://github.com/OAI/OpenAPI-Specification)
  
+ * Front end
+   * HTML
+   * CSS / LESS
+   * JavaScript
 
 ## Build and deploy from source
 
