@@ -2081,6 +2081,8 @@ Resources:
                   },
                   "stack-id": "${AWS::StackId}"
               }
+    DependsOn:
+      - PrecreatedApiKeyBucketCleanup
   
   #
   #   API Usage Plan Linker
