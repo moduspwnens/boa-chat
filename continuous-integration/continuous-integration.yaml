@@ -680,6 +680,8 @@ Resources:
                 Action:
                   - apigateway:PATCH
                   - apigateway:POST
+                  - events:PutRule
+                  - events:PutTargets
                   - iam:AttachRolePolicy
                   - iam:CreateRole
                   - iam:DetachRolePolicy
@@ -691,6 +693,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:PutRetentionPolicy
                   - s3:CreateBucket
+                  - s3:PutBucketNotification
                   - s3:PutBucketPolicy
                   - s3:PutBucketWebsite
                   - s3:PutLifecycleConfiguration
@@ -698,6 +701,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - apigateway:GET
+                  - events:DescribeRule
                   - iam:GetRole
                   - iam:PassRole
                   - lambda:GetFunction
@@ -709,6 +713,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - apigateway:DELETE
+                  - events:DeleteRule
+                  - events:RemoveTargets
                   - iam:DeleteRole
                   - iam:DeleteRolePolicy
                   - lambda:DeleteFunction
