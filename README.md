@@ -1,9 +1,10 @@
-# boa-chat
+# Boa Chat
 A scalable, cheap, easy-to-deploy web chat platform built on AWS. 
 
 ## Demo
 
-Coming soon!
+Check it out live:
+ * https://webchat.bennlinger.com/
 
 ## Deploy
 
