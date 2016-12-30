@@ -3338,6 +3338,8 @@ Resources:
   StaticContentBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-static-content
       WebsiteConfiguration:
         ErrorDocument: error.html
         IndexDocument: index.html
