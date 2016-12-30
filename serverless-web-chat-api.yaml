@@ -22,21 +22,18 @@ Metadata:
       - Label:
           default: Cross-Origin Resource Sharing
         Parameters:
-          - IncludeDefaultSiteInCorsOrigin
-          - AdditionalCorsOrigins
+          - CorsOrigin
     ParameterLabels:
-      AdditionalCorsOrigins:
-        default: Additional HTTP CORS Origins Allowed
       ApiDefinitionVersion:
         default: API Definition Version
+      CorsOrigin:
+        default: CORS Origin
       CustomApiBaseUrl:
         default: Custom API Base URL
       EmailFromAddress:
         default: E-mail From Address
       IncludeCloudFrontDistribution:
         default: Include CloudFront Distribution
-      IncludeDefaultSiteInCorsOrigin:
-        default: Include Default Site in CORS Origin
       LogRetentionDays:
         default: Log Retention (days)
       MetricAlarmEmailAddress:
@@ -47,13 +44,13 @@ Metadata:
         default: S3 Source Bucket Name
         
 Parameters:
-  AdditionalCorsOrigins:
-    Type: CommaDelimitedList
-    Description: Comma-separated list of additional domains allowed access to the API. Leave blank for default only.
-    Default: ''
   ApiDefinitionVersion:
     Type: String
     Description: Change this value on stack update to reload API from definition file.
+    Default: ''
+  CorsOrigin:
+    Type: String
+    Description: Value for the Access-Control-Allow-Origin header. Change this if you use a custom domain for the web interface. Leave blank for default.
     Default: ''
   CustomApiBaseUrl:
     Type: String
@@ -69,13 +66,6 @@ Parameters:
     Type: String
     Description: Allows usage of a custom domain name and TLS certificate. Adds 25+ minutes to deployment. Easy to enable later.
     Default: 'No'
-    AllowedValues:
-      - 'Yes'
-      - 'No'
-  IncludeDefaultSiteInCorsOrigin:
-    Type: String
-    Description: Allows the default site to access the API.
-    Default: 'Yes'
     AllowedValues:
       - 'Yes'
       - 'No'
@@ -149,10 +139,6 @@ Conditions:
       - Fn::Equals:
         - Ref: CustomApiBaseUrl
         - ''
-  IncludeDefaultSiteInCorsOriginCondition:
-    Fn::Equals:
-      - Ref: IncludeDefaultSiteInCorsOrigin
-      - 'Yes'
   IncludeCloudFrontDistributionCondition:
     Fn::Equals:
       - Ref: IncludeCloudFrontDistribution
@@ -162,12 +148,6 @@ Conditions:
       - Fn::Equals:
         - Ref: MetricAlarmEmailAddress
         - ''
-  NoAdditionalCorsOriginsSpecifiedCondition:
-    Fn::Equals:
-      - Fn::Join:
-         - ''
-         - Ref: AdditionalCorsOrigins
-      - ''
   PreWarmingEnabledCondition:
     Fn::Equals:
       - Ref: PreWarmingEnabled
@@ -176,7 +156,11 @@ Conditions:
     Fn::Equals:
       - Ref: S3SourceBucket
       - ''
-      
+  UseDefaultSiteForCorsOriginCondition:
+    Fn::Equals:
+      - Ref: CorsOrigin
+      - ''
+  
 Resources:
   
   #
@@ -188,6 +172,8 @@ Resources:
   SharedBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-shared
       AccessControl: Private
   
   SharedBucketPolicy:
@@ -414,7 +400,7 @@ Resources:
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoUserPoolClient.Secret}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -496,7 +482,7 @@ Resources:
               - Main
               - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -597,7 +583,7 @@ Resources:
               - Main
               - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -698,7 +684,7 @@ Resources:
           COGNITO_USER_POOL_CLIENT_SECRET:
             Fn::Sub: ${CognitoUserPoolClient.Secret}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -779,7 +765,7 @@ Resources:
               - Main
               - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -863,7 +849,7 @@ Resources:
           API_KEY_CREATOR_FUNCTION_ARN:
             Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -938,7 +924,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           SHARED_BUCKET:
             Ref: SharedBucket
       Runtime: python2.7
@@ -1015,7 +1001,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           DELETE_ROOM_TOPIC_ROLE:
             Fn::Sub: ${StackCleanupFunctionRole.Arn}
           PROJECT_GLOBAL_PREFIX:
@@ -1125,7 +1111,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           POLLER_FUNCTION_ROLE:
             Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
           OWN_FUNCTION_ROLE:
@@ -1213,7 +1199,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
             Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
@@ -1287,7 +1273,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
             Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
@@ -1364,7 +1350,7 @@ Resources:
               - Main
               - CognitoIdentityUserProfileDatasetName
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
             Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
@@ -1446,7 +1432,7 @@ Resources:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginListEscaped.Output}
+            Fn::Sub: ${CorsOriginEscaped.Output}
           PROJECT_GLOBAL_PREFIX:
             Fn::Sub: ${ProjectGlobalPrefix.Prefix}
           SHARED_BUCKET:
@@ -1779,6 +1765,8 @@ Resources:
               - StaticVariables
               - Main
               - CognitoIdentityUserProfileDatasetName
+          PRECREATED_API_KEY_BUCKET:
+            Fn::Sub: ${ProjectGlobalPrefix.Prefix}-precreated-api-keys
           STACK_NAME:
             Ref: AWS::StackName
           USAGE_PLAN_ID:
@@ -1841,6 +1829,23 @@ Resources:
                           - StaticVariables
                           - Main
                           - CognitoIdentityUserProfileDatasetName
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys
   
   ApiKeyCreatorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1850,6 +1855,57 @@ Resources:
       RetentionInDays:
         Ref: LogRetentionDays
   
+  PrecreatedApiKeyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-precreated-api-keys
+      AccessControl: Private
+      LifecycleConfiguration:
+        Rules:
+          - Id: PurgeOldPreCreatedApiKeys
+            ExpirationInDays: 1
+            Status: Enabled
+            Prefix: available-api-keys/
+          - Id: PurgeClaimedPreCreatedApiKeys
+            ExpirationInDays: 2
+            Status: Enabled
+            Prefix: claimed-api-keys/
+          - Id: PurgeGeneratedPreCreatedApiKeys
+            ExpirationInDays: 2
+            Status: Enabled
+            Prefix: generated-api-keys/
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectRemoved:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: available-api-keys/
+            Function:
+              Fn::Sub: ${ApiKeyCreatorFunction.Arn}
+    DependsOn:
+      - ApiKeyCreatorPrecreatedApiKeyBucketPermission
+  
+  ApiKeyCreatorPrecreatedApiKeyBucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::Sub: ${ApiKeyCreatorFunction.Arn}
+      Principal: s3.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys
+  
+  PrecreatedApiKeyBucketCleanup:
+    Type: Custom::StackCleanupInvocation
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${StackCleanupFunction.Arn}
+      Bucket:
+        Ref: PrecreatedApiKeyBucket
+      BucketContentType: PrecreatedApiKey
   
   
   #
@@ -2866,20 +2922,26 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
-                  - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}/*
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
                 Resource:
                   - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
                   - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
+                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                 Resource:
                   - Fn::Sub: arn:aws:s3:::${SharedBucket}
                   - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
+                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}
+              - Effect: Allow
+                Action:
+                  - apigateway:DELETE
+                Resource:
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
   
   StackCleanupFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -3095,7 +3157,7 @@ Resources:
       Bucket:
         Ref: SharedBucket
       CorsOriginList:
-        Fn::Sub: ${CorsOriginListVariable.CorsOriginList}
+        Fn::Sub: ${CorsOriginVariable.CorsOrigin}
       RestApi:
         Ref: WebChatApi
       StageName:
@@ -3560,29 +3622,19 @@ Resources:
           - Fn::Sub: ${S3ArtifactCopy.Bucket}
           - Ref: S3SourceBucket
   
-  CorsOriginListVariable:
+  CorsOriginVariable:
     Type: Custom::CloudFormationVariable
     Properties:
       ServiceToken:
         Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
-      CorsOriginList:
+      CorsOrigin:
         Fn::If:
-          - IncludeDefaultSiteInCorsOriginCondition
-          - Fn::Join:
-              - ','
-              - - Fn::If:
-                   - IncludeCloudFrontDistributionCondition
-                   - Fn::Sub: https://${StaticContentDistribution.DomainName}
-                   - Fn::Sub: ${StaticContentBucket.WebsiteURL}
-                - Fn::If:
-                   - NoAdditionalCorsOriginsSpecifiedCondition
-                   - Ref: AWS::NoValue
-                   - Fn::Join:
-                       - ','
-                       - Ref: AdditionalCorsOrigins
-          - Fn::Join:
-              - ','
-              - Ref: AdditionalCorsOrigins
+          - UseDefaultSiteForCorsOriginCondition
+          - Fn::If:
+             - IncludeCloudFrontDistributionCondition
+             - Fn::Sub: https://${StaticContentDistribution.DomainName}
+             - Fn::Sub: ${StaticContentBucket.WebsiteURL}
+          - Ref: CorsOrigin
   
   
   
@@ -3628,13 +3680,13 @@ Resources:
               - sts:AssumeRole
       Path: "/"
   
-  CorsOriginListEscaped:
+  CorsOriginEscaped:
     Type: Custom::StringReplacement
     Properties:
       ServiceToken:
         Fn::Sub: ${SimpleStringReplaceFunction.Arn}
       Input:
-        Fn::Sub: ${CorsOriginListVariable.CorsOriginList}
+        Fn::Sub: ${CorsOriginVariable.CorsOrigin}
       OldSubstring: ','
       NewSubstring: ';'
   

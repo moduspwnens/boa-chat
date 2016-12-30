@@ -45,7 +45,7 @@ def handle_cleanup_event(event, context):
     
     bucket_content_type = resource_props.get("BucketContentType")
     
-    if bucket_content_type != "Static Content":
+    if bucket_content_type == "Default":
         
         aws_region = context.invoked_function_arn.split(":")[3]
         aws_account_id = context.invoked_function_arn.split(":")[4]
@@ -55,8 +55,17 @@ def handle_cleanup_event(event, context):
         cleanup_log_groups(aws_region, aws_account_id)
         
         cleanup_sqs_queues()
+        
+        cleanup_s3_bucket(resource_props["Bucket"])
     
-    cleanup_s3_bucket(resource_props["Bucket"])
+    elif bucket_content_type == "PrecreatedApiKey":
+        
+        cleanup_precreated_api_keys(resource_props["Bucket"])
+        
+        cleanup_s3_bucket(resource_props["Bucket"])
+    
+    else:
+        cleanup_s3_bucket(resource_props["Bucket"])
 
 def cleanup_sns_topics():
     
@@ -203,3 +212,43 @@ def cleanup_s3_bucket(s3_bucket_name):
         )
 
     print("Object(s) deleted.")
+
+def cleanup_precreated_api_keys(s3_bucket_name):
+    
+    print("Deleting precreated API keys in S3 bucket: {}".format(s3_bucket_name))
+    
+    response_iterator = s3_client.get_paginator("list_objects_v2").paginate(
+        Bucket = s3_bucket_name,
+        Prefix = "generated-api-keys/"
+    )
+
+    for each_list_response in response_iterator:
+        for each_item in each_list_response.get("Contents", []):
+            each_key = each_item["Key"]
+            
+            try:
+                response = s3_client.get_object(
+                    Bucket = s3_bucket_name,
+                    Key = each_key
+                )
+            except botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "NoSuchKey":
+                    # Object is already deleted.
+                    continue
+                else:
+                    raise
+            
+            api_key_dict = json.loads(response["Body"].read())
+            api_key_id = api_key_dict["api-key-id"]
+            
+            print("Deleting API Key: {}".format(api_key_id))
+            
+            try:
+                apig_client.delete_api_key(
+                    apiKey = api_key_id
+                )
+            except botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "NotFoundException":
+                    print("API Key not found. Assumed already deleted.")
+                else:
+                    raise
