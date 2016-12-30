@@ -14,7 +14,6 @@ Metadata:
       - Label:
           default: Configuration
         Parameters:
-          - EmailFromAddress
           - MetricAlarmEmailAddress
           - PreWarmingEnabled
           - LogRetentionDays
@@ -30,8 +29,6 @@ Metadata:
         default: CORS Origin
       CustomApiBaseUrl:
         default: Custom API Base URL
-      EmailFromAddress:
-        default: E-mail From Address
       IncludeCloudFrontDistribution:
         default: Include CloudFront Distribution
       LogRetentionDays:
@@ -58,10 +55,6 @@ Parameters:
     Default: ''
     AllowedPattern: ^[^"]*$
     ConstraintDescription: must not contain double quotes
-  EmailFromAddress:
-    Type: String
-    Description: The e-mail address from which user e-mail address verification messages should be sent. Leave blank for default.
-    Default: ''
   IncludeCloudFrontDistribution:
     Type: String
     Description: Allows usage of a custom domain name and TLS certificate. Adds 25+ minutes to deployment. Easy to enable later.
