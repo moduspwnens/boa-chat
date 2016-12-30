@@ -22,7 +22,6 @@ from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
 room_duration_seconds = 7200 # 7200 seconds == Two hours
-room_duration_seconds = 600
 
 sns_client = boto3.client("sns")
 sts_client = boto3.client("sts")
