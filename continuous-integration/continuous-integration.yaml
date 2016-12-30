@@ -9,6 +9,7 @@ Metadata:
           default: Options
         Parameters:
           - DeployS3ObjectsByFilename
+          - LogRetentionDays
       - Label:
           default: Deployment
         Parameters:
@@ -20,6 +21,8 @@ Metadata:
         default: Deploy S3 Objects By File Name
       DockerImageBuildVersion:
         default: Docker Image Build Version
+      LogRetentionDays:
+        default: Log Retention (days)
       SourceLocation:
         default: Source Location
       SourceLocationType:
@@ -41,6 +44,28 @@ Parameters:
     Type: String
     Description: Change this value on stack update to rebuild the Docker image used for building.
     Default: ''
+  LogRetentionDays:
+    Type: String
+    Default: '14'
+    AllowedValues:
+      - ''
+      - '1'
+      - '3'
+      - '5'
+      - '7'
+      - '14'
+      - '30'
+      - '60'
+      - '90'
+      - '120'
+      - '150'
+      - '180'
+      - '365'
+      - '400'
+      - '545'
+      - '731'
+      - '1827'
+      - '3653'
   SourceLocationType:
     Type: String
     Default: GITHUB
@@ -144,6 +169,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-source-push
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   InitialSourceRepositoryPusherCodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -272,6 +299,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-docker-builder
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   DockerBuilderCodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -406,6 +435,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   BuildPipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -529,6 +560,7 @@ Resources:
                       "RoleArn": "${StackDeployCloudFormationRole.Arn}",
                       "StackName": "${ProjectGlobalPrefix.Prefix}-webchat",
                       "ParameterOverrides": {
+                          "LogRetentionDays": "${LogRetentionDays}",
                           "S3SourceBucket": "${ArtifactStoreBucket}"
                       }
                     }
@@ -880,6 +912,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CloudFormationS3StackDeployerFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   
   
@@ -1055,6 +1089,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-S3UnzipUploaderFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   
   
@@ -1186,6 +1222,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CloudFormationTemplateS3KeyUpdaterFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   
   
@@ -1338,6 +1376,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodePipelineArtifactExtractorFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   
   
@@ -1502,6 +1542,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   CodeBuildInstanceStateMachineRole:
     Type: AWS::IAM::Role
@@ -1782,6 +1824,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StepFunctionStateMachineCustomResourceFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   #
   #   Docker Image Repository Cleanup
@@ -1891,6 +1935,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-DockerImageRepositoryCleanupFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   DockerImageRepositoryCleanupInvocation:
     Type: Custom::DockerImageRepositoryCleanup
@@ -2039,6 +2085,8 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-StackCleanupFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
   
   StackCleanupInvocation:
     Type: Custom::StackCleanupInvocation
