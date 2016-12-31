@@ -513,7 +513,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       sign: true,
       includeApiKey: true
     })
-    .then(function(angResponseObject) {
+    .then(function(response) {
       removeCancelerReference();
       if (!liveCounterDecremented) {
         roomSessionMessageWatchPollLiveCounter--;
@@ -521,8 +521,8 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       }
       
       
-      var messagesArray = angResponseObject.messages;
-      var receiptHandles = angResponseObject["receipt-handles"];
+      var messagesArray = response["data"]["messages"];
+      var receiptHandles = response["data"]["receipt-handles"];
       consecutiveRoomSessionMessagePollErrors = 0;
       
       if (messagesArray.length > 0) {
@@ -537,7 +537,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       }
       
       startWatchingRoomSessionMessages.apply(recursiveThis, recursiveArgs);
-    }, function(errorReason, errorCode) {
+    }, function(response) {
       
       removeCancelerReference();
       if (!liveCounterDecremented) {
@@ -545,10 +545,10 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         liveCounterDecremented = true;
       }
       
-      if (errorReason == null && errorCode == -1 && canceledClientSessionWatchIdMap.hasOwnProperty(clientSessionWatchId)) {
+      if (response.status == -1 && canceledClientSessionWatchIdMap.hasOwnProperty(clientSessionWatchId)) {
         // Cancelled. No further action necessary.
       }
-      else if (errorCode == 400 && roomClosedReceivedEndpointMap.hasOwnProperty(messagesEndpoint)) {
+      else if (response.status == 400 && roomClosedReceivedEndpointMap.hasOwnProperty(messagesEndpoint)) {
         console.log("Room assumed to be closed.");
       }
       else {
