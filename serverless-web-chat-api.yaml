@@ -262,7 +262,7 @@ Resources:
       MethodSettings:
         - ResourcePath: ''
           HttpMethod: "*/*"
-          DataTraceEnabled: true
+          DataTraceEnabled: False
           LoggingLevel: INFO
           MetricsEnabled:
             Fn::If:

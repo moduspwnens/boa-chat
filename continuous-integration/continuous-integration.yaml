@@ -680,6 +680,7 @@ Resources:
                 Action:
                   - apigateway:PATCH
                   - apigateway:POST
+                  - apigateway:PUT
                   - events:PutRule
                   - events:PutTargets
                   - iam:AttachRolePolicy
