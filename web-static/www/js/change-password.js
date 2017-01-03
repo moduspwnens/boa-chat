@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('changePasswordController', function($scope, $http, $state, $cookieStore, $uibModal, webchatService) {
+app.controller('changePasswordController', function($scope, $http, $state, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -14,7 +14,7 @@ app.controller('changePasswordController', function($scope, $http, $state, $cook
   $scope.changePasswordFormSubmitted = function() {
     
     if ($scope.password !== $scope.passwordConfirm) {
-      alert("New password fields don't match.");
+      errorModalDefaultAlert("New password fields don't match.");
       return false;
     }
     
@@ -41,10 +41,10 @@ app.controller('changePasswordController', function($scope, $http, $state, $cook
         $scope.ajaxOperationInProgress = false;
         
         if (errorReason !== "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
         }
         else {
-          alert("An unexpected error occurred when trying to register.");
+          errorModalDefaultAlert("An unexpected error occurred when trying to register.");
           
         }
       })

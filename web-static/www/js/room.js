@@ -135,7 +135,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
           
         }
         else {
-          alert("An error occurred in trying to enter the room.");
+          errorModalDefaultAlert("An error occurred in trying to enter the room.");
         }
       });
   }

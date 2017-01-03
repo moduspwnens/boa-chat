@@ -2,7 +2,7 @@ var app = undefined;
 
 (function() {
   
-  app = angular.module('app', ['ngCookies', 'ui.router', 'navController', 'ui.bootstrap', 'webchatService', 'authInterceptor', 'templates'])
+  app = angular.module('app', ['ngCookies', 'ui.router', 'navController', 'ui.bootstrap', 'webchatService', 'authInterceptor', 'templates', 'errorModalDefaultAlert'])
 
 	app.config(function($stateProvider, $urlRouterProvider, $controllerProvider){
 		var origController = app.controller

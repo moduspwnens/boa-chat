@@ -71,6 +71,17 @@ app.controller('modalSimpleController', function($scope, $state, $uibModalInstan
     
   }
   
+  else if (config.mode == "error-default") {
+    
+    $scope.mainMessageText = config.message;
+    $scope.mainIconClass = "glyphicon-remove";
+    
+    onDismiss = function() {
+      
+    }
+    
+  }
+  
   $scope.dismissButtonClicked = function() {
     $uibModalInstance.close();
     onDismiss();

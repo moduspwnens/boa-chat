@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('forgotController', function($scope, $http, $state, webchatService) {
+app.controller('forgotController', function($scope, $http, $state, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -18,10 +18,10 @@ app.controller('forgotController', function($scope, $http, $state, webchatServic
         $scope.ajaxOperationInProgress = false;
         
         if (errorReason != "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
         }
         else {
-          alert("An unexpected error occurred. Please try again.");
+          errorModalDefaultAlert("An unexpected error occurred. Please try again.");
         }
       })
     

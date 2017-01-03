@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('homeController', function($scope, $http, $state, $uibModal, webchatService) {
+app.controller('homeController', function($scope, $http, $state, $uibModal, webchatService, errorModalDefaultAlert) {
   $scope.title = globalProjectName;
   
   $scope.createChatRoomButtonClicked = function() {
@@ -35,7 +35,7 @@ app.controller('homeController', function($scope, $http, $state, $uibModal, webc
           
         }
         else {
-          alert("An error occurred in trying to create a room.");
+          errorModalDefaultAlert("An error occurred in trying to create a room.");
         }
       })
     

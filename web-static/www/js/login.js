@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('loginController', function($scope, $http, $state, $cookieStore, webchatService) {
+app.controller('loginController', function($scope, $http, $state, $cookieStore, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -35,11 +35,11 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
         $scope.ajaxOperationInProgress = false;
         
         if (errorReason !== "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
           focusEmailField();
         }
         else {
-          alert("An unexpected error occurred when trying to log in.");
+          errorModalDefaultAlert("An unexpected error occurred when trying to log in.");
           focusEmailField();
         }
       })

@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('emailChangeController', function($scope, $http, $state, $cookieStore, $uibModal, webchatService) {
+app.controller('emailChangeController', function($scope, $http, $state, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -28,10 +28,10 @@ app.controller('emailChangeController', function($scope, $http, $state, $cookieS
         $scope.ajaxOperationInProgress = false;
         
         if (errorReason !== "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
         }
         else {
-          alert("An unexpected error occurred when trying to request the e-mail address change.");
+          errorModalDefaultAlert("An unexpected error occurred when trying to request the e-mail address change.");
         }
       })
   }

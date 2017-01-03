@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('emailVerifyController', function($scope, $state, $stateParams, $cookieStore, $uibModal, webchatService) {
+app.controller('emailVerifyController', function($scope, $state, $stateParams, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -44,10 +44,10 @@ app.controller('emailVerifyController', function($scope, $state, $stateParams, $
           $scope.ajaxOperationInProgress = false;
         
           if (errorReason != "Other") {
-            alert(errorReason);
+            errorModalDefaultAlert(errorReason);
           }
           else {
-            alert("An unexpected error occurred when trying to confirm your e-mail address.");
+            errorModalDefaultAlert("An unexpected error occurred when trying to confirm your e-mail address.");
           }
         
           focusCodeInputField();
@@ -84,10 +84,10 @@ app.controller('emailVerifyController', function($scope, $state, $stateParams, $
           $scope.ajaxOperationInProgress = false;
       
           if (errorReason != "Other") {
-            alert(errorReason);
+            errorModalDefaultAlert(errorReason);
           }
           else {
-            alert("An unexpected error occurred when trying to confirm your e-mail address.");
+            errorModalDefaultAlert("An unexpected error occurred when trying to confirm your e-mail address.");
           }
       
           focusCodeInputField();

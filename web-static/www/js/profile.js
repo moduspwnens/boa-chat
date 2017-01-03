@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('profileController', function($scope, $http, $state, $uibModal, $cookieStore, webchatService) {
+app.controller('profileController', function($scope, $http, $state, $uibModal, $cookieStore, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
@@ -37,10 +37,10 @@ app.controller('profileController', function($scope, $http, $state, $uibModal, $
       .catch(function(errorReason) {
         $scope.apiKeyResetInProgress = false;
         if (errorReason !== "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
         }
         else {
-          alert("An unexpected error occurred.");
+          errorModalDefaultAlert("An unexpected error occurred.");
         }
       })
   }

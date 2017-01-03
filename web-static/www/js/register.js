@@ -1,13 +1,13 @@
 'use strict';
 
-app.controller('registerController', function($scope, $http, $state, $cookieStore, webchatService) {
+app.controller('registerController', function($scope, $http, $state, $cookieStore, webchatService, errorModalDefaultAlert) {
   
   $scope.$state = $state;
   
   $scope.registerFormSubmitted = function() {
     
     if ($scope.password !== $scope.passwordConfirm) {
-      alert("Password fields don't match.");
+      errorModalDefaultAlert("Password fields don't match.");
       return false;
     }
     
@@ -28,11 +28,11 @@ app.controller('registerController', function($scope, $http, $state, $cookieStor
         $scope.ajaxOperationInProgress = false;
         
         if (errorReason != "Other") {
-          alert(errorReason);
+          errorModalDefaultAlert(errorReason);
           focusEmailField();
         }
         else {
-          alert("An unexpected error occurred when trying to register.");
+          errorModalDefaultAlert("An unexpected error occurred when trying to register.");
           focusEmailField();
         }
       })
