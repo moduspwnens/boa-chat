@@ -70,6 +70,18 @@ app.controller('modalSimpleController', function($scope, $state, $uibModalInstan
     }
     
   }
+  else if (config.mode == "invite-tutorial") {
+    
+    $scope.modalTitle = "Invite";
+    $scope.dismissButtonTitle = "Understood";
+    $scope.mainIconClass = "glyphicon-user";
+    
+    $scope.mainMessageText = "To invite another user to this room, simply share its URL.";
+    
+    onDismiss = function() {
+      $cookieStore.put("invite-tutorial-shown", true);
+    }
+  }
   
   else if (config.mode == "error-default") {
     

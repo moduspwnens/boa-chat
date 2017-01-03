@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, $uibModal, webchatService) {
+app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert) {
   
   $scope.roomChatEvents = [];
   $scope.messageInputDisabled = true;
@@ -105,7 +105,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         }
       })
       .catch(function(errorReason) {
-        console.log("Error occurred fetching recent room messages.");
+        errorModalDefaultAlert("An error occurred fetching recent room messages.");
         console.log(errorReason);
       })
   }
@@ -151,6 +151,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   // User is ready to post if the session is created and recent messages have been fetched.
   var readyToPostConfirmed = false;
+  var inviteFunctionalityUnderstood = false;
   
   var evaluateIfReadyToPost = function() {
     
@@ -158,12 +159,39 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       return;
     }
     
+    
+    
     if (recentRoomMessagesFetched && !angular.isUndefined(clientRoomSessionWatchId)) {
+      
       $scope.messageInputTextPlaceholder = "Send a message";
       $scope.messageInputDisabled = false;
       
       focusSendMessageBox();
       readyToPostConfirmed = true;
+      
+      if (!inviteFunctionalityUnderstood) {
+        if (angular.isUndefined($cookieStore.get("invite-tutorial-shown"))) {
+        
+          $uibModal.open({
+            templateUrl: 'modal-simple.html',
+            controller: 'modalSimpleController',
+            resolve: {
+              config: function() {
+                return {
+                  mode: 'invite-tutorial'
+                }
+              }
+            }
+          });
+        
+          return;
+        }
+        else {
+          inviteFunctionalityUnderstood = true;
+        }
+      }
+      
+      
     }
   }
   

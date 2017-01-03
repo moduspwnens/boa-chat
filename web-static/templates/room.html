@@ -2,13 +2,11 @@
   
   <div class="webchat-event-outer-wrapper">
     <div class="webchat-event-inner-wrapper">
-      <div class="container">
-        <div class="row">
-          <div class="col-md-12">
-            <div class="webchat-event" ng-repeat="event in roomChatEvents">
-              <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
-              <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
-            </div>
+      <div class="row">
+        <div class="col-md-12">
+          <div class="webchat-event" ng-repeat="event in roomChatEvents">
+            <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
+            <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
           </div>
         </div>
       </div>
