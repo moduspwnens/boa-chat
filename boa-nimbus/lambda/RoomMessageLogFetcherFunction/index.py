@@ -95,6 +95,8 @@ def lambda_handler(event, context):
     
     s3_fetch_start_time = time.time()
     pool.map(get_s3_bucket_object, pool_map_args)
+    pool.close()
+    pool.join()
     s3_fetch_end_time = time.time()
     
     print("Fetched {} S3 objects in {} seconds.".format(
