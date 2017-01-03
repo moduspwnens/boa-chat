@@ -118,7 +118,7 @@ Mappings:
       
       # This is the bucket I host that contains prebuilt Lambda packages and 
       # S3 artifacts for quick deployments.
-      DefaultS3SourceBucket: moduspwnens-boa-nimbus-0-2
+      DefaultS3SourceBucket: moduspwnens-boa-nimbus-0-2-1
       
       # Static variables
       CognitoIdentityUserProfileDatasetName: user-profile
