@@ -6,6 +6,8 @@ A scalable, cheap, easy-to-deploy web chat platform built on AWS.
 Check it out live:
  * https://webchat.bennlinger.com/
 
+Note that I will rebuild the demo environment periodically, which will clear all of its data / user registrations.
+
 ## Deploy
 
 It only takes a few clicks. Just log into your AWS account (with appropriate permissions) and click this button:
