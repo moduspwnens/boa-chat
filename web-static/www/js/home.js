@@ -14,9 +14,29 @@ app.controller('homeController', function($scope, $http, $state, $uibModal, webc
         $state.go('room', { roomId: roomId });
         
       })
-      .catch(function() {
+      .catch(function(errorReason) {
         $scope.ajaxOperationInProgress = false;
-        alert("An error occurred in trying to create a room.");
+        
+        if (errorReason == "LoginRequired") {
+          
+          $uibModal.open({
+            templateUrl: 'modal-simple.html',
+            controller: 'modalSimpleController',
+            resolve: {
+              config: function() {
+                return {
+                  mode: 'login-required',
+                  message: 'You must log in before creating a room.',
+                  modalTitle: 'Login Required'
+                }
+              }
+            }
+          });
+          
+        }
+        else {
+          alert("An error occurred in trying to create a room.");
+        }
       })
     
     return false;

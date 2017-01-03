@@ -5,9 +5,9 @@
   </div>
   -->
   <div class="modal-body">
-    <h1>Success!</h1>
-    <div class="confirmed-checkmark">
-      <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+    <h1 ng-bind="modalTitle"></h1>
+    <div class="modal-main-icon">
+      <span class="glyphicon" ng-class="mainIconClass" aria-hidden="true"></span>
     </div>
     <p ng-bind="mainMessageText">
       

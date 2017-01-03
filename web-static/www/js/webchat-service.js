@@ -335,6 +335,11 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     
     return $q(function(resolve, reject) {
       
+      if (angular.isUndefined(webchatService.getCurrentUserCredentials())) {
+        reject("LoginRequired");
+        return;
+      }
+      
       $http({
         method: 'POST',
         url: requestEndpoint,
@@ -359,6 +364,11 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     var createRoomSessionEndpoint = WebChatApiEndpoint + 'room/' + encodeURIComponent(roomId) + '/session';
     
     return $q(function(resolve, reject) {
+      
+      if (angular.isUndefined(webchatService.getCurrentUserCredentials())) {
+        reject("LoginRequired");
+        return;
+      }
       
       $http({
         method: 'POST',
@@ -393,6 +403,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     }
     
     return $q(function(resolve, reject) {
+      
       $http({
         method: 'POST',
         url: postNewRoomMessageEndpoint,
@@ -449,6 +460,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     }
     
     return $q(function(resolve, reject) {
+      
+      if (angular.isUndefined(webchatService.getCurrentUserCredentials())) {
+        reject("LoginRequired");
+        return;
+      }
+      
       $http({
         method: 'GET',
         url: requestEndpoint,

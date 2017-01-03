@@ -19,7 +19,17 @@ app.controller('loginController', function($scope, $http, $state, $cookieStore, 
         
         $cookieStore.put("last-logged-in-email", $scope.email);
         
-        $state.go('home');
+        var loginSentFrom = $cookieStore.get("login-sent-from");
+        
+        if (!angular.isUndefined(loginSentFrom)) {
+          console.log("Sending to page attempted to access that prompted login.");
+          window.location = loginSentFrom;
+          $cookieStore.put("login-sent-from", undefined);
+        }
+        else {
+          $state.go('home');
+        }
+        
       })
       .catch(function(errorReason) {
         $scope.ajaxOperationInProgress = false;

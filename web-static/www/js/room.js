@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, webchatService) {
+app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, $uibModal, webchatService) {
   
   $scope.roomChatEvents = [];
   $scope.messageInputDisabled = true;
@@ -116,8 +116,27 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         evaluateIfReadyToPost();
       
       })
-      .catch(function() {
-        alert("An error occurred in trying to enter the room.");
+      .catch(function(errorReason) {
+        if (errorReason == "LoginRequired") {
+          
+          $uibModal.open({
+            templateUrl: 'modal-simple.html',
+            controller: 'modalSimpleController',
+            resolve: {
+              config: function() {
+                return {
+                  mode: 'login-required',
+                  message: 'You must log in to join a room.',
+                  modalTitle: 'Login Required'
+                }
+              }
+            }
+          });
+          
+        }
+        else {
+          alert("An error occurred in trying to enter the room.");
+        }
       });
   }
   
