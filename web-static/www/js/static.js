@@ -1,1 +1,1 @@
-var globalProjectName = "Boa Nimbus";
+var globalProjectName = "Boa Chat";
