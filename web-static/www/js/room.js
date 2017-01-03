@@ -17,6 +17,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   var recentRoomMessagesFetched = false;
   var clientRoomSessionWatchId = undefined;
   
+  var scrollLockEnabled = true;
+  
   var roomChatEventComparator = function(a, b) {
     // Try to sort by timestamp first.
     var timestampComparison = (a.timestamp - b.timestamp);
@@ -69,6 +71,13 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       $scope.roomChatEvents.sort(roomChatEventComparator);
       
     }
+    
+    if (scrollLockEnabled) {
+      setTimeout(function() {
+        window.scrollTo(0,document.body.scrollHeight);
+      }, 0)
+    }
+    
   }
   
   var focusSendMessageBox = function() {
@@ -227,10 +236,22 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     
   }
   
-  $scope.$on("$destroy", function() {
-    if (!angular.isUndefined(clientRoomSessionWatchId)) {
-      stopSessionWatchingSession(clientRoomSessionWatchId);
-      clientRoomSessionWatchId = undefined;
+  // http://stackoverflow.com/a/10795797
+  var getDocHeight = function() {
+    var D = document;
+    return Math.max(
+      D.body.scrollHeight, D.documentElement.scrollHeight,
+      D.body.offsetHeight, D.documentElement.offsetHeight,
+      D.body.clientHeight, D.documentElement.clientHeight
+    );
+  }
+  
+  $(window).scroll(function() {
+    if($(window).scrollTop() + $(window).height() == getDocHeight()) {
+      scrollLockEnabled = true;
+    }
+    else {
+      scrollLockEnabled = false;
     }
   });
   
