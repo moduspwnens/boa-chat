@@ -1,21 +1,25 @@
 <div class="container webchat-room-wrapper">
-
-    <div class="row">
+  
+  <div class="webchat-event-outer-wrapper">
+    <div class="webchat-event-inner-wrapper">
+      <div class="row">
         <div class="col-md-12">
-            <div class="webchat-event" ng-repeat="event in roomChatEvents">
-                <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
-                <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
-            </div>
+          <div class="webchat-event" ng-repeat="event in roomChatEvents">
+            <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
+            <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
+          </div>
         </div>
+      </div>
     </div>
-    
-    <div class="row message-send-form-wrapper-row">
-        <div class="col-md-12">
-            <form ng-submit="messageSendFormSubmitted()">
-                <div class="form-group">
-                    <input type="text" id="message-input" class="form-control" placeholder="{{messageInputTextPlaceholder}}" ng-model="messageInputText" disabled ng-disabled="messageInputDisabled">
-                </div>
-            </form>
+  </div>
+  
+  <div class="row message-send-form-wrapper-row">
+    <div class="col-md-12">
+      <form ng-submit="messageSendFormSubmitted()">
+        <div class="form-group">
+          <input type="text" id="message-input" class="form-control" placeholder="{{messageInputTextPlaceholder}}" ng-model="messageInputText" disabled ng-disabled="messageInputDisabled">
         </div>
+      </form>
     </div>
+  </div>
 </div>
