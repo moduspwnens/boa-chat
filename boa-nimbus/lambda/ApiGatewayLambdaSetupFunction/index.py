@@ -89,6 +89,7 @@ def lambda_handler(event, context):
                 method_integration = response.get("methodIntegration", {})
                 
                 if method_integration.get("type") in ["AWS", "AWS_PROXY"] and ":lambda:" in method_integration.get("uri"):
+                    # Lambda-backed endpoint
                     integration_uri = method_integration["uri"]
                     lambda_arn = ":".join(integration_uri.split(":")[6:]).split("/")[0]
                     lambda_function_name = lambda_arn.split(":")[5]
@@ -103,53 +104,58 @@ def lambda_handler(event, context):
                             "method": each_method
                         })
                 
-                elif method_integration.get("type", "").upper() == "MOCK":
+                elif method_integration.get("type", "").upper() in ["MOCK", "AWS"]:
+                    # Static endpoint or AWS service proxy
                     
-                    default_status_code = "200"
-                    default_response_dict = response["methodIntegration"]["integrationResponses"][default_status_code]
+                    integration_response_keys = response["methodIntegration"]["integrationResponses"].keys()
                     
-                    response_parameters = default_response_dict.get("responseParameters", {})
-                    
-                    cors_origin_mapping_key = "method.response.header.Access-Control-Allow-Origin"
-                    
-                    if response_parameters.get(cors_origin_mapping_key, "") != cors_origin_list:
-                        print("Updating {} {} integration response parameter {}".format(
-                            each_resource["path"],
-                            each_method,
-                            cors_origin_mapping_key
-                        ))
-                        apig_client.update_integration_response(
-                            restApiId = rest_api_id,
-                            resourceId = each_resource["id"],
-                            httpMethod = each_method,
-                            statusCode = default_status_code,
-                            patchOperations = [{
-                                "op": "replace",
-                                "path": "/responseParameters/{}".format(cors_origin_mapping_key),
-                                "value": "'{}'".format(cors_origin_list)
-                            }]
-                        )
-                        stage_redeploy_required = True
-                    
-                    if each_method.upper() == "OPTIONS":
-                        headers_dict = {}
-                        for each_key in response_parameters.keys():
-                            if each_key.startswith("method.response.header."):
-                                header_name = each_key[23:].upper()
-                                headers_dict[header_name] = response_parameters[each_key]
-                    
-                        resource_cors_map[each_resource["path"]] = {}
-                    
-                        for each_header in cors_headers_to_save:
-                            each_header_upper = each_header.upper()
+                    for each_integration_response_key in integration_response_keys:
                         
-                            if each_header_upper in headers_dict:
-                                each_header_value = headers_dict[each_header_upper]
+                        response_dict = response["methodIntegration"]["integrationResponses"][each_integration_response_key]
+                    
+                        response_parameters = response_dict.get("responseParameters", {})
+                    
+                        cors_origin_mapping_key = "method.response.header.Access-Control-Allow-Origin"
+                    
+                        if response_parameters.get(cors_origin_mapping_key, "") != cors_origin_list:
+                            print("Updating {} {} {} integration response parameter {}".format(
+                                each_resource["path"],
+                                each_method,
+                                each_integration_response_key,
+                                cors_origin_mapping_key
+                            ))
+                            apig_client.update_integration_response(
+                                restApiId = rest_api_id,
+                                resourceId = each_resource["id"],
+                                httpMethod = each_method,
+                                statusCode = each_integration_response_key,
+                                patchOperations = [{
+                                    "op": "replace",
+                                    "path": "/responseParameters/{}".format(cors_origin_mapping_key),
+                                    "value": "'{}'".format(cors_origin_list)
+                                }]
+                            )
+                            stage_redeploy_required = True
+                    
+                        if each_method.upper() == "OPTIONS":
+                            headers_dict = {}
+                            for each_key in response_parameters.keys():
+                                if each_key.startswith("method.response.header."):
+                                    header_name = each_key[23:].upper()
+                                    headers_dict[header_name] = response_parameters[each_key]
+                    
+                            resource_cors_map[each_resource["path"]] = {}
+                    
+                            for each_header in cors_headers_to_save:
+                                each_header_upper = each_header.upper()
+                        
+                                if each_header_upper in headers_dict:
+                                    each_header_value = headers_dict[each_header_upper]
                             
-                                # Strip single quotes off.
-                                each_header_value = each_header_value[1:][:-1]
+                                    # Strip single quotes off.
+                                    each_header_value = each_header_value[1:][:-1]
                             
-                                resource_cors_map[each_resource["path"]][each_header] = each_header_value
+                                    resource_cors_map[each_resource["path"]][each_header] = each_header_value
         
         lambda_function_resource_name_map = {}
         

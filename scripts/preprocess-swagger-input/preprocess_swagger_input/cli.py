@@ -96,7 +96,7 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
         static_body_mapping = each_method_def.get("x-boa-static-body-mapping")
         lambda_resource_name = each_method_def.get("x-boa-lambda-resource-name")
         
-        add_cors_response_headers = static_body_mapping is not None
+        add_cors_response_headers = True
         
         for each_response_key in response_keys:
             each_response_headers = responses_dict.get("headers", {})
@@ -113,9 +113,9 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
             
             each_method_def["responses"][each_response_key]["headers"] = each_response_headers
         
-        apig_integration_def = {
-            "responses": {}
-        }
+        apig_integration_def = each_method_def.get("x-amazon-apigateway-integration", {})
+        
+        apig_integration_def["responses"] = apig_integration_def.get("responses", {})
         
         apig_responses_def = apig_integration_def["responses"]
         
@@ -138,7 +138,8 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
                 aws_region = aws_region,
                 function_name = "${stageVariables.%s}" % lambda_resource_name
             )
-            
+        
+        responses_already_specified = len(apig_integration_def["responses"]) > 0
         
         for each_response_key in response_keys:
             
@@ -148,15 +149,23 @@ def enable_cors_for_path_by_default(input_template, tasks_performed_list, each_p
             else:
                 apig_integration_response_key = str(each_response_key)
             
-            each_response_dict = {
-                "statusCode": each_response_key
-            }
+            if responses_already_specified:
+                for each_key in apig_integration_def["responses"].keys():
+                    each_existing_response = apig_integration_def["responses"][each_key]
+                    
+                    if each_existing_response.get("statusCode") == apig_integration_response_key:
+                        apig_integration_response_key = each_key
+                        break
+            
+            each_response_dict = each_method_def.get("x-amazon-apigateway-integration", {}).get("responses", {}).get(apig_integration_response_key, {})
+            
+            each_response_dict["statusCode"] = each_response_key
             
             if static_body_mapping is not None and apig_integration_response_key == "default":
                 each_response_dict["responseTemplates"] = {
                     "application/json": static_body_mapping
                 }
-                
+            
             response_parameters = {}
             
             if add_cors_response_headers:

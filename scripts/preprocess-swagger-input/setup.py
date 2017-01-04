@@ -11,7 +11,7 @@ requires = [
 
 setup_options = dict(
     name='preprocess-swagger-input',
-    version='0.1',
+    version='0.1.1',
     description='preprocess-swagger-input CLI',
     author='Benn Linger',
     packages=find_packages(exclude=['tests*']),

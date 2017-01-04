@@ -26,6 +26,7 @@ import hashlib
 import base64
 import boto3
 import botocore
+import zbase32
 from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
@@ -50,7 +51,7 @@ def lambda_handler(event, context):
     }
 
 def generate_new_session_id():
-    return "{}".format(uuid.uuid4())
+    return zbase32.b2a(uuid.uuid4().bytes)
 
 def create_and_initialize_queue(event, context, sqs_queue_name, session_id):
     
@@ -152,7 +153,7 @@ def get_default_queue_attributes(sns_topic_arn):
                 "Sid": "AllowRoomPollerActions",
                 "Effect": "Allow",
                 "Principal": {
-                    "AWS": os.environ["POLLER_FUNCTION_ROLE"]
+                    "AWS": os.environ["SESSION_POLLER_ROLE"]
                 },
                 "Action": [
                     "sqs:GetQueueUrl",

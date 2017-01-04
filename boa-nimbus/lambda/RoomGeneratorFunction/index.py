@@ -18,6 +18,7 @@ import json
 import uuid
 import time
 import boto3
+import zbase32
 from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
@@ -133,7 +134,7 @@ def generate_room_sns_topic_name(room_id):
     )
 
 def generate_new_room_id():
-    return "{}".format(uuid.uuid4())
+    return zbase32.b2a(uuid.uuid4().bytes)
 
 account_id = None
 def get_own_account_id():

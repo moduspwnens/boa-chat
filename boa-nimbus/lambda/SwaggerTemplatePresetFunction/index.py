@@ -45,7 +45,8 @@ def lambda_handler(event, context):
         
         replacements_map = {
             ":aws-region:": ":{}:".format(aws_region),
-            ":000000000000:": ":{}:".format(aws_account_id)
+            ":000000000000:": ":{}:".format(aws_account_id),
+            "path/000000000000/": "path/{}/".format(aws_account_id)
         }
         
         dest_file_content = source_file_content

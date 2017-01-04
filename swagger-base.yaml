@@ -180,8 +180,7 @@ paths:
         client acknowledges receipt with the appropriate method.
         
         It can occasionally return duplicate messages across requests, so 
-        clients must handle deduplication separately.
-      x-boa-lambda-resource-name: RoomMessagePollerFunction
+        clients must handle deduplication separately.\
       tags:
         - chat
       produces:
@@ -215,12 +214,72 @@ paths:
           description: Bad request
           examples:
             application/json:
-              message: Invalid room session id.
+              message: Session doesn't exist or you don't have access to it.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+        '500':
+          description: Bad request
+          examples:
+            application/json:
+              message: Internal server error
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
         - api_key: []
+      x-amazon-apigateway-integration:
+        credentials: arn:aws:iam::000000000000:role/${stageVariables.WebChatApiRoomMessagePollerRole}
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: |-
+                #set($sqsMessages = $util.parseJson($input.json('$.ReceiveMessageResponse.ReceiveMessageResult.messages')))
+                #set($firstMessageAdded = false)
+                #set($firstHandleAdded = false)
+                {
+                    "messages": [
+                        #foreach( $sqsMessage in $sqsMessages )#if ($firstMessageAdded),
+                        #else
+                        #set($firstMessageAdded = true)#end#set($chatMessage = $util.parseJson($util.parseJson($sqsMessage.Body).Message))
+                {
+                            "message-id": "$sqsMessage.MessageId",
+                            "identity-id": "$chatMessage.identity-id",
+                            "message": "$chatMessage.message",
+                            "timestamp": $chatMessage.timestamp,
+                            "client-message-id": "$chatMessage.client-message-id",
+                            "author-name": "$chatMessage.author-name"
+                        }#end
+
+                    ],
+                    "receipt-handles": [
+                #foreach( $sqsMessage in $sqsMessages )#if ($firstHandleAdded),
+                #else#set($firstHandleAdded = true)#end
+                        "$sqsMessage.ReceiptHandle"#end
+
+                    ]
+                }
+          4\d{2}:
+            statusCode: "400"
+            responseTemplates:
+              application/json: |-
+                {
+                    "message": "Session doesn't exist or you don't have access to it."
+                }
+          5\d{2}:
+            statusCode: "500"
+            responseTemplates:
+              application/json: |-
+                {
+                    "message": "Internal server error"
+                }
+        uri: arn:aws:apigateway:aws-region:sqs:path/000000000000/${stageVariables.AppPrefix}-{room-id}-{session-id}/?Action=ReceiveMessage&MaxNumberOfMessages=10&WaitTimeSeconds=20
+        requestParameters:
+          integration.request.path.room-id: method.request.path.room-id
+          integration.request.path.session-id: method.request.path.session-id
+        passthroughBehavior: when_no_match
+        httpMethod: GET
+        type: aws
     
     put:
       summary: Acknowledge messages retrieved from a chat room session

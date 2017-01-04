@@ -305,6 +305,20 @@ Resources:
         BurstLimit: 100
         RateLimit: 10
   
+  WebChatApiRoomMessagePollerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
   #
   #   SNS Delivery Status Resources
   #
@@ -1105,8 +1119,8 @@ Resources:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
             Fn::Sub: ${CorsOriginEscaped.Output}
-          POLLER_FUNCTION_ROLE:
-            Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
+          SESSION_POLLER_ROLE:
+            Fn::Sub: ${WebChatApiRoomMessagePollerRole.Arn}
           OWN_FUNCTION_ROLE:
             Fn::Sub: ${RoomSessionGeneratorFunctionRole.Arn}
           PROJECT_GLOBAL_PREFIX:
@@ -1160,81 +1174,7 @@ Resources:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomSessionGeneratorFunction
       RetentionInDays:
         Ref: LogRetentionDays
-  
-  
-  
-  #  
-  #   Room Message Poller Function
-  #  
-    
-  RoomMessagePollerFunction:
-    Type: AWS::Lambda::Function
-    Metadata:
-      PreWarming: true
-    Properties:
-      FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessagePollerFunction
-      Description: Returns any new messages sent to the requested room.
-      Handler: index.proxy_lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - ApiCommon
-      Role:
-        Fn::Sub: ${RoomMessagePollerFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${S3ArtifactSource.Bucket}
-        S3Key: lambda/RoomMessagePollerFunction.zip
-      Environment:
-        Variables:
-          API_DEFINITION_KEY:
-            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
-          CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginEscaped.Output}
-          PROJECT_GLOBAL_PREFIX:
-            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
-          SHARED_BUCKET:
-            Ref: SharedBucket
-      Runtime: python2.7
-      Timeout: 300
-  
-  RoomMessagePollerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: RoomMessagePollerFunctionRoleActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  Fn::Sub: ${RoomMessagePollerFunctionLogGroup.Arn}
-  
-  RoomMessagePollerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessagePollerFunction
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  
-  
+        
   
   
   #  
@@ -3158,10 +3098,14 @@ Resources:
       StageName:
         Ref: WebChatApiStage
       StageVariables:
+        AppPrefix:
+          Fn::Sub: ${ProjectGlobalPrefix.Prefix}
         AwsAccountId:
           Ref: AWS::AccountId
         AwsRegion:
           Ref: AWS::Region
+        WebChatApiRoomMessagePollerRole:
+          Ref: WebChatApiRoomMessagePollerRole
       ApiSwaggerDefinitionKey:
         Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
     DependsOn:
@@ -3169,7 +3113,6 @@ Resources:
       - RoomGeneratorFunction
       - RoomMessageAcknowledgerFunction
       - RoomMessageLogFetcherFunction
-      - RoomMessagePollerFunction
       - RoomMessagePosterFunction
       - RoomSessionGeneratorFunction
       - UserApiKeyResetHandlerFunction
