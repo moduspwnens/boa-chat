@@ -13,8 +13,10 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   var unsentMessageMap = {};
   var confirmedSentMessageIdMap = {};
+  var addedMessageIdMap = {};
   
   var recentRoomMessagesFetched = false;
+  var roomSessionId = undefined;
   var clientRoomSessionWatchId = undefined;
   
   var scrollLockEnabled = true;
@@ -67,8 +69,13 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
       $scope.identityIdAuthorNameMap[eachMessage["identity-id"]] = eachMessage["author-name"];
       
-      $scope.roomChatEvents.push(eachMessage);
-      $scope.roomChatEvents.sort(roomChatEventComparator);
+      if (!addedMessageIdMap.hasOwnProperty(eachMessage["message-id"])) {
+        addedMessageIdMap[eachMessage["message-id"]] = true;
+      
+        $scope.roomChatEvents.push(eachMessage);
+        $scope.roomChatEvents.sort(roomChatEventComparator);
+      }
+      
       
     }
     
@@ -124,9 +131,13 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         
         evaluateIfReadyToPost();
         
+        /*
         if (response.truncated) {
           console.log("Room has prior messages, too.");
         }
+        */
+        
+        evaluateIfRecentRoomHistoryFetchComplete();
       })
       .catch(function(errorReason) {
         console.log(errorReason);
@@ -149,11 +160,14 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
           stopSessionWatchingSession(clientRoomSessionWatchId);
           clientRoomSessionWatchId = undefined;
         }
+        
+        roomSessionId = sessionId;
       
         clientRoomSessionWatchId = webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
       
       
         evaluateIfReadyToPost();
+        evaluateIfRecentRoomHistoryFetchComplete();
       
       })
       .catch(function(errorReason) {
@@ -212,6 +226,28 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }
   }
   
+  var evaluateIfRecentRoomHistoryFetchComplete = function() {
+    
+    var roomHistoryIsCurrent = false;
+    
+    for (var i = 0; i < $scope.roomChatEvents.length; i++) {
+      var eachEvent = $scope.roomChatEvents[i];
+      
+      if (eachEvent["identity-id"] == "SYSTEM" && eachEvent["type"] == "SESSION_STARTED") {
+        if (eachEvent["message"] == roomSessionId) {
+          roomHistoryIsCurrent = true;
+          break;
+        }
+      }
+    }
+    
+    if (recentRoomMessagesFetched && !roomHistoryIsCurrent) {
+      // Try fetching again until we get the message of our session's creation.
+      console.log("Room history doesn't contain session creation. Fetching again.");
+      
+      setTimeout(fetchRecentRoomMessages, 10);
+    }
+  }
   
   
   fetchRecentRoomMessages();

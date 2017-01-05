@@ -31,6 +31,7 @@ from apigateway_helpers.exception import APIGatewayException
 from apigateway_helpers.headers import get_response_headers
 
 sqs_client = boto3.client("sqs")
+sns_client = boto3.client("sns")
 s3_client = boto3.client("s3")
 
 def lambda_handler(event, context):
@@ -75,6 +76,33 @@ def create_and_initialize_queue(event, context, sqs_queue_name, session_id):
     
     queue_arn = response["Attributes"]["QueueArn"]
     
+    message_object = {
+        "identity-id": "SYSTEM",
+        "author-name": "System Message",
+        "message": session_id,
+        "type": "SESSION_STARTED",
+        "timestamp": int(time.time())
+    }
+    
+    try:
+        sns_client.publish(
+            TopicArn = sns_topic_arn,
+            Message = json.dumps(message_object)
+        )
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'AuthorizationError':
+            print("Unauthorized to publish to room's SNS topic ({}). Assuming it doesn't exist.".format(
+                sns_topic_arn
+            ))
+            
+            sqs_client.delete_queue(
+                QueueUrl = queue_url
+            )
+            
+            raise APIGatewayException("Room specified doesn't exist or you don't have access to it.", 400)
+        else:
+            raise
+    
     try:
         subscribe_response = boto3.client("sns").subscribe(
             TopicArn = sns_topic_arn,
@@ -94,8 +122,6 @@ def create_and_initialize_queue(event, context, sqs_queue_name, session_id):
             raise APIGatewayException("Room specified doesn't exist or you don't have access to it.", 400)
         else:
             raise
-        
-        
 
 def generate_room_sns_topic_name(room_id):
     return "{}-{}".format(

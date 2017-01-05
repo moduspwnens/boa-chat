@@ -163,7 +163,10 @@ def get_default_topic_policy(sns_topic_arn):
                 "Principal": {
                     "AWS": os.environ["SUBSCRIBE_ROOM_TOPIC_ROLE"]
                 },
-                "Action": "sns:Subscribe",
+                "Action": [
+                    "sns:Subscribe",
+                    "sns:Publish"
+                ],
                 "Resource": sns_topic_arn
             },
             {
