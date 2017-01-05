@@ -278,7 +278,7 @@ paths:
         requestParameters:
           integration.request.path.room-id: method.request.path.room-id
           integration.request.path.session-id: method.request.path.session-id
-        passthroughBehavior: when_no_match
+        passthroughBehavior: when_no_templates
         httpMethod: GET
         type: aws
     
@@ -288,7 +288,6 @@ paths:
         Send an array of receipt handles returned from polling for chat room 
         session messages to flag them as received. This removes them from 
         the queue to prevent receiving the same messages multiple times.
-      x-boa-lambda-resource-name: RoomMessageAcknowledgerFunction
       tags:
         - chat
       consumes:
@@ -325,9 +324,64 @@ paths:
               message: Value for "receipt-handles" must be an array including at least one string.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
+        '500':
+          description: Bad request
+          examples:
+            application/json:
+              message: Internal server error
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
         - api_key: []
+      x-amazon-apigateway-integration:
+        credentials: arn:aws:iam::000000000000:role/${stageVariables.WebChatApiRoomMessageAcknowledgerRole}
+        responses:
+          default:
+            statusCode: "200"
+            responseTemplates:
+              application/json: '{}'
+          4\d{2}:
+            statusCode: "400"
+            responseTemplates:
+              application/json: |-
+                #set($errorCode = $util.parseJson($input.json('$.Error.Code')))
+                #if($errorCode == "AWS.SimpleQueueService.NonExistentQueue")
+                #set($errorMessage = "Room session doesn't exist or you don't have access to it.")
+                #elseif($errorCode == "AccessDenied")
+                #set($errorMessage = "Room session doesn't exist or you don't have access to it.")
+                #elseif($errorCode == "AWS.SimpleQueueService.EmptyBatchRequest")
+                #set($errorMessage = "Request must contain at least one receipt handle.")
+                #elseif($errorCode == "AWS.SimpleQueueService.TooManyEntriesInBatchRequest")
+                #set($errorMessage = "Request must contain at most ten receipt handles.")
+                #else
+                #set($errorMessage = $errorCode)
+                #end
+                {
+                    "message": "$errorMessage"
+                }
+          5\d{2}:
+            statusCode: "500"
+            responseTemplates:
+              application/json: |-
+                {
+                    "message": "Internal server error"
+                }
+        requestTemplates:
+          application/json: |-
+            #set($handlesArray = $util.parseJson($input.json('$.receipt-handles')))
+            #set($handleCount = 0)
+            Action=DeleteMessageBatch&Version=2012-11-05#foreach( $eachHandle in $handlesArray )
+            #set($handleCount = $handleCount + 1)
+            &DeleteMessageBatchRequestEntry.${handleCount}.Id=msg$handleCount&DeleteMessageBatchRequestEntry.${handleCount}.ReceiptHandle=$util.urlEncode($eachHandle)#end
+        uri: arn:aws:apigateway:aws-region:sqs:path/000000000000/${stageVariables.AppPrefix}-{room-id}-{session-id}/
+        requestParameters:
+          integration.request.path.room-id: method.request.path.room-id
+          integration.request.path.session-id: method.request.path.session-id
+          integration.request.header.Content-Type: '''application/x-www-form-urlencoded'''
+        passthroughBehavior: when_no_templates
+        httpMethod: POST
+        type: aws
   
   /user:
     patch:

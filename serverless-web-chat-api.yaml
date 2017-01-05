@@ -319,6 +319,20 @@ Resources:
               - sts:AssumeRole
       Path: "/"
   
+  WebChatApiRoomMessageAcknowledgerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
   #
   #   SNS Delivery Status Resources
   #
@@ -1114,7 +1128,7 @@ Resources:
       Environment:
         Variables:
           ACKNOWLEDGER_FUNCTION_ROLE:
-            Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
+            Fn::Sub: ${WebChatApiRoomMessageAcknowledgerRole.Arn}
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
           CORS_ORIGINS:
@@ -1172,78 +1186,6 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomSessionGeneratorFunction
-      RetentionInDays:
-        Ref: LogRetentionDays
-        
-  
-  
-  #  
-  #   Room Message Acknowledger Function
-  #  
-    
-  RoomMessageAcknowledgerFunction:
-    Type: AWS::Lambda::Function
-    Metadata:
-      PreWarming: true
-    Properties:
-      FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-RoomMessageAcknowledgerFunction
-      Description: Returns any new messages sent to the requested room.
-      Handler: index.proxy_lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - ApiCommon
-      Role:
-        Fn::Sub: ${RoomMessageAcknowledgerFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${S3ArtifactSource.Bucket}
-        S3Key: lambda/RoomMessageAcknowledgerFunction.zip
-      Environment:
-        Variables:
-          API_DEFINITION_KEY:
-            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
-          CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginEscaped.Output}
-          PROJECT_GLOBAL_PREFIX:
-            Fn::Sub: ${ProjectGlobalPrefix.Prefix}
-          SHARED_BUCKET:
-            Ref: SharedBucket
-      Runtime: python2.7
-      Timeout: 300
-  
-  RoomMessageAcknowledgerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: RoleActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  Fn::Sub: ${RoomMessageAcknowledgerFunctionLogGroup.Arn}
-  
-  RoomMessageAcknowledgerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-RoomMessageAcknowledgerFunction
       RetentionInDays:
         Ref: LogRetentionDays
   
@@ -3104,6 +3046,8 @@ Resources:
           Ref: AWS::AccountId
         AwsRegion:
           Ref: AWS::Region
+        WebChatApiRoomMessageAcknowledgerRole:
+          Ref: WebChatApiRoomMessageAcknowledgerRole
         WebChatApiRoomMessagePollerRole:
           Ref: WebChatApiRoomMessagePollerRole
       ApiSwaggerDefinitionKey:
@@ -3111,7 +3055,6 @@ Resources:
     DependsOn:
       - StackCleanupInvocation
       - RoomGeneratorFunction
-      - RoomMessageAcknowledgerFunction
       - RoomMessageLogFetcherFunction
       - RoomMessagePosterFunction
       - RoomSessionGeneratorFunction
