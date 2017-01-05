@@ -248,7 +248,8 @@ paths:
                             "message": "$chatMessage.message",
                             "timestamp": $chatMessage.timestamp,
                             "client-message-id": "$chatMessage.client-message-id",
-                            "author-name": "$chatMessage.author-name"
+                            "author-name": "$chatMessage.author-name",
+                            "type": "$chatMessage.type"
                         }#end
 
                     ],
