@@ -90,6 +90,30 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     webchatService.stopWatchingForRoomSessionMessages(clientSessionId);
   }
   
+  var loginRequiredModalShown = false;
+  
+  var showLoginRequiredModal = function() {
+    if (loginRequiredModalShown) {
+      return;
+    }
+    
+    $uibModal.open({
+      templateUrl: 'modal-simple.html',
+      controller: 'modalSimpleController',
+      resolve: {
+        config: function() {
+          return {
+            mode: 'login-required',
+            message: 'You must log in to join a room.',
+            modalTitle: 'Login Required'
+          }
+        }
+      }
+    });
+    
+    loginRequiredModalShown = true;
+  }
+  
   var fetchRecentRoomMessages = function() {
     webchatService.getRoomMessageHistory(roomId)
       .then(function(response) {
@@ -105,8 +129,15 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         }
       })
       .catch(function(errorReason) {
-        errorModalDefaultAlert("An error occurred fetching recent room messages.");
         console.log(errorReason);
+        
+        if (errorReason == "LoginRequired") {
+          showLoginRequiredModal();
+        }
+        else {
+          errorModalDefaultAlert("An error occurred fetching recent room messages.");
+        }
+        
       })
   }
   
@@ -127,21 +158,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       })
       .catch(function(errorReason) {
         if (errorReason == "LoginRequired") {
-          
-          $uibModal.open({
-            templateUrl: 'modal-simple.html',
-            controller: 'modalSimpleController',
-            resolve: {
-              config: function() {
-                return {
-                  mode: 'login-required',
-                  message: 'You must log in to join a room.',
-                  modalTitle: 'Login Required'
-                }
-              }
-            }
-          });
-          
+          showLoginRequiredModal();
         }
         else {
           errorModalDefaultAlert("An error occurred in trying to enter the room.");
