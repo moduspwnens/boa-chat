@@ -10,6 +10,7 @@ from __future__ import print_function
 import os
 import json
 import time
+import hashlib
 import boto3
 import botocore
 from apigateway_helpers.exception import APIGatewayException
@@ -64,12 +65,31 @@ def lambda_handler(event, context):
         Filter = "sub = \"{}\"".format(cognito_user_pool_sub_value),
         Limit = 1
     )
-
-    author_name = response["Users"][0]["Attributes"][0]["Value"]
+    
+    author_attributes_list = response["Users"][0]["Attributes"]
+    
+    author_email_address = None
+    
+    author_name = None
+    author_avatar_hash = None
+    
+    for each_attribute_set in author_attributes_list:
+        if each_attribute_set["Name"] == "email":
+            author_email_address = each_attribute_set["Value"]
+            break
+    
+    if author_email_address is not None:
+        author_name = author_email_address
+    
+    # Need a value that will change when the user's Gravatar URL should change
+    # but also should not be a plain MD5 hash of the e-mail address.
+    # The Gravatar is based on the e-mail address, so this should work.
+    author_avatar_hash = hashlib.md5("{}{}".format(cognito_user_pool_sub_value, author_email_address)).hexdigest()
     
     message_object = {
         "identity-id": cognito_identity_id,
         "author-name": author_name,
+        "author-avatar-hash": author_avatar_hash,
         "message": event["request-body"].get("message", ""),
         "timestamp": int(time.time())
     }

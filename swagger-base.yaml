@@ -13,6 +13,22 @@ x-boa-cors-enable: true
 x-boa-cors-headers: Content-Type
 x-boa-cors-max-age: 3600
 
+x-boa-lambda-default-error-regex-format: '.*http-status\":\s*{error_code}.*'
+x-boa-lambda-default-error-response-template: |-
+  #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+  #set ($bodyObj = $util.parseJson($input.body))
+  {
+      "message": "$util.escapeJavaScript($errorMessageObj.message).replaceAll("\\'","'")"
+  }
+
+x-boa-lambda-catchall-error-status-code: 502
+x-boa-lambda-catchall-error-description: Internal server error
+x-boa-lambda-catchall-error-regex-format: '((.*http-status\":\s*502.*)|^(?!.*http-status)(\n|.)+)'
+x-boa-lambda-catchall-error-response-template: |-
+  {
+      "message": "Internal server error"
+  }
+
 tags:
   - name: global
     description: Global API resources
@@ -235,29 +251,25 @@ paths:
             responseTemplates:
               application/json: |-
                 #set($sqsMessages = $util.parseJson($input.json('$.ReceiveMessageResponse.ReceiveMessageResult.messages')))
-                #set($firstMessageAdded = false)
-                #set($firstHandleAdded = false)
                 {
                     "messages": [
-                        #foreach( $sqsMessage in $sqsMessages )#if ($firstMessageAdded),
-                        #else
-                        #set($firstMessageAdded = true)#end#set($chatMessage = $util.parseJson($util.parseJson($sqsMessage.Body).Message))
+                        #foreach( $sqsMessage in $sqsMessages )
+                        #set($chatMessage = $util.parseJson($util.parseJson($sqsMessage.Body).Message))
                 {
                             "message-id": "$sqsMessage.MessageId",
-                            "identity-id": "$chatMessage.identity-id",
-                            "message": "$chatMessage.message",
-                            "timestamp": $chatMessage.timestamp,
-                            "client-message-id": "$chatMessage.client-message-id",
-                            "author-name": "$chatMessage.author-name",
-                            "type": "$chatMessage.type"
-                        }#end
+                #foreach($paramName in $chatMessage.keySet())            "$util.escapeJavaScript($paramName).replaceAll("\'","'")": "$util.escapeJavaScript($chatMessage.get($paramName)).replaceAll("\'","'")"#if($foreach.hasNext),
+                #end
+                #end
+            
+                        }#if($foreach.hasNext),
+                #end
+                        #end
 
                     ],
                     "receipt-handles": [
-                #foreach( $sqsMessage in $sqsMessages )#if ($firstHandleAdded),
-                #else#set($firstHandleAdded = true)#end
-                        "$sqsMessage.ReceiptHandle"#end
-
+                #foreach( $sqsMessage in $sqsMessages )
+                        "$sqsMessage.ReceiptHandle"#if($foreach.hasNext),
+                #end#end
                     ]
                 }
           4\d{2}:
@@ -750,6 +762,59 @@ paths:
       security:
         - sigv4: []
         - api_key: []
+  
+  /user/{user-id}/avatar:
+    get:
+      summary: Fetches a user's avatar image.
+      description: |+
+        Does its own caching and pulling from Gravatar. This avoids having to 
+        give out plain MD5 hashes of each user's e-mail address with their 
+        avatar (a requirement that would otherwise exist using Gravatar 
+        directly).
+      x-boa-lambda-resource-name: UserAvatarRequestHandlerFunction
+      x-boa-lambda-integration-type: direct
+      tags:
+        - user
+      produces:
+        - application/json
+      parameters:
+        - name: hash
+          in: query
+          required: false
+          type: string
+        - name: user-id
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad request
+          examples:
+            application/json:
+              message: The user-id specified doesn't represent a valid user.
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+        '502':
+          description: Server error
+          examples:
+            application/json:
+              message: Internal server error
+          schema:
+            $ref: '#/definitions/DefaultErrorResponse'
+      x-amazon-apigateway-integration:
+        responses:
+          default:
+            statusCode: 200
+            contentHandling: CONVERT_TO_BINARY
+            responseParameters:
+              method.response.header.Content-Type: '''image/png'''
+        cacheNamespace: default
+        cacheKeyParameters:
+          - method.request.path.user-id
+          - method.request.querystring.hash
+        type: aws
 
 definitions:
   

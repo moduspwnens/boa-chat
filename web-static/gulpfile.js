@@ -119,6 +119,11 @@ gulp.task('angular-cookies', function() {
       .pipe(gulp.dest('./www/lib/angular-cookies/'));
 });
 
+gulp.task('moment', function() {
+    return gulp.src(config.bowerDir + '/moment/min/moment-with-locales*.js')
+      .pipe(gulp.dest('./www/lib/moment/'));
+});
+
 gulp.task('crypto-js', function() {
     return gulp.src(config.bowerDir + '/crypto-js/*.js')
       .pipe(gulp.dest('./www/lib/crypto-js/'));
@@ -157,6 +162,7 @@ gulp.task(
     'angular-cookies', 
     'crypto-js', 
     'aws-sign-web', 
+    'moment',
     'template-cache',
     'guid'
   ], 

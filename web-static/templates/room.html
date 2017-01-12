@@ -4,9 +4,26 @@
     <div class="webchat-event-inner-wrapper">
       <div class="row">
         <div class="col-md-12">
-          <div class="webchat-event" ng-repeat="event in roomChatEvents" ng-show="event['type'] !== 'SESSION_STARTED'">
-            <div class="author">{{identityIdAuthorNameMap[event["identity-id"]]}}</div>
-            <div ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
+          <div class="webchat-event" ng-repeat="event in roomChatEvents" ng-show="event['visible']">
+            <div class="post-wrapper">
+              <div class="post-avatar-wrapper">
+                <div class="avatar-wrapper">
+                  <div class="avatar" ng-hide="event.previousMessageShouldBeGrouped">
+                    <img ng-src="{{event['avatar-img-src']}}">
+                  </div>
+                  <div class="top-post-timestamp-mouseover-wrapper" ng-show="event.previousMessageShouldBeGrouped">
+                    <span class="top-post-timestamp-mouseover">{{event["timestamp-in-day"]}}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="post-content-wrapper">
+                <div ng-hide="event.previousMessageShouldBeGrouped">
+                  <span class="author">{{event["author-name"]}}</span>
+                  <span class="top-post-timestamp">{{event["timestamp-in-day"]}}</span>
+                </div>
+                <div class="message-content" ng-class="{unsent: event.hasOwnProperty('unsent'), 'send-failure': event.hasOwnProperty('send-failure')}">{{event.message}}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

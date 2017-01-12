@@ -1,15 +1,27 @@
 'use strict';
 
-app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert) {
+app.controller('roomController', function($scope, $http, $stateParams, $cookieStore, $uibModal, webchatService, errorModalDefaultAlert, WebChatApiEndpoint) {
   
   $scope.roomChatEvents = [];
   $scope.messageInputDisabled = true;
   $scope.messageInputTextPlaceholder = "Joining room...";
   
   $scope.identityIdAuthorNameMap = {};
+  var identityIdAvatarHashMap = {};
   
   var roomId = $stateParams.roomId;
-  var userId = "Me";
+  
+  var unsentIdentityId = undefined;
+  var unsentAuthorName = undefined;
+  
+  try {
+    unsentIdentityId = $cookieStore.get("login")["user"]["user-id"];
+    unsentAuthorName = $cookieStore.get("login")["user"]["email-address"];
+  }
+  catch (e) {
+    // Do nothing.
+  }
+  
   
   var unsentMessageMap = {};
   var confirmedSentMessageIdMap = {};
@@ -56,7 +68,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
           
           if (unsentMessageMap.hasOwnProperty(eachClientMessageId)) {
             // Receiving it now confirms its sending was successful.
-            unsentMessageConfirmed(eachClientMessageId, eachMessage["message-id"]);
+            unsentMessageConfirmed(eachClientMessageId, eachMessage["message-id"], eachMessage);
             continue;
           }
           
@@ -68,14 +80,55 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       }
       
       $scope.identityIdAuthorNameMap[eachMessage["identity-id"]] = eachMessage["author-name"];
+      if (eachMessage.hasOwnProperty("author-avatar-hash")) {
+        identityIdAvatarHashMap[eachMessage["identity-id"]] = eachMessage["author-avatar-hash"];
+      }
+      
       
       if (!addedMessageIdMap.hasOwnProperty(eachMessage["message-id"])) {
         addedMessageIdMap[eachMessage["message-id"]] = true;
-      
+        
+        eachMessage["visible"] = eachMessage["type"] !== "SESSION_STARTED";
+        eachMessage["timestamp-in-day"] = moment.unix(eachMessage["timestamp"]).format("LT");
+        
+        eachMessage.setAvatarUrl = function() {
+          var avatarUrl = undefined;
+        
+          if (eachMessage["identity-id"] == "SYSTEM") {
+            avatarUrl = "img/system-avatar-40x40.png";
+          }
+          else {
+            avatarUrl = WebChatApiEndpoint + "user/" + eachMessage["identity-id"] + "/avatar?";
+            avatarUrl += "s=40";
+            avatarUrl += "&hash=" + identityIdAvatarHashMap[eachMessage["identity-id"]];
+          }
+          
+          eachMessage["avatar-img-src"] = avatarUrl;
+        }
+        
+        eachMessage.setAvatarUrl();
+        
         $scope.roomChatEvents.push(eachMessage);
-        $scope.roomChatEvents.sort(roomChatEventComparator);
+        
       }
+    }
+    
+    $scope.roomChatEvents.sort(roomChatEventComparator);
+    
+    var previousVisibleMessageAuthorId = undefined;
+    var previousVisibleMessageTimestamp = 0;
+    
+    for (var i=0; i < $scope.roomChatEvents.length; i++) {
+      var eachMessage = $scope.roomChatEvents[i];
       
+      var secondsSincePreviousTimestamp = eachMessage["timestamp"] - previousVisibleMessageTimestamp;
+      
+      eachMessage.previousMessageShouldBeGrouped = eachMessage["identity-id"] == previousVisibleMessageAuthorId && secondsSincePreviousTimestamp < 600;
+      
+      if (eachMessage["visible"]) {
+        previousVisibleMessageAuthorId = eachMessage["identity-id"];
+        previousVisibleMessageTimestamp = eachMessage["timestamp"];
+      }
       
     }
     
@@ -254,7 +307,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   createNewRoomSession();
   
   
-  var unsentMessageConfirmed = function(clientMessageId, serverMessageId) {
+  var unsentMessageConfirmed = function(clientMessageId, serverMessageId, serverMessage) {
     var unsentMessage = unsentMessageMap[clientMessageId];
     if (angular.isUndefined(unsentMessage)) {
       return;
@@ -267,6 +320,13 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }
     delete unsentMessage["unsent"];
     
+    if (!angular.isUndefined(serverMessage)) {
+      if (serverMessage.hasOwnProperty("author-avatar-hash")) {
+        unsentMessage["author-avatar-hash"] = serverMessage["author-avatar-hash"];
+        unsentMessage.setAvatarUrl()
+      }
+    }
+    
     delete unsentMessageMap[clientMessageId];
   }
   
@@ -276,8 +336,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       "message-id": Guid.raw(),
       "client-message-id": Guid.raw(),
       "timestamp": Math.floor(Date.now() / 1000),
-      "identity-id": userId,
-      "author-name": userId,
+      "identity-id": unsentIdentityId,
+      "author-name": unsentAuthorName,
       "message": messageText,
       "unsent": true
     };

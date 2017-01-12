@@ -42,16 +42,90 @@ footer {
   text-transform: capitalize;
 }
 
+.webchat-event {
+  display: table;
+  width: 100%;
+}
+
+.webchat-event:hover {
+  background-color: #EEE;
+}
+
 .webchat-event .author {
   font-weight: bold;
 }
 
 .webchat-event .unsent {
-  font-style: italic;
+  color: #888;
 }
 
 .webchat-event .send-failure {
   text-decoration: line-through;
+}
+
+.webchat-event .post-wrapper {
+  display: table;
+  width: 100%;
+}
+
+.webchat-event .post-wrapper .post-avatar-wrapper {
+  display: table-cell;
+  vertical-align: top;
+  text-align: center;
+  padding-right: 5px;
+}
+
+.webchat-event .post-wrapper .post-avatar-wrapper .avatar-wrapper {
+  width: 50px;
+  text-align: center;
+}
+
+.webchat-event .post-wrapper .post-avatar-wrapper .avatar-wrapper .avatar {
+  margin-left: 10px;
+  width: 40px;
+  height: 40px;
+  margin-top: 3px;
+  /*background-color: #f99;*/
+}
+
+.webchat-event .post-wrapper .post-avatar-wrapper .avatar-wrapper .avatar img {
+  width: 40px;
+  height: 40px;
+}
+
+.webchat-event .post-wrapper .post-avatar-wrapper .avatar-wrapper .top-post-timestamp-mouseover-wrapper {
+  text-align: center;
+  line-height: 26px;
+}
+
+.webchat-event .post-wrapper .post-content-wrapper {
+  display: table-cell;
+  vertical-align: top;
+  /*background-color: #99f;*/
+  padding-left: 5px;
+  width: 100%;
+}
+
+.webchat-event .post-wrapper .post-content-wrapper .top-post-timestamp {
+  margin-left: 5px;
+  font-size: 0.8em;
+  color: #888;
+}
+
+.webchat-event .top-post-timestamp-mouseover {
+  display: none;
+  font-size: 0.8em;
+  line-height: 1.2em;
+  color: #888;
+}
+
+.webchat-event:hover .top-post-timestamp-mouseover {
+  display: inline;
+}
+
+.webchat-event .post-wrapper .post-content-wrapper .message-content {
+  line-height: 1.9em;
+  padding-right: 5px;
 }
 
 .webchat-room-wrapper {
@@ -67,7 +141,7 @@ footer {
   left: 0px;
   right: 0px;
   background-color: #fff;
-  /*padding-top: 15px;*/
+  padding-top: 1px;
 }
 
 .webchat-event-outer-wrapper {
@@ -75,7 +149,8 @@ footer {
   height: 100%;
   margin-top: -34px;
   padding-top: 48px;
-  padding-bottom: 56px;
+  padding-bottom: 0px;
+  width: 100%;
 }
 
 .webchat-event-inner-wrapper {

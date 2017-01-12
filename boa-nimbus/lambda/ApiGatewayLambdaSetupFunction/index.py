@@ -88,7 +88,7 @@ def lambda_handler(event, context):
                 
                 method_integration = response.get("methodIntegration", {})
                 
-                if method_integration.get("type") in ["AWS", "AWS_PROXY"] and ":lambda:" in method_integration.get("uri"):
+                if ":lambda:" in method_integration.get("uri", ""):
                     # Lambda-backed endpoint
                     integration_uri = method_integration["uri"]
                     lambda_arn = ":".join(integration_uri.split(":")[6:]).split("/")[0]
@@ -104,7 +104,7 @@ def lambda_handler(event, context):
                             "method": each_method
                         })
                 
-                elif method_integration.get("type", "").upper() in ["MOCK", "AWS"]:
+                if method_integration.get("type", "").upper() in ["MOCK", "AWS"]:
                     # Static endpoint or AWS service proxy
                     
                     integration_response_keys = response["methodIntegration"]["integrationResponses"].keys()
