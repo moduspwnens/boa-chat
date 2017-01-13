@@ -1,6 +1,6 @@
 <div class="container webchat-room-wrapper">
   
-  <div class="room-loading-outer-wrapper" ng-show="!roomLoadComplete">
+  <div class="room-loading-outer-wrapper" ng-show="(!roomLoadComplete) &amp;&amp; (!failedToCreateRoomSession)">
     <div class="room-loading-inner-wrapper">
       <div style="font-size: 3em; font-weight: bold; color: #888;">
         Joining room...
@@ -12,7 +12,7 @@
   <div class="webchat-event-outer-wrapper" ng-show="roomLoadComplete">
     <div class="webchat-event-inner-wrapper">
       <div class="row">
-        <div class="col-md-12">
+        <div id="webchat-event-group-wrapper" class="col-md-12">
           <div class="webchat-event" ng-repeat="event in roomChatEvents" ng-show="event['visible']">
             <div class="post-wrapper">
               <div class="post-avatar-wrapper">

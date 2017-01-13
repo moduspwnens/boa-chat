@@ -6,6 +6,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   $scope.messageInputDisabled = true;
   $scope.messageInputTextPlaceholder = "";
   $scope.roomLoadComplete = false;
+  $scope.failedToCreateRoomSession = false;
+  $scope.roomHistoryFetchesInProgress = 0;
   
   $scope.identityIdAuthorNameMap = {};
   var identityIdAvatarHashMap = {};
@@ -15,6 +17,9 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   var unsentIdentityId = undefined;
   var unsentAuthorName = undefined;
   var roomHistoryIsCurrent = false;
+  var fullRoomHistoryRetrieved = false;
+  var initialRoomHistoryFetchComplete = false;
+  var roomEventsWrapperElement = document.getElementById("webchat-event-group-wrapper");
   
   try {
     unsentIdentityId = $cookieStore.get("login")["user"]["user-id"];
@@ -55,7 +60,15 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     return 0;
   }
   
+  var mostRecentTimestampReceived = 0;
+  
   var newMessagesReceived = function(messageArray, unsent = false) {
+    
+    var heightBefore = roomEventsWrapperElement.clientHeight;
+    console.log("Before: ", heightBefore);
+    
+    var mostRecentEventReceived = false;
+    
     for (var i=0; i < messageArray.length; i++) {
       var eachMessage = messageArray[i];
       
@@ -89,6 +102,11 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
       if (!addedMessageIdMap.hasOwnProperty(eachMessage["message-id"])) {
         addedMessageIdMap[eachMessage["message-id"]] = true;
+        
+        if (mostRecentTimestampReceived < eachMessage["timestamp"]) {
+          mostRecentTimestampReceived = eachMessage["timestamp"];
+          mostRecentEventReceived = true;
+        }
         
         eachMessage["visible"] = eachMessage["type"] !== "SESSION_STARTED";
         eachMessage["timestamp-in-day"] = moment.unix(eachMessage["timestamp"]).format("LT");
@@ -134,7 +152,12 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
     }
     
-    if (scrollLockEnabled) {
+    var heightAfter = roomEventsWrapperElement.clientHeight;
+    
+    
+    console.log("After: ", heightAfter);
+    
+    if (scrollLockEnabled && mostRecentEventReceived) {
       scrollToBottom();
     }
     
@@ -174,32 +197,70 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     loginRequiredModalShown = true;
   }
   
-  var fetchRecentRoomMessages = function() {
-    webchatService.getRoomMessageHistory(roomId)
+  var firstRecentRoomMessageRequestOccurred = false;
+  
+  var fetchRecentRoomMessages = function(nextToken) {
+    
+    var isFirstRequest = (!firstRecentRoomMessageRequestOccurred);
+    
+    firstRecentRoomMessageRequestOccurred = true;
+    
+    $scope.roomHistoryFetchesInProgress++;
+    
+    webchatService.getRoomMessageHistory(roomId, nextToken)
       .then(function(response) {
         var messageArray = response.messages;
         
         newMessagesReceived(messageArray);
         recentRoomMessagesFetched = true;
         
-        /*
         if (response.truncated) {
-          console.log("Room has prior messages, too.");
+          
+          if (!initialRoomHistoryFetchComplete) {
+            if (document.documentElement.clientHeight < roomEventsWrapperElement.clientHeight) {
+              console.log("Finished fetch of enough history to fill the screen.");
+              initialRoomHistoryFetchComplete = true;
+            }
+            else {
+              if (!$scope.failedToCreateRoomSession) {
+                if (isFirstRequest || !angular.isUndefined(nextToken)) {
+                  fetchRecentRoomMessages(response["next-token"]);
+                }
+              }
+            }
+          }
+          
         }
-        */
+        else {
+          fullRoomHistoryRetrieved = true;
+          console.log("Reached end of room's history.");
+        }
         
-        evaluateIfRecentRoomHistoryFetchComplete();
+        if (angular.isUndefined(nextToken)) {
+          evaluateIfRecentRoomHistoryFetchComplete();
+        }
+        
+        $scope.roomHistoryFetchesInProgress--;
       })
       .catch(function(errorReason) {
+        $scope.roomHistoryFetchesInProgress--;
+        console.log("An error occurred fetching recent room messages.");
         console.log(errorReason);
         
         if (errorReason == "LoginRequired") {
           showLoginRequiredModal();
         }
-        else {
+        else if (angular.isUndefined(nextToken)) {
           errorModalDefaultAlert("An error occurred fetching recent room messages.");
         }
-        
+        else {
+          console.log("Trying again in a few seconds.");
+          $scope.roomHistoryFetchesInProgress++;
+          setTimeout(function() {
+            $scope.roomHistoryFetchesInProgress--;
+            fetchRecentRoomMessages(nextToken);
+          }, 3000);
+        }
       })
   }
   
@@ -221,11 +282,13 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
       })
       .catch(function(errorReason) {
+        $scope.failedToCreateRoomSession = true;
+        
         if (errorReason == "LoginRequired") {
           showLoginRequiredModal();
         }
         else {
-          errorModalDefaultAlert("An error occurred in trying to enter the room.");
+          errorModalDefaultAlert(errorReason);
         }
       });
   }
@@ -298,9 +361,12 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     
     if (recentRoomMessagesFetched && !roomHistoryIsCurrent) {
       // Try fetching again until we get the message of our session's creation.
-      console.log("Room history doesn't contain session creation. Fetching again.");
       
-      setTimeout(fetchRecentRoomMessages, 1000);
+      if (!$scope.failedToCreateRoomSession) {
+        console.log("Room history doesn't contain session creation. Fetching again.");
+      
+        setTimeout(fetchRecentRoomMessages, 1000);
+      }
     }
   }
   

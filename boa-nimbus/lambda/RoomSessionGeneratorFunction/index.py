@@ -99,7 +99,7 @@ def create_and_initialize_queue(event, context, sqs_queue_name, session_id):
                 QueueUrl = queue_url
             )
             
-            raise APIGatewayException("Room specified doesn't exist or you don't have access to it.", 400)
+            raise APIGatewayException("Room specified doesn't exist or is closed.", 400)
         else:
             raise
     
@@ -119,7 +119,7 @@ def create_and_initialize_queue(event, context, sqs_queue_name, session_id):
                 QueueUrl = queue_url
             )
             
-            raise APIGatewayException("Room specified doesn't exist or you don't have access to it.", 400)
+            raise APIGatewayException("Room specified doesn't exist or is closed.", 400)
         else:
             raise
 
