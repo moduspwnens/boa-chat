@@ -4,7 +4,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   $scope.roomChatEvents = [];
   $scope.messageInputDisabled = true;
-  $scope.messageInputTextPlaceholder = "Joining room...";
+  $scope.messageInputTextPlaceholder = "";
+  $scope.roomLoadComplete = false;
   
   $scope.identityIdAuthorNameMap = {};
   var identityIdAvatarHashMap = {};
@@ -252,6 +253,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
       focusSendMessageBox();
       readyToPostConfirmed = true;
+      $scope.roomLoadComplete = true;
       
       if (!inviteFunctionalityUnderstood) {
         if (angular.isUndefined($cookieStore.get("invite-tutorial-shown"))) {
@@ -302,10 +304,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }
   }
   
-  
   fetchRecentRoomMessages();
   createNewRoomSession();
-  
   
   var unsentMessageConfirmed = function(clientMessageId, serverMessageId, serverMessage) {
     var unsentMessage = unsentMessageMap[clientMessageId];
@@ -396,4 +396,21 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }
   });
   
+  // Start at top.
+  setTimeout(function() {
+    window.scrollTo(0,0);
+  }, 0);
+  
+})
+.directive("roomLoadingActivityIndicator", function() {
+  
+  var link = function(scope, element, attrs) {
+    var spinner = new Spinner({}).spin(element.children()[0]);
+  }
+  
+  return {
+    link: link,
+    restrict: 'A',
+    template: '<div></div>'
+  };
 });

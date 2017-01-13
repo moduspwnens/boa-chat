@@ -124,6 +124,11 @@ gulp.task('moment', function() {
       .pipe(gulp.dest('./www/lib/moment/'));
 });
 
+gulp.task('spin-js', function() {
+    return gulp.src(config.bowerDir + '/spin.js/spin*.js')
+      .pipe(gulp.dest('./www/lib/spin-js/'));
+});
+
 gulp.task('crypto-js', function() {
     return gulp.src(config.bowerDir + '/crypto-js/*.js')
       .pipe(gulp.dest('./www/lib/crypto-js/'));
@@ -163,6 +168,7 @@ gulp.task(
     'crypto-js', 
     'aws-sign-web', 
     'moment',
+    'spin-js',
     'template-cache',
     'guid'
   ], 

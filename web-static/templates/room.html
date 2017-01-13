@@ -1,6 +1,15 @@
 <div class="container webchat-room-wrapper">
   
-  <div class="webchat-event-outer-wrapper">
+  <div class="room-loading-outer-wrapper" ng-show="!roomLoadComplete">
+    <div class="room-loading-inner-wrapper">
+      <div style="font-size: 3em; font-weight: bold; color: #888;">
+        Joining room...
+      </div>
+      <div room-loading-activity-indicator></div>
+    </div>
+  </div>
+  
+  <div class="webchat-event-outer-wrapper" ng-show="roomLoadComplete">
     <div class="webchat-event-inner-wrapper">
       <div class="row">
         <div class="col-md-12">
