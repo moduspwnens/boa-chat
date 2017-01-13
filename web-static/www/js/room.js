@@ -468,10 +468,18 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }, 0)
   }
   
+  var scrollToTop = function() {
+    setTimeout(function() {
+      window.scrollTo(0,0);
+    }, 0);
+  }
+  
   // Start at top.
-  setTimeout(function() {
-    window.scrollTo(0,0);
-  }, 0);
+  scrollToTop();
+  
+  $scope.$on("$destroy", function() {
+    scrollToTop();
+  })
   
 })
 .directive("roomLoadingActivityIndicator", function() {
