@@ -14,6 +14,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   var unsentIdentityId = undefined;
   var unsentAuthorName = undefined;
+  var roomHistoryIsCurrent = false;
   
   try {
     unsentIdentityId = $cookieStore.get("login")["user"]["user-id"];
@@ -134,9 +135,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     }
     
     if (scrollLockEnabled) {
-      setTimeout(function() {
-        window.scrollTo(0,document.body.scrollHeight);
-      }, 0)
+      scrollToBottom();
     }
     
   }
@@ -183,8 +182,6 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
         newMessagesReceived(messageArray);
         recentRoomMessagesFetched = true;
         
-        evaluateIfReadyToPost();
-        
         /*
         if (response.truncated) {
           console.log("Room has prior messages, too.");
@@ -219,9 +216,8 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       
         clientRoomSessionWatchId = webchatService.watchForRoomSessionMessages(roomId, sessionId, newMessagesReceived);
       
-      
-        evaluateIfReadyToPost();
         evaluateIfRecentRoomHistoryFetchComplete();
+        evaluateIfReadyToPost();
       
       })
       .catch(function(errorReason) {
@@ -246,7 +242,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     
     
     
-    if (recentRoomMessagesFetched && !angular.isUndefined(clientRoomSessionWatchId)) {
+    if (roomHistoryIsCurrent && !angular.isUndefined(clientRoomSessionWatchId)) {
       
       $scope.messageInputTextPlaceholder = "Send a message";
       $scope.messageInputDisabled = false;
@@ -254,6 +250,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       focusSendMessageBox();
       readyToPostConfirmed = true;
       $scope.roomLoadComplete = true;
+      scrollToBottom();
       
       if (!inviteFunctionalityUnderstood) {
         if (angular.isUndefined($cookieStore.get("invite-tutorial-shown"))) {
@@ -283,7 +280,9 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   var evaluateIfRecentRoomHistoryFetchComplete = function() {
     
-    var roomHistoryIsCurrent = false;
+    if (roomHistoryIsCurrent) {
+      return;
+    }
     
     for (var i = 0; i < $scope.roomChatEvents.length; i++) {
       var eachEvent = $scope.roomChatEvents[i];
@@ -291,6 +290,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       if (eachEvent["identity-id"] == "SYSTEM" && eachEvent["type"] == "SESSION_STARTED") {
         if (eachEvent["message"] == roomSessionId) {
           roomHistoryIsCurrent = true;
+          evaluateIfReadyToPost();
           break;
         }
       }
@@ -300,7 +300,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       // Try fetching again until we get the message of our session's creation.
       console.log("Room history doesn't contain session creation. Fetching again.");
       
-      setTimeout(fetchRecentRoomMessages, 10);
+      setTimeout(fetchRecentRoomMessages, 1000);
     }
   }
   
@@ -395,6 +395,12 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
       scrollLockEnabled = false;
     }
   });
+  
+  var scrollToBottom = function() {
+    setTimeout(function() {
+      window.scrollTo(0,document.body.scrollHeight);
+    }, 0)
+  }
   
   // Start at top.
   setTimeout(function() {
