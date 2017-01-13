@@ -100,7 +100,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
           else {
             avatarUrl = WebChatApiEndpoint + "user/" + eachMessage["identity-id"] + "/avatar?";
             avatarUrl += "s=40";
-            avatarUrl += "&hash=" + identityIdAvatarHashMap[eachMessage["identity-id"]];
+            avatarUrl += "&hash=" + encodeURIComponent(identityIdAvatarHashMap[eachMessage["identity-id"]]);
           }
           
           eachMessage["avatar-img-src"] = avatarUrl;

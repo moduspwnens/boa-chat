@@ -1,6 +1,6 @@
 'use strict';
 
-app.controller('profileController', function($scope, $http, $state, $uibModal, $cookieStore, webchatService, errorModalDefaultAlert) {
+app.controller('profileController', function($scope, $http, $state, $uibModal, $cookieStore, webchatService, errorModalDefaultAlert, WebChatApiEndpoint) {
   
   $scope.$state = $state;
   
@@ -14,7 +14,12 @@ app.controller('profileController', function($scope, $http, $state, $uibModal, $
   $scope.emailAddress = loginObject["user"]["email-address"];
   $scope.apiKey = loginObject["user"]["api-key"];
   
-  $scope.gravatarHash = CryptoJS.MD5($scope.emailAddress.toLowerCase()).toString();
+  var avatarUrl = undefined;
+  
+  avatarUrl = WebChatApiEndpoint + "user/" + loginObject["user"]["user-id"] + "/avatar?";
+  avatarUrl += "s=80";
+  
+  $scope.userProfileImageUrl = avatarUrl;
   
   
   
