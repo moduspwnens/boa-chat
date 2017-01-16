@@ -134,6 +134,16 @@ gulp.task('crypto-js', function() {
       .pipe(gulp.dest('./www/lib/crypto-js/'));
 });
 
+gulp.task('lato-font-css', function() {
+    return gulp.src(config.bowerDir + '/lato-font/css/*.css')
+      .pipe(gulp.dest('./www/lib/lato-font/css/'));
+});
+
+gulp.task('lato-font-fonts', function() {
+    return gulp.src(config.bowerDir + '/lato-font/fonts/**/*')
+      .pipe(gulp.dest('./www/lib/lato-font/fonts/'));
+});
+
 gulp.task('aws-sign-web', function() {
     return gulp.src(config.bowerDir + '/aws-sign-web/aws-sign-web*.js')
       .pipe(gulp.dest('./www/lib/aws-sign-web/'));
@@ -169,6 +179,8 @@ gulp.task(
     'aws-sign-web', 
     'moment',
     'spin-js',
+    'lato-font-css',
+    'lato-font-fonts',
     'template-cache',
     'guid'
   ], 
