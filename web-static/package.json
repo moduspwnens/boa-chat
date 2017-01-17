@@ -32,6 +32,8 @@
     "lesshat": "^3.0.2"
   },
   "dependencies": {
-    "guid": "0.0.12"
+    "del": "2.2.2",
+    "guid": "0.0.12",
+    "gulp-dom": "0.9.17"
   }
 }

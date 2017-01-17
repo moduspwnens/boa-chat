@@ -42,4 +42,19 @@ app.controller('homeController', function($scope, $http, $state, $uibModal, webc
     return false;
   }
   
+  // Present modal if this is a 404 error.
+  if (typeof PageLoadErrorOccurred !== "undefined" && PageLoadErrorOccurred) {
+    $uibModal.open({
+      templateUrl: 'modal-simple.html',
+      controller: 'modalSimpleController',
+      resolve: {
+        config: function() {
+          return {
+            mode: 'error-404'
+          }
+        }
+      }
+    });
+  }
+  
 });

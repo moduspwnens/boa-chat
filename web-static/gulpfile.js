@@ -8,6 +8,8 @@ var server = require('gulp-server-livereload');
 var install = require("gulp-install");
 var run = require('gulp-run');
 var templateCache = require('gulp-angular-templatecache');
+var dom = require('gulp-dom');
+const del = require('del');
 
 var devServerHost = 'localhost';
 
@@ -165,6 +167,21 @@ gulp.task('guid', function () {
     .pipe(gulp.dest('./www/lib/guid/'));
 });
 
+gulp.task('error-html', function() {
+  del('./www/error.html');
+  
+  return gulp.src('./www/index.html')
+    .pipe(dom(function() {
+      this.querySelectorAll('head')[0].innerHTML += '<script>var PageLoadErrorOccurred = true;</script>';
+      return this;
+    }))
+    .pipe(rename({
+      basename: "error",
+      extname: ".html"
+    }))
+    .pipe(gulp.dest('./www/'))
+})
+
 gulp.task(
   'install', 
   [
@@ -182,7 +199,8 @@ gulp.task(
     'lato-font-css',
     'lato-font-fonts',
     'template-cache',
-    'guid'
+    'guid',
+    'error-html'
   ], 
   function(done) {
     done()

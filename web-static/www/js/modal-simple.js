@@ -83,6 +83,20 @@ app.controller('modalSimpleController', function($scope, $state, $uibModalInstan
     }
   }
   
+  else if (config.mode == "error-404") {
+    
+    $scope.modalTitle = "Oops!";
+    $scope.mainIconClass = "glyphicon-warning-sign";
+    
+    $scope.mainMessageText = "The page you requested was not found.";
+    $scope.dismissButtonTitle = "Home";
+    
+    onDismiss = function() {
+      window.location = "/";
+    }
+    
+  }
+  
   else if (config.mode == "error-default") {
     
     $scope.mainMessageText = config.message;
