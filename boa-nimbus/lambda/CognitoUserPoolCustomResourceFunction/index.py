@@ -15,6 +15,8 @@ import botocore
 
 cognito_idp_client = boto3.client("cognito-idp")
 
+max_user_pool_name_length = 128
+
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
     
@@ -49,13 +51,10 @@ def lambda_handler(event, context):
         }
         
         create_user_pool_kwargs = {
-            "PoolName": "{}-{}".format(
-                os.environ["PROJECT_GLOBAL_PREFIX"],
-                uuid.uuid4()
-            ),
+            "PoolName": get_pool_name(event.get("LogicalResourceId")),
             "AliasAttributes": ["email"],
             "AutoVerifiedAttributes": ["email"],
-            "LambdaConfig": {},
+            "LambdaConfig": resource_props.get("LambdaConfig", {}),
             "Policies": {
                 "PasswordPolicy": resource_props.get("PasswordPolicy", default_password_policy_dict)
             },
@@ -122,3 +121,15 @@ def lambda_handler(event, context):
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, physical_resource_id)
 
     return {}
+
+def get_pool_name(logical_resource_id):
+    
+    uuid_string = str(uuid.uuid4())
+    
+    max_resource_part_length = max_user_pool_name_length - len(os.environ["PROJECT_GLOBAL_PREFIX"]) - len(uuid_string) - 2
+    
+    return "{}-{}-{}".format(
+        os.environ["PROJECT_GLOBAL_PREFIX"],
+        logical_resource_id[0:max_resource_part_length],
+        uuid_string
+    )

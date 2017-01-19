@@ -15,6 +15,8 @@ import botocore
 
 cognito_identity_client = boto3.client("cognito-identity")
 
+max_identity_pool_name_length = 128
+
 def lambda_handler(event, context):
     print("Event: {}".format(json.dumps(event)))
     
@@ -42,10 +44,7 @@ def lambda_handler(event, context):
     if request_type in ["Update", "Create"]:
         
         response = cognito_identity_client.create_identity_pool(
-            IdentityPoolName = "{}_{}".format(
-                os.environ["PROJECT_GLOBAL_PREFIX"],
-                "{}".format(uuid.uuid4()).replace("-", "")
-            ),
+            IdentityPoolName = get_pool_name(event.get("LogicalResourceId")),
             AllowUnauthenticatedIdentities = False,
             CognitoIdentityProviders = resource_props.get("CognitoIdentityProviders", [])
         )
@@ -73,3 +72,15 @@ def lambda_handler(event, context):
     cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data, physical_resource_id)
 
     return {}
+
+def get_pool_name(logical_resource_id):
+    
+    uuid_string = "{}".format(uuid.uuid4()).replace("-", "")
+    
+    max_resource_part_length = max_identity_pool_name_length - len(os.environ["PROJECT_GLOBAL_PREFIX"]) - len(uuid_string) - 2
+    
+    return "{}_{}_{}".format(
+        os.environ["PROJECT_GLOBAL_PREFIX"],
+        logical_resource_id[0:max_resource_part_length],
+        uuid_string
+    )

@@ -14,6 +14,7 @@ Metadata:
       - Label:
           default: Configuration
         Parameters:
+          - PublicEndpoint
           - MetricAlarmEmailAddress
           - PreWarmingEnabled
           - LogRetentionDays
@@ -37,6 +38,8 @@ Metadata:
         default: Alarm E-mail Address
       PreWarmingEnabled:
         default: Pre-Warming Enabled
+      PublicEndpoint:
+        default: Public Endpoint
       S3SourceBucket:
         default: S3 Source Bucket Name
         
@@ -95,6 +98,10 @@ Parameters:
     AllowedValues:
       - 'Yes'
       - 'No'
+  PublicEndpoint:
+    Type: String
+    Description: Used for links in e-mail verification messages. Leave blank for default. Should probably match CORS origin.
+    Default: ''
   S3SourceBucket:
     Type: String
     Description: Leave blank to use pre-built Lambda function packages and S3 artifacts.
@@ -152,6 +159,11 @@ Conditions:
   UseDefaultSiteForCorsOriginCondition:
     Fn::Equals:
       - Ref: CorsOrigin
+      - ''
+  
+  UseDefaultSiteForPublicEndpointCondition:
+    Fn::Equals:
+      - Ref: PublicEndpoint
       - ''
   
 Resources:
@@ -2297,6 +2309,9 @@ Resources:
     Properties:
       ServiceToken:
         Fn::Sub: ${CognitoUserPoolCustomResourceFunction.Arn}
+      LambdaConfig:
+        CustomMessage:
+          Fn::Sub: ${CognitoUserPoolCustomMessageFunction.Arn}
   
   
   
@@ -2558,6 +2573,81 @@ Resources:
           Fn::Sub: ${CognitoUnauthenticatedUserRole.Arn}
   
   
+  
+  
+  #
+  #   Cognito User Pool Custom Message Function
+  #   
+  #   Customizes Cognito User Pool e-mail verification messages.
+  #
+  
+  CognitoUserPoolCustomMessageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CognitoUserPoolCustomMessageFunction
+      Description: Customizes Cognito User Pool e-mail verification messages
+      Handler: index.lambda_handler
+      MemorySize:
+        Fn::FindInMap:
+          - StaticVariables
+          - LambdaMemoryClasses
+          - ApiOccasional
+      Role:
+        Fn::Sub: ${CognitoUserPoolCustomMessageFunctionRole.Arn}
+      Code:
+        S3Bucket:
+          Fn::Sub: ${S3ArtifactSource.Bucket}
+        S3Key: lambda/CognitoUserPoolCustomMessageFunction.zip
+      Environment:
+        Variables:
+          PUBLIC_ENDPOINT:
+            Fn::Sub: ${PublicEndpointVariable.PublicEndpoint}
+      Runtime: python2.7
+      Timeout: 300
+  
+  CognitoUserPoolCustomMessageFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  Fn::Sub: ${CognitoUserPoolCustomMessageFunctionLogGroup.Arn}
+  
+  CognitoUserPoolCustomMessageFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CognitoUserPoolCustomMessageFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  CognitoUserPoolCustomMessageFunctionUserPoolPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: CognitoUserPoolCustomMessageFunction
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn:
+        Fn::Sub: ${CognitoUserPool.Arn}
   
   
   #
@@ -3637,6 +3727,19 @@ Resources:
              - Fn::Sub: ${StaticContentBucket.WebsiteURL}
           - Ref: CorsOrigin
   
+  PublicEndpointVariable:
+    Type: Custom::CloudFormationVariable
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
+      PublicEndpoint:
+        Fn::If:
+          - UseDefaultSiteForCorsOriginCondition
+          - Fn::If:
+             - IncludeCloudFrontDistributionCondition
+             - Fn::Sub: https://${StaticContentDistribution.DomainName}
+             - Fn::Sub: ${StaticContentBucket.WebsiteURL}
+          - Ref: PublicEndpoint
   
   
   

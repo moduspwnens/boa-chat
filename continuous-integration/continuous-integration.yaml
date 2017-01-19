@@ -687,6 +687,7 @@ Resources:
                   - iam:CreateRole
                   - iam:DetachRolePolicy
                   - iam:PutRolePolicy
+                  - iam:UpdateAssumeRolePolicy
                   - lambda:AddPermission
                   - lambda:CreateFunction
                   - lambda:UpdateFunctionCode
