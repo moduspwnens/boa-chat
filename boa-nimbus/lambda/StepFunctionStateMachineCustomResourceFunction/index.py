@@ -16,6 +16,8 @@ import cfnresponse
 
 sfn_client = boto3.client('stepfunctions')
 
+max_state_machine_name_length = 256
+
 def lambda_handler(event, context):
     print('Event: {}'.format(json.dumps(event)))
     
@@ -96,7 +98,7 @@ def lambda_handler(event, context):
     
     if request_type in ["Create", "Update"]:
         
-        state_machine_name = get_state_machine_name()
+        state_machine_name = get_state_machine_name(event.get("LogicalResourceId"))
         
         definition_dict = json.loads(resource_props["Definition"])
         
@@ -124,10 +126,16 @@ def lambda_handler(event, context):
 
     return {}
 
-def get_state_machine_name():
-    return "{}-{}".format(
+def get_state_machine_name(logical_resource_id):
+    
+    uuid_without_dashes = "{}".format(
+        uuid.uuid4()
+    ).replace("-", "")
+    
+    max_resource_part_length = max_state_machine_name_length - len(os.environ["PROJECT_GLOBAL_PREFIX"]) - len(uuid_without_dashes) - 2
+    
+    return "{}-{}-{}".format(
         os.environ["PROJECT_GLOBAL_PREFIX"],
-        "{}".format(
-            uuid.uuid4()
-        ).replace("-", "")
+        logical_resource_id[0:max_resource_part_length],
+        uuid_without_dashes
     )
