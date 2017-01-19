@@ -14,7 +14,8 @@ Metadata:
       - Label:
           default: Configuration
         Parameters:
-          - PublicEndpoint
+          - ProjectTitle
+          - WebInterfacePublicEndpoint
           - MetricAlarmEmailAddress
           - PreWarmingEnabled
           - LogRetentionDays
@@ -38,10 +39,12 @@ Metadata:
         default: Alarm E-mail Address
       PreWarmingEnabled:
         default: Pre-Warming Enabled
-      PublicEndpoint:
-        default: Public Endpoint
+      ProjectTitle:
+        default: Project Title
       S3SourceBucket:
         default: S3 Source Bucket Name
+      WebInterfacePublicEndpoint:
+        default: Web Interface Public Endpoint
         
 Parameters:
   ApiDefinitionVersion:
@@ -98,13 +101,20 @@ Parameters:
     AllowedValues:
       - 'Yes'
       - 'No'
-  PublicEndpoint:
+  ProjectTitle:
     Type: String
-    Description: Used for links in e-mail verification messages. Leave blank for default. Should probably match CORS origin.
-    Default: ''
+    Description: Visible in e-mail verification messages.
+    Default: 'Boa Chat'
   S3SourceBucket:
     Type: String
     Description: Leave blank to use pre-built Lambda function packages and S3 artifacts.
+    Default: ''
+  WebInterfacePublicEndpoint:
+    Type: String
+    Description: |+
+      Leave blank for default. Should probably match CORS origin. If specified, 
+      should look like https://mysite with no trailing slash. Used in e-mail 
+      address verification messages.
     Default: ''
       
 Mappings:
@@ -161,9 +171,9 @@ Conditions:
       - Ref: CorsOrigin
       - ''
   
-  UseDefaultSiteForPublicEndpointCondition:
+  UseDefaultSiteForWebInterfacePublicEndpointCondition:
     Fn::Equals:
-      - Ref: PublicEndpoint
+      - Ref: WebInterfacePublicEndpoint
       - ''
   
 Resources:
@@ -2601,8 +2611,10 @@ Resources:
         S3Key: lambda/CognitoUserPoolCustomMessageFunction.zip
       Environment:
         Variables:
-          PUBLIC_ENDPOINT:
-            Fn::Sub: ${PublicEndpointVariable.PublicEndpoint}
+          PROJECT_TITLE:
+            Ref: ProjectTitle
+          WEB_INTERFACE_PUBLIC_ENDPOINT:
+            Fn::Sub: ${WebInterfacePublicEndpointVariable.WebInterfacePublicEndpoint}
       Runtime: python2.7
       Timeout: 300
   
@@ -3727,19 +3739,19 @@ Resources:
              - Fn::Sub: ${StaticContentBucket.WebsiteURL}
           - Ref: CorsOrigin
   
-  PublicEndpointVariable:
+  WebInterfacePublicEndpointVariable:
     Type: Custom::CloudFormationVariable
     Properties:
       ServiceToken:
         Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
-      PublicEndpoint:
+      WebInterfacePublicEndpoint:
         Fn::If:
           - UseDefaultSiteForCorsOriginCondition
           - Fn::If:
              - IncludeCloudFrontDistributionCondition
              - Fn::Sub: https://${StaticContentDistribution.DomainName}
              - Fn::Sub: ${StaticContentBucket.WebsiteURL}
-          - Ref: PublicEndpoint
+          - Ref: WebInterfacePublicEndpoint
   
   
   
