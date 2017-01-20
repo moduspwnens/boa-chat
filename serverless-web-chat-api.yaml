@@ -103,8 +103,9 @@ Parameters:
       - 'No'
   ProjectTitle:
     Type: String
-    Description: Visible in e-mail verification messages.
+    Description: Visible in the web interface and e-mail verification messages.
     Default: 'Boa Chat'
+    AllowedPattern: '^[A-Za-z0-9 ]+$'
   S3SourceBucket:
     Type: String
     Description: Leave blank to use pre-built Lambda function packages and S3 artifacts.
@@ -3656,6 +3657,7 @@ Resources:
                 REST API's endpoint.
             */
             var GlobalWebChatApiEndpoint = "${RestApiEndpoint}";
+            var GlobalProjectName = "${ProjectTitle}";
           - RestApiEndpoint:
               Fn::If:
                 - CustomApiBaseUrlSpecifiedCondition
@@ -3670,7 +3672,9 @@ Resources:
               
       Content-Type: text/javascript
     
-    
+  
+  
+  
     
   #
   #   CloudFormation Input Echo

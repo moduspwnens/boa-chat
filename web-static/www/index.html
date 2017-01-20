@@ -32,11 +32,8 @@
       <script src="lib/respond/respond.min.js"></script>
     <![endif]-->
     
-    <!-- Load alternative endpoint variable, if it is defined. -->
+    <!-- Load alternative endpoint variable and project name -->
     <script src="api/endpoint.js"></script>
-    
-    <!-- local -->
-    <script src="js/static.js"></script>
 
     <!-- angularjs -->
     <link href="lib/angular/css/angular-csp.css" rel="stylesheet" />
@@ -92,7 +89,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#/"><i class="fa fa-home" aria-hidden="true"></i></a>
+          <a class="navbar-brand" href="#/" ng-bind="title"></a>
         </div>
         <script type="text/ng-template" id="nav-item.html">
           <span ng-if="page.name && !page.url">{{page.name}}</span>

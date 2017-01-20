@@ -1,6 +1,6 @@
 angular.module('navController', [])
 	.controller('nav', function($scope, $state, webchatService) {
-		$scope.title = 'Home';
+		$scope.title = GlobalProjectName;
     
     $scope.$state = $state;
     

@@ -1,1 +1,0 @@
-var globalProjectName = "Boa Chat";

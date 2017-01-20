@@ -1,7 +1,7 @@
 'use strict';
 
 app.controller('homeController', function($scope, $http, $state, $uibModal, webchatService, errorModalDefaultAlert) {
-  $scope.title = globalProjectName;
+  $scope.title = GlobalProjectName;
   
   $scope.createChatRoomButtonClicked = function() {
     
