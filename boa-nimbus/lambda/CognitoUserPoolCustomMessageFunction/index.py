@@ -17,9 +17,8 @@ email_template_path = os.path.join(
 def lambda_handler(event, context):
     print('Event: {}'.format(json.dumps(event)))
     
-    event["response"]["emailSubject"] = "Confirm your e-mail address"
-    event["response"]["emailMessage"] = "Custom: Your confirmation code is {}".format(
-        event["request"]["codeParameter"]
+    event["response"]["emailSubject"] = "{}: Confirm your e-mail address".format(
+        os.environ["PROJECT_TITLE"]
     )
     
     intro_message = ""
