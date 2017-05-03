@@ -560,6 +560,7 @@ Resources:
                       "RoleArn": "${StackDeployCloudFormationRole.Arn}",
                       "StackName": "${ProjectGlobalPrefix.Prefix}-webchat",
                       "ParameterOverrides": {
+                          "ContinuousIntegrationStackName": "${AWS::StackName}",
                           "LogRetentionDays": "${LogRetentionDays}",
                           "S3SourceBucket": "${ArtifactStoreBucket}"
                       }
@@ -2179,6 +2180,9 @@ Outputs:
   ArtifactStoreBucket:
     Value:
       Ref: ArtifactStoreBucket
+    Export:
+      Name:
+        Fn::Sub: ${AWS::StackName}-ArtifactStoreBucket
   CodePipelineViewUrl:
     Value:
       Fn::Sub: https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${BuildPipeline}

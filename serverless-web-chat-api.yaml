@@ -11,6 +11,7 @@ Metadata:
           - S3SourceBucket
           - ApiDefinitionVersion
           - IncludeCloudFrontDistribution
+          - ContinuousIntegrationStackName
       - Label:
           default: Configuration
         Parameters:
@@ -27,6 +28,8 @@ Metadata:
     ParameterLabels:
       ApiDefinitionVersion:
         default: API Definition Version
+      ContinuousIntegrationStackName:
+        default: Continuous Integration Stack Name
       CorsOrigin:
         default: CORS Origin
       CustomApiBaseUrl:
@@ -50,6 +53,10 @@ Parameters:
   ApiDefinitionVersion:
     Type: String
     Description: Change this value on stack update to reload API from definition file.
+    Default: ''
+  ContinuousIntegrationStackName:
+    Type: String
+    Description: Leave blank by default.
     Default: ''
   CorsOrigin:
     Type: String
@@ -145,6 +152,11 @@ Mappings:
       StageName: v1
       
 Conditions:
+  ContinuousIntegrationStackNameIncludedCondition:
+    Fn::Not:
+      - Fn::Equals:
+        - Ref: ContinuousIntegrationStackName
+        - ''
   CustomApiBaseUrlSpecifiedCondition:
     Fn::Not:
       - Fn::Equals:
@@ -3728,6 +3740,20 @@ Resources:
           - S3SourceBucketNeedsCopyingCondition
           - Fn::Sub: ${S3ArtifactCopy.Bucket}
           - Ref: S3SourceBucket
+  
+  # This reference is unused. Its purpose is to ensure the CI stack isn't 
+  # deleted before the project stack.
+  ContinuousIntegrationStackNameReference:
+    Type: Custom::CloudFormationVariable
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CloudFormationInputEchoFunction.Arn}
+      Bucket:
+        Fn::If:
+          - ContinuousIntegrationStackNameIncludedCondition
+          - Fn::ImportValue:
+              Fn::Sub: ${ContinuousIntegrationStackName}-ArtifactStoreBucket
+          - ''
   
   CorsOriginVariable:
     Type: Custom::CloudFormationVariable

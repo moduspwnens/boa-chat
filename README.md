@@ -96,7 +96,7 @@ The infrastructure creates no long-term credentials or secrets, so there are no 
 #### Tools / frameworks / languages utilized
 
  * Back end
-   * Python 2.7
+   * Python 2.7 and 3.6
      * [boto3](https://github.com/boto/boto3)
    * [Docker](https://www.docker.com/)
    * [OpenAPI / Swagger](https://github.com/OAI/OpenAPI-Specification)
@@ -124,5 +124,3 @@ After the second stack is created and reaches a **CREATE_COMPLETE** state, it's 
 ### Destroy
 
 To delete all resources, it's as simple as deleting the stacks. 
-
-It is important, however, to delete the main stack before the continuous integration stack. This is because the CI stack contains the CloudFormation role used for stack operations on the main stack, which includes the ability to delete its stack resources.
