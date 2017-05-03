@@ -136,7 +136,7 @@ Mappings:
       
       # This is the bucket I host that contains prebuilt Lambda packages and 
       # S3 artifacts for quick deployments.
-      DefaultS3SourceBucket: moduspwnens-boa-nimbus-0-2-1
+      DefaultS3SourceBucket: moduspwnens-boa-chat-0-2-2
       
       # Static variables
       CognitoIdentityUserProfileDatasetName: user-profile
@@ -1186,7 +1186,7 @@ Resources:
           SNS_SUCCESS_FEEDBACK_ROLE:
             Fn::Sub: ${SNSSuccessFeedbackRole.Arn}
             
-      Runtime: python2.7
+      Runtime: python3.6
       Timeout: 300
   
   RoomGeneratorFunctionRole:

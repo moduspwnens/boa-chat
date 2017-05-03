@@ -134,7 +134,7 @@ def generate_room_sns_topic_name(room_id):
     )
 
 def generate_new_room_id():
-    return zbase32.b2a(uuid.uuid4().bytes)
+    return zbase32.encode(uuid.uuid4().bytes).decode('utf-8') #zbase32.b2a(uuid.uuid4().bytes)
 
 account_id = None
 def get_own_account_id():

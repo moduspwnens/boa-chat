@@ -77,7 +77,7 @@ Parameters:
   SourceVersion:
     Type: String
     Description: Commit ID, branch name, or tag name from the GitHub repository.
-    Default: 0.2.1
+    Default: 0.2.2
 
 Conditions:
   DeployS3ObjectsByFilenameCondition:
