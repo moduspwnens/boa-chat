@@ -257,7 +257,7 @@ paths:
                         #set($chatMessage = $util.parseJson($util.parseJson($sqsMessage.Body).Message))
                 {
                             "message-id": "$sqsMessage.MessageId",
-                #foreach($paramName in $chatMessage.keySet())            "$util.escapeJavaScript($paramName).replaceAll("\'","'")": "$util.escapeJavaScript($chatMessage.get($paramName)).replaceAll("\'","'")"#if($foreach.hasNext),
+                #foreach($paramName in $chatMessage.keySet())            "$util.escapeJavaScript($paramName).replaceAll("\'","'")": "$util.escapeJavaScript($chatMessage.get($paramName)).replaceAll("\\'","'")"#if($foreach.hasNext),
                 #end
                 #end
             
