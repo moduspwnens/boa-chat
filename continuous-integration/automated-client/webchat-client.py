@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 -u
+#!/usr/bin/env python3
 """webchat-client.py
 
 Simulates a basic webchat client. Designed to be used from potentially many 
@@ -392,18 +392,7 @@ class RoomSessionMessagePoller(object):
                 each_message["message"]
             ))
     
-    def acknowledge_received_messages(self):
-        if len(self.receipt_handles) == 0:
-            return
-        
-        if self.client.new_credentials_needed:
-            raise Exception("New credentials are needed to make this request.")
-        
-        if not hasattr(self.client, "chat_room_session_id"):
-            raise Exception("No chat room session available.")
-        
-        receipt_handles_to_acknowledge = list(self.receipt_handles.keys())
-        
+    def acknowledge_receipt_handles(self, receipt_handles_to_acknowledge):
         #print("Acknowledging receipt of {} message(s)...".format(len(receipt_handles_to_acknowledge)))
         
         headers_dict = {
@@ -432,6 +421,35 @@ class RoomSessionMessagePoller(object):
                 del self.receipt_handles[each_handle]
             except KeyError as e:
                 pass
+    
+    def acknowledge_received_messages(self):
+        if len(self.receipt_handles) == 0:
+            return
+        
+        if self.client.new_credentials_needed:
+            raise Exception("New credentials are needed to make this request.")
+        
+        if not hasattr(self.client, "chat_room_session_id"):
+            raise Exception("No chat room session available.")
+        
+        receipt_handles_to_acknowledge = list(self.receipt_handles.keys())
+        
+        new_handle_list = []
+        i = 0
+        while i < len(receipt_handles_to_acknowledge):
+            each_handle = receipt_handles_to_acknowledge[i]
+            
+            new_handle_list.append(each_handle)
+            
+            i += 1
+            
+            if i % 10 == 0:
+                self.acknowledge_receipt_handles(new_handle_list)
+                new_handle_list = []
+        
+        self.acknowledge_receipt_handles(new_handle_list)
+        
+        
 
 class NoRefreshTokenAvailableException(Exception):
     pass

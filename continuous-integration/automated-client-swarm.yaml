@@ -262,7 +262,7 @@ Resources:
         Ref: ClientDockerImageBuilderProject
       StateMachineArn:
         Ref: ClientDockerImageBuilderInvocationStateMachine
-      Version: '3'
+      Version: '5'
   
   EcsCluster:
     Type: AWS::ECS::Cluster
@@ -283,7 +283,7 @@ Resources:
                 - eval $CONFIG_ENV
                 - until aws sqs delete-message --queue-url "$CONFIG_QUEUE_URL" --receipt-handle "$RECEIPT_HANDLE"; do sleep 5; done
                 - until aws sqs send-message --queue-url "$CONFIG_QUEUE_URL" --message-body "$CONFIG_ENV"; do sleep 5; done
-                - "/webchat-client.py"
+                - python3 /webchat-client.py
           EntryPoint:
             - bash
           Environment:
