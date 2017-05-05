@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3 -u
 """webchat-client.py
 
 Simulates a basic webchat client. Designed to be used from potentially many 

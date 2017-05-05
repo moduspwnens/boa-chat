@@ -235,21 +235,22 @@ Resources:
                 - echo Build started on `date`
                 - echo Building the Docker image...
                 - |-
-                  docker build -t "$IMAGE_REPO_NAME" - <<EOF
+                  cat <<EOF > Dockerfile
                   FROM amazonlinux:latest
+                  COPY continuous-integration/automated-client/ /
                   RUN yum install -y python35
                   RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm -f get-pip.py
                   RUN pip3 install awscli
-                  COPY continuous-integration/automated-client/ /
                   RUN pip3 install -r requirements.txt
                   RUN chmod +x *.py
                   EOF
+                - docker build -t "$IMAGE_REPO_NAME" .
                 - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+                - echo Pushing the Docker image...
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
             post_build:
               commands:
                 - echo Build completed on `date`
-                - echo Pushing the Docker image...
-                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       TimeoutInMinutes: 15
   
   ClientDockerImageBuild:
@@ -282,13 +283,16 @@ Resources:
                 - eval $CONFIG_ENV
                 - until aws sqs delete-message --queue-url "$CONFIG_QUEUE_URL" --receipt-handle "$RECEIPT_HANDLE"; do sleep 5; done
                 - until aws sqs send-message --queue-url "$CONFIG_QUEUE_URL" --message-body "$CONFIG_ENV"; do sleep 5; done
-                - while true; do env; sleep 10; done
+                - "/webchat-client.py"
           EntryPoint:
             - bash
           Environment:
             - Name: AWS_DEFAULT_REGION
               Value:
                 Ref: AWS::Region
+            - Name: CHAT_ROOM_ID
+              Value:
+                Ref: ChatRoomId
             - Name: CONFIG_QUEUE_URL
               Value:
                 Ref: TaskConfigQueue
