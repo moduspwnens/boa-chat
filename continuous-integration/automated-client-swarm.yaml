@@ -1,0 +1,1560 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: An ECS swarm of simulated web chat clients.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Deployment
+        Parameters:
+          - CodeCommitRepositoryName
+          - RestApiBaseUrl
+          - ChatRoomId
+          - ClientInstanceCount
+          - SSHPublicKey
+      - Label:
+          default: Spot Pricing
+        Parameters:
+          - SpotPrice
+      - Label:
+          default: Instances
+        Parameters:
+          - EcsClusterInstanceType
+    ParameterLabels:
+      CodeCommitRepositoryName:
+        default: CodeCommit Repository Name
+      EcsClusterInstanceType:
+        default: ECS Cluster Instance Type
+      ChatRoomId:
+        default: Web Chat Room ID
+      ClientInstanceCount:
+        default: Client Instance Count
+      LogRetentionDays:
+        default: Log Retention (days)
+      RestApiBaseUrl:
+        default: REST API Base URL
+      SpotPrice:
+        default: Price Per-Task
+      SSHPublicKey:
+        default: SSH Public Key
+
+Parameters:
+  ChatRoomId:
+    Type: String
+    Description: The unique string generated in the URL for the chat room the clients should utilize.
+  ClientInstanceCount:
+    Type: Number
+    Description: 'Recommended max: 110 per r3.large instance.'
+    Default: 2
+    MinValue: 0
+  CodeCommitRepositoryName:
+    Type: String
+    Description: Name of the CodeCommit repository containing the main project's source code. Must be in the same AWS account / region.
+  EcsClusterInstanceType:
+    Type: String
+    Description: The size of each ECS cluster (host) instance.
+    Default: r3.large
+    AllowedValues:
+      - r3.large
+  LogRetentionDays:
+    Type: String
+    Default: '14'
+    AllowedValues:
+      - ''
+      - '1'
+      - '3'
+      - '5'
+      - '7'
+      - '14'
+      - '30'
+      - '60'
+      - '90'
+      - '120'
+      - '150'
+      - '180'
+      - '365'
+      - '400'
+      - '545'
+      - '731'
+      - '1827'
+      - '3653'
+  RestApiBaseUrl:
+    Type: String
+    Description: Base URL of the web chat app's REST API.
+  SpotPrice:
+    Type: String
+    Description: Maximum hourly per-task price.
+    Default: '0.001'
+  SSHPublicKey:
+    Type: String
+    Description: For SSH access to the instance(s).
+    Default: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDeVP3sPihhqZM/FmPsRQP+P/gR/Zrv19IfW2ftH/iCISJpnAomFe68NaduDs1hIz6+G9ZZJXZN+aHhvnAr0hQmHnFAoA/5mLtmSV5k0XWFa6+bF+Y2lk4AmoFs7ipEcBW6tKndhHOUDzSrlHqdHyOAZjGZyKetaXPlFNGjIJ4Io2bVB4UX50PlBAcbewfweS4T1C8dNHdU2w7ywFPdSpx5YgTuy2c4Mp/Of9oa4cE5L2DSGSzFyi0EKfKnhez8g/5lA1eFnJFx5aeeHh95Z6yQR072fY+xac+sxP0KmmgMDkT2PbLIsaNTT9tHhg5IuUd2EOrEufkONuoGOPPs45Pf benn@linger.com
+
+Mappings:
+  StaticVariables:
+    Main:
+      ClientLoginCredentials:
+        - username: webchat1@bennlinger.com
+          password: test1234
+      ClientEcsTaskMemory: 128
+
+Resources:
+  
+  ClientDockerImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+        
+      # Note that the account IDs below are internal CodeCommit account IDs.
+      # https://docs.aws.amazon.com/codebuild/latest/userguide/sample-ecr.html
+      RepositoryPolicyText:
+        Fn::Sub: |-
+          {
+            "Version": "2008-10-17",
+            "Statement": [
+              {
+                "Sid": "CodeBuildAccess",
+                "Effect": "Allow",
+                "Principal": {
+                  "AWS": [
+                    "arn:aws:iam::201349592320:root",
+                    "arn:aws:iam::570169269855:root",
+                    "arn:aws:iam::964771811575:root"
+                  ]
+                },
+                "Action": [
+                  "ecr:GetDownloadUrlForLayer",
+                  "ecr:BatchGetImage",
+                  "ecr:BatchCheckLayerAvailability"
+                ]
+              }
+            ]
+          }
+  
+  ClientDockerImageBuilderCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${ClientDockerImageBuilderLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:137112412989:repository/amazonlinux
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ClientDockerImageRepository}
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepositoryName}
+  
+  ClientDockerImageBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/codebuild/${ProjectGlobalPrefix.Prefix}-webchat-client
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  ClientDockerImageBuilderProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/docker:1.12.1
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value:
+              Ref: AWS::Region
+          - Name: AWS_ACCOUNT_ID
+            Value:
+              Ref: AWS::AccountId
+          - Name: IMAGE_REPO_NAME
+            Value:
+              Ref: ClientDockerImageRepository
+          - Name: IMAGE_TAG
+            Value: latest
+      Name:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-webchat-client
+      Description: Builds the Docker image used for automated webchat clients.
+      ServiceRole:
+        Fn::Sub: ${ClientDockerImageBuilderCodeBuildRole.Arn}
+      Source:
+        Location:
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${CodeCommitRepositoryName}
+        Type: CODECOMMIT
+        BuildSpec: |-
+          version: 0.1
+          
+          phases:
+            pre_build:
+              commands:
+                - echo Logging in to Amazon ECR...
+                - $(aws ecr get-login --region $AWS_DEFAULT_REGION --registry-ids 137112412989)
+                - docker pull 137112412989.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/amazonlinux:latest
+                - docker tag 137112412989.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/amazonlinux:latest amazonlinux:latest
+                - $(aws ecr get-login --region $AWS_DEFAULT_REGION)
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - |-
+                  docker build -t "$IMAGE_REPO_NAME" - <<EOF
+                  FROM amazonlinux:latest
+                  RUN yum install -y python35
+                  RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py && rm -f get-pip.py
+                  RUN pip3 install awscli
+                  COPY continuous-integration/automated-client/ /
+                  RUN pip3 install -r requirements.txt
+                  RUN chmod +x *.py
+                  EOF
+                - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      TimeoutInMinutes: 15
+  
+  ClientDockerImageBuild:
+    Type: Custom::CodeBuildInstance
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${CodeBuildInstanceFunction.Arn}
+      CodeBuildProject:
+        Ref: ClientDockerImageBuilderProject
+      StateMachineArn:
+        Ref: ClientDockerImageBuilderInvocationStateMachine
+      Version: '3'
+  
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+  
+  ClientEcsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      TaskRoleArn:
+        Fn::GetAtt:
+          - ClientEcsTaskRole
+          - Arn
+      ContainerDefinitions:
+        - Command:
+            - "-c"
+            - Fn::Join:
+              - "; "
+              - - while true; do RECEIVE_MESSAGE_OUTPUT=$(aws sqs receive-message --queue-url "$CONFIG_QUEUE_URL" --query 'Messages[0].[ReceiptHandle,Body]' --output text); if [ $? -eq 0 ]; then RECEIPT_HANDLE=$(echo -n "$RECEIVE_MESSAGE_OUTPUT" | head -n 1 | awk '{print $1}'); CONFIG_ENV=${RECEIVE_MESSAGE_OUTPUT:`echo -n "$RECEIPT_HANDLE" | wc -c`}; if [ "$RECEIPT_HANDLE" != "None" ]; then break; fi; fi; sleep 5; done
+                - eval $CONFIG_ENV
+                - until aws sqs delete-message --queue-url "$CONFIG_QUEUE_URL" --receipt-handle "$RECEIPT_HANDLE"; do sleep 5; done
+                - until aws sqs send-message --queue-url "$CONFIG_QUEUE_URL" --message-body "$CONFIG_ENV"; do sleep 5; done
+                - while true; do env; sleep 10; done
+          EntryPoint:
+            - bash
+          Environment:
+            - Name: AWS_DEFAULT_REGION
+              Value:
+                Ref: AWS::Region
+            - Name: CONFIG_QUEUE_URL
+              Value:
+                Ref: TaskConfigQueue
+            - Name: REST_API_BASE
+              Value:
+                Ref: RestApiBaseUrl
+          Image:
+            Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ClientDockerImageRepository}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: ClientLogGroup
+              awslogs-region:
+                Ref: AWS::Region
+          Name: webchat-client
+          Memory:
+            Fn::FindInMap:
+              - StaticVariables
+              - Main
+              - ClientEcsTaskMemory
+          Privileged: true
+    DependsOn:
+      - ClientDockerImageBuild
+  
+  ClientEcsServiceSpot:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount:
+        Ref: ClientInstanceCount
+      TaskDefinition:
+        Ref: ClientEcsTaskDefinition
+    DependsOn:
+      - TaskConfigQueueSetup
+      - EcsClusterSpotFleetStack
+      
+  ClientEcsTaskRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ClientEcsTaskRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sqs:DeleteMessage
+              - sqs:ReceiveMessage
+              - sqs:SendMessage
+            Resource:
+              Fn::GetAtt:
+                - TaskConfigQueue
+                - Arn
+      Roles:
+        - Ref: ClientEcsTaskRole
+        
+  ClientEcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+            
+  ClientLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays:
+        Ref: LogRetentionDays
+      
+  TaskConfigQueue:
+    Type: AWS::SQS::Queue
+  
+  TaskConfigQueueSetupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Adds client configuration messages to the queue at initial setup.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+        - TaskConfigQueueSetupRole
+        - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          import json, traceback
+          import boto3
+          import cfnresponse
+
+          sqs_send_batch_size_max = 10
+          queue_purge_delay_seconds = 60
+          max_sqs_tries = 5
+
+          def add_config_messages_to_queue(resource_properties):
+    
+              client_login_credentials = resource_properties["ClientLoginCredentials"]
+    
+              task_config_queue_url = resource_properties["TaskConfigQueueUrl"]
+              queue = boto3.resource("sqs").Queue(task_config_queue_url)
+    
+              config_entry_list = []
+              for each_credential_set in client_login_credentials:
+                  config_entry_list.append(
+                      "\n".join([
+                          "export LOGIN_USERNAME=\"{}\"".format(each_credential_set["username"]),
+                          "export LOGIN_PASSWORD=\"{}\"".format(each_credential_set["password"])
+                      ])
+                  )
+    
+              remaining_sqs_messages = config_entry_list
+    
+              sqs_attempt_count = 0
+              while sqs_attempt_count < max_sqs_tries:
+        
+                  # Try to add the messages. Keep list of messages that failed to add (for whatever reason).
+                  remaining_sqs_messages = add_client_config_entries_to_queue(queue, remaining_sqs_messages)
+                  sqs_attempt_count += 1
+    
+              if len(remaining_sqs_messages) > 0:
+                  raise Exception("After {:d} attempt(s), {:d} configuration entries still not added to queue.".format(max_sqs_tries, len(remaining_sqs_messages)))
+
+          def add_client_config_entries_to_queue(queue, message_list):
+    
+              # Split the message list into batches to maximize efficiency.
+              message_batches = []
+    
+              new_message_batch = []
+              for i, each_message in enumerate(message_list):
+                  new_message_batch.append(each_message)
+        
+                  if i % sqs_send_batch_size_max == sqs_send_batch_size_max - 1:
+            
+                      # This batch is full. Add it to the list and reset the current batch.
+                      message_batches.append(new_message_batch)
+                      new_message_batch = []
+    
+              # Add last batch (if not empty).
+              if len(new_message_batch):
+                  message_batches.append(new_message_batch)
+    
+              failed_messages = []
+    
+              # Add the words in each batch to the word list queue.
+              for i, each_message_batch in enumerate(message_batches):
+        
+                  new_entries_list = []
+        
+                  for j, each_message in enumerate(each_message_batch):
+                      new_entries_list.append({
+                          "Id": "{:d}".format(j),
+                          "MessageBody": each_message
+                      })
+        
+                  print("Adding message batch {:d}/{:d} to queue.".format(i+1, len(message_batches)))
+        
+                  response = queue.send_messages(Entries=new_entries_list)
+        
+                  request_fail_count = 0
+        
+                  for each_record in response.get("Failed", []):
+                      request_fail_count += 1
+                      failed_message_index = int(each_record["Id"])
+                      failed_messages.append(each_message_batch[failed_message_index])
+    
+              # Return messages that were unable to be added.
+              return failed_messages
+    
+              return []
+
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              cfn_response_type = cfnresponse.SUCCESS
+    
+              if event["RequestType"] == "Create":
+                  add_config_messages_to_queue(
+                      event["ResourceProperties"]
+                  )
+    
+              cfnresponse.send(
+                  event,
+                  context,
+                  cfn_response_type,
+                  {}
+              )
+      Runtime: python3.6
+      Timeout: '300'
+  
+  TaskConfigQueueSetupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${TaskConfigQueueSetupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+    DependsOn:
+      - TaskConfigQueueSetupRoleActions
+      
+  TaskConfigQueueSetupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      
+  TaskConfigQueueSetupRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: TaskConfigQueueSetupRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${TaskConfigQueueSetupFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+              - sqs:SendMessageBatch
+            Resource:
+              Fn::GetAtt:
+                - TaskConfigQueue
+                - Arn
+      Roles:
+        - Ref: TaskConfigQueueSetupRole
+        
+  TaskConfigQueueSetup:
+    Type: Custom::TaskConfigQueueSetup
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - TaskConfigQueueSetupFunction
+          - Arn
+      ClientLoginCredentials:
+        Fn::FindInMap:
+          - StaticVariables
+          - Main
+          - ClientLoginCredentials
+      TaskConfigQueueUrl:
+        Ref: TaskConfigQueue
+    DependsOn:
+      - TaskConfigQueueSetupLogGroup
+      - TaskConfigQueueSetupRoleActions
+      
+  EcsClusterInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+            
+  EcsClusterInstanceRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EcsClusterInstanceRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecs:DeregisterContainerInstance
+              - ecs:DiscoverPollEndpoint
+              - ecs:Poll
+              - ecs:RegisterContainerInstance
+              - ecs:StartTelemetrySession
+              - ecs:Submit*
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - ec2:CreateTags
+            Resource: "*"
+      Roles:
+        - Ref: EcsClusterInstanceRole
+        
+  EcsClusterInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: EcsClusterInstanceRole
+        
+  EcsClusterInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Mobile Client Swarm
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+  
+  #
+  #   Dynamic lookup of Amazon ECS-optimized AMI
+  #
+  
+  EcsOptimizedAmiLookupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Looks up and returns the most current Amazon ECS-optimized AMI.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::GetAtt:
+          - EcsOptimizedAmiLookupRole
+          - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          import json, operator
+          import boto3
+          import cfnresponse
+
+          ec2_client = boto3.client("ec2")
+
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+    
+              if context.log_stream_name is None:
+                  raise Exception("Function permissions not given.")
+    
+              response_data = {}
+
+              if event["RequestType"] in ["Create", "Update"]:
+                  images_list = ec2_client.describe_images(
+                      Owners = ["amazon"],
+                      ExecutableUsers = ["self", "all"],
+                      Filters = [
+                          {
+                              "Name": "name",
+                              "Values": ["*amazon-ecs-optimized*"]
+                          },
+                          {
+                              "Name": "virtualization-type",
+                              "Values": ["hvm"]
+                          },
+                          {
+                              "Name": "state",
+                              "Values": ["available"]
+                          },
+                          {
+                              "Name": "root-device-type",
+                              "Values": ["ebs"]
+                          }
+                      ]
+                  )["Images"]
+        
+                  if len(images_list) == 0:
+                      raise Exception("Unable to find ECS-optimized AMI.")
+        
+                  images_list.sort(key=operator.itemgetter("CreationDate"))
+                  images_list.reverse()
+        
+                  response_data["AmazonEcsOptimizedAmi"] = images_list[0]["ImageId"]
+
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+      Runtime: python3.6
+      Timeout: '300'
+  
+  EcsOptimizedAmiLookupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${EcsOptimizedAmiLookupFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+    DependsOn:
+      - EcsOptimizedAmiLookupRoleActions
+  
+  EcsOptimizedAmiLookupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  EcsOptimizedAmiLookupRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EcsOptimizedAmiLookupRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EcsOptimizedAmiLookupFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - ec2:DescribeImages
+            Resource: '*'
+      Roles:
+        - Ref: EcsOptimizedAmiLookupRole
+      
+  EcsOptimizedAmiLookupInvocation:
+    Type: Custom::EcsOptimizedAmiLookup
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - EcsOptimizedAmiLookupFunction
+          - Arn
+    DependsOn:
+      - EcsOptimizedAmiLookupLogGroup
+      - EcsOptimizedAmiLookupRoleActions
+  
+  #
+  #   Spot Fleet Resources
+  #
+  
+  EcsSpotFleetNestedStackTemplateBucket:
+    Type: AWS::S3::Bucket
+  
+  EcsSpotFleetLaunchSpecificationBuilderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Adds client configuration messages to the queue at initial setup.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+          - EcsSpotFleetLaunchSpecificationBuilderRole
+          - Arn
+      Code:
+        ZipFile: |-
+          from __future__ import print_function
+          import json, traceback, math
+          import boto3
+          import cfnresponse
+
+          ec2_client = boto3.client("ec2")
+          s3_client = boto3.client("s3")
+          
+          nested_stack_template_key = "spot-fleet.json"
+
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              resource_props = event["ResourceProperties"]
+              
+              s3_bucket_name = resource_props["TemplateBucket"]
+              instance_type_map = resource_props["InstanceTypeEcsMemoryWeights"]
+              
+              ecs_task_memory = int(resource_props["EcsTaskMemory"])
+    
+              response_data = {}
+
+              if event["RequestType"] in ["Create", "Update"]:
+        
+                  vpc_list = ec2_client.describe_vpcs(Filters = [{"Name": "isDefault","Values": ["true"]}])["Vpcs"]
+        
+                  if len(vpc_list) == 0:
+                      raise Exception("Unable to find default VPC.")
+        
+                  default_vpc_ids = list(x["VpcId"] for x in vpc_list)
+        
+                  subnet_list = ec2_client.describe_subnets(Filters = [{"Name": "vpc-id","Values": default_vpc_ids}])["Subnets"]
+        
+                  if len(subnet_list) == 0:
+                      raise Exception("Unable to find any available subnets in default VPC(s).")
+        
+                  subnet_ids = list(x["SubnetId"] for x in subnet_list)
+        
+                  new_launch_specs_list = []
+        
+                  for each_subnet_id in subnet_ids:
+                      
+                      for each_instance_type in instance_type_map.keys():
+                          each_launch_spec = dict(resource_props["LaunchSpecificationTemplate"])
+                          each_launch_spec["SubnetId"] = each_subnet_id
+                          each_launch_spec["InstanceType"] = each_instance_type
+                          each_launch_spec["WeightedCapacity"] = int(math.floor(float(instance_type_map[each_instance_type]) / float(ecs_task_memory)))
+                          new_launch_specs_list.append(each_launch_spec)
+                  
+                  
+                  spot_fleet_config_data = dict(event["ResourceProperties"]["SpotFleetRequestConfigData"])
+                  spot_fleet_config_data["LaunchSpecifications"] = new_launch_specs_list
+                  
+                  spot_fleet_config_data["TargetCapacity"] = 1
+                  
+                  nested_stack_template = {
+                      "AWSTemplateFormatVersion": "2010-09-09",
+                      "Description": "Spot fleet for {}".format(event["StackId"]),
+                      "Resources": {
+                          "EcsSpotFleet": {
+                              "Type": "AWS::EC2::SpotFleet",
+                              "Properties": {
+                                  "SpotFleetRequestConfigData": spot_fleet_config_data
+                              }
+                          }
+                      },
+                      "Outputs": {
+                          "EcsSpotFleet": {
+                              "Value": {
+                                  "Ref": "EcsSpotFleet"
+                              }
+                          }
+                      }
+                  }
+                  
+                  s3_client.put_object(
+                      Bucket = s3_bucket_name,
+                      Key = nested_stack_template_key,
+                      Body = json.dumps(nested_stack_template, indent=4)
+                  )
+                  
+                  response_data["SpotFleetTemplateUrl"] = "https://s3.amazonaws.com/{}/{}".format(s3_bucket_name, nested_stack_template_key)
+              
+              elif event["RequestType"] == "Delete":
+                  s3_client.delete_object(
+                      Bucket = s3_bucket_name,
+                      Key = nested_stack_template_key
+                  )
+    
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+      Runtime: python3.6
+      Timeout: '300'
+  
+  EcsSpotFleetLaunchSpecificationBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${EcsSpotFleetLaunchSpecificationBuilderFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+    DependsOn:
+      - EcsSpotFleetLaunchSpecificationBuilderRoleActions
+  
+  EcsSpotFleetLaunchSpecificationBuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  EcsSpotFleetLaunchSpecificationBuilderRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EcsSpotFleetLaunchSpecificationBuilderRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EcsSpotFleetLaunchSpecificationBuilderFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - ec2:DescribeVpcs
+              - ec2:DescribeSubnets
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${EcsSpotFleetNestedStackTemplateBucket}/*
+      Roles:
+        - Ref: EcsSpotFleetLaunchSpecificationBuilderRole
+      
+  EcsSpotFleetLaunchSpecificationBuilderInvocation:
+    Type: Custom::EcsSpotFleetLaunchSpecificationBuilder
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - EcsSpotFleetLaunchSpecificationBuilderFunction
+          - Arn
+      EcsTaskMemory:
+        Fn::FindInMap:
+          - StaticVariables
+          - Main
+          - ClientEcsTaskMemory
+      InstanceTypeEcsMemoryWeights:
+        r3.large: 15301
+        c4.large: 3767
+        c4.xlarge: 7482
+      TemplateBucket:
+        Ref: EcsSpotFleetNestedStackTemplateBucket
+      SpotFleetRequestConfigData:
+        AllocationStrategy: lowestPrice
+        IamFleetRole:
+          Fn::GetAtt:
+            - EcsClusterSpotFleetRole
+            - Arn
+        SpotPrice:
+          Ref: SpotPrice
+      LaunchSpecificationTemplate:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt:
+              - EcsClusterInstanceProfile
+              - Arn
+        ImageId:
+          Fn::GetAtt:
+            - EcsOptimizedAmiLookupInvocation
+            - AmazonEcsOptimizedAmi
+        SecurityGroups:
+          - GroupId:
+              Fn::GetAtt:
+                - EcsClusterInstanceSecurityGroup
+                - GroupId
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |-
+              #cloud-config
+      
+              ssh_authorized_keys:
+                - ${SSHPublicKey}
+      
+              runcmd:
+                - echo "Setting ECS cluster."
+                - echo ECS_CLUSTER="${EcsCluster}" >> /etc/ecs/ecs.config
+                - aws sts get-caller-identity
+                - INSTANCE_ID=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id)
+                - aws ec2 create-tags --region "${AWS::Region}" --resources "$INSTANCE_ID" --tags Key=Name,Value="ecs-host-${AWS::StackName}"
+                
+    DependsOn:
+      - EcsSpotFleetLaunchSpecificationBuilderLogGroup
+      - EcsSpotFleetLaunchSpecificationBuilderRoleActions
+  
+  EcsClusterSpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EcsClusterSpotFleetRoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                  - ec2:DescribeSubnets
+                  - ec2:RequestSpotInstances
+                  - ec2:TerminateInstances
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:ListRoles
+                  - iam:ListInstanceProfiles
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - Fn::GetAtt:
+                    - EcsClusterInstanceRole
+                    - Arn
+  
+  EcsClusterSpotFleetStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL:
+        Fn::GetAtt:
+          - EcsSpotFleetLaunchSpecificationBuilderInvocation
+          - SpotFleetTemplateUrl
+    DependsOn:
+      - EcsClusterSpotFleetRole
+  
+  SpotFleetCapacityChangerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Adds client configuration messages to the queue at initial setup.
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::GetAtt:
+          - SpotFleetCapacityChangerRole
+          - Arn
+      Code:
+        ZipFile: |-
+          import json
+          import boto3
+          import cfnresponse
+          
+          ec2_client = boto3.client("ec2")
+
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              resource_props = event["ResourceProperties"]
+              
+              spot_fleet_request_id = resource_props["EcsSpotFleet"]
+              target_capacity = int(resource_props["TargetCapacity"])
+              
+              if target_capacity == 0:
+                  target_capacity = 1
+    
+              response_data = {}
+
+              if event["RequestType"] in ["Create", "Update"]:
+                  
+                  response = ec2_client.describe_spot_fleet_requests(
+                      SpotFleetRequestIds = [spot_fleet_request_id]
+                  )
+                  
+                  existing_target_capacity = response["SpotFleetRequestConfigs"][0]["SpotFleetRequestConfig"]["TargetCapacity"]
+                  
+                  if target_capacity != existing_target_capacity:
+                      response = ec2_client.modify_spot_fleet_request(
+                          SpotFleetRequestId = spot_fleet_request_id,
+                          TargetCapacity = target_capacity
+                      )
+                      
+                      print(response)
+    
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+      Runtime: python3.6
+      Timeout: '300'
+  
+  SpotFleetCapacityChangerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${SpotFleetCapacityChangerFunction}
+      RetentionInDays:
+        Ref: LogRetentionDays
+    DependsOn:
+      - SpotFleetCapacityChangerRoleActions
+  
+  SpotFleetCapacityChangerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  SpotFleetCapacityChangerRoleActions:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SpotFleetCapacityChangerRoleActions
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${SpotFleetCapacityChangerFunction}:log-stream:*
+          - Effect: Allow
+            Action:
+              - ec2:DescribeSpotFleetRequests
+              - ec2:ModifySpotFleetRequest
+            Resource: '*'
+      Roles:
+        - Ref: SpotFleetCapacityChangerRole
+  
+  SpotFleetCapacityChangerInvocation:
+    Type: Custom::SpotFleetCapacityChanger
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - SpotFleetCapacityChangerFunction
+          - Arn
+      EcsSpotFleet:
+        Fn::GetAtt:
+          - EcsClusterSpotFleetStack
+          - Outputs.EcsSpotFleet
+      TargetCapacity:
+        Ref: ClientInstanceCount
+    DependsOn:
+      - SpotFleetCapacityChangerLogGroup
+      - SpotFleetCapacityChangerRoleActions
+      - EcsClusterSpotFleetStack
+  
+  CodeBuildInstanceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+      Description: Perform a CodeBuild build as a CloudFormation custom resource
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${CodeBuildInstanceFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import json
+          import uuid
+          import boto3
+          import botocore
+          import cfnresponse
+          
+          codebuild_client = boto3.client("codebuild")
+          sfn_client = boto3.client("stepfunctions")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              if event.get("RequestType") in ["Create", "Update"]:
+                  # This is the initial call from CloudFormation.
+                  
+                  resource_props = event["ResourceProperties"]
+                  
+                  response = sfn_client.start_execution(
+                      stateMachineArn = resource_props["StateMachineArn"],
+                      name = str(uuid.uuid4()),
+                      input = json.dumps({
+                          "cf-event": event,
+                          "fatal-error": False,
+                          "build-complete": False
+                      })
+                  )
+                  
+                  print("Execution ARN: {}".format(response["executionArn"]))
+                
+              elif event.get("RequestType") in ["Delete"]:
+                  # This is also an update or delete call from CloudFormation.
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+                  
+                  return {}
+              
+              else:
+                  return safe_state_machine_handler(event, context)
+              
+          
+          def safe_state_machine_handler(event, context):
+              try:
+                  return state_machine_handler(event, context)
+              except Exception as e:
+                  event["error-message"] = str(e)
+                  event["fatal-error"] = True
+                  return event
+              
+          def state_machine_handler(event, context):
+              
+              if event.get("fatal-error", False):
+                  # The state machine encountered a fatal error.
+                  cfnresponse.send(event["cf-event"], context, cfnresponse.FAILED, {}, None)
+              
+                  return {}
+          
+              elif "cf-event" in event:
+                  # This is an invocation from the Step Functions state machine.
+              
+                  if "build-id" not in event:
+                      # The build hasn't been started yet.
+                  
+                      resource_props = event["cf-event"]["ResourceProperties"]
+                      
+                      start_build_kwargs = {
+                          "projectName": resource_props["CodeBuildProject"]
+                      }
+                      
+                      if len(resource_props.get("SourceVersion", "")):
+                          start_build_kwargs["sourceVersion"] = resource_props["SourceVersion"]
+                      
+                      response = codebuild_client.start_build(**start_build_kwargs)
+                  
+                      event["build-id"] = response["build"]["id"]
+                  
+                      return event
+              
+                  else:
+                      # The build has been started. Check on its progress.
+                  
+                      response = codebuild_client.batch_get_builds(
+                          ids = [event["build-id"]]
+                      )
+                  
+                      this_build = response["builds"][0]
+                      
+                      if this_build["buildComplete"]:
+                          if this_build["buildStatus"] == "SUCCEEDED":
+                              
+                              cfnresponse.send(event["cf-event"], context, cfnresponse.SUCCESS, {}, None)
+                              event["build-complete"] = True
+                          else:
+                              
+                              cfnresponse.send(event["cf-event"], context, cfnresponse.FAILED, {}, None)
+                              
+                              event["fatal-error"] = True
+                              event["error-message"] = "Build completed with status: {}".format(this_build["buildStatus"])
+                              
+                  
+                      return event
+              
+              else:
+                  raise Exception("Unexpected input event.")
+              
+      Runtime: python3.6
+      Timeout: 300
+
+  CodeBuildInstanceFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${CodeBuildInstanceFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  Ref: ClientDockerImageBuilderInvocationStateMachine
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - Fn::Sub: ${ClientDockerImageBuilderProject.Arn}
+  
+  CodeBuildInstanceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  ClientDockerImageBuilderInvocationStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - Fn::Sub: states.${AWS::Region}.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction
+  
+  ClientDockerImageBuilderInvocationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub: |-
+          {
+            "Comment": "A state machine for starting a CodeBuild build and waiting for it to complete.",
+            "StartAt": "StartBuild",
+            "States": {
+              "StartBuild": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Next": "WaitForBuildToRun"
+              },
+              "WaitForBuildToRun": {
+                "Type": "Wait",
+                "Seconds": 30,
+                "Next": "CheckIfBuildIsComplete"
+              },
+              "CheckIfBuildIsComplete": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Next": "IsBuildCompleteChoice"
+              },
+              "IsBuildCompleteChoice": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Variable": "$.build-complete",
+                    "BooleanEquals": true,
+                    "Next": "BuildIsComplete"
+                  },
+                  {
+                    "Variable": "$.fatal-error",
+                    "BooleanEquals": true,
+                    "Next": "FatalErrorFallback"
+                  }
+                ],
+                "Default": "WaitForBuildToRun"
+              },
+              "BuildIsComplete": {
+                "Type": "Pass",
+                "End": true
+              },
+              "FatalErrorFallback": {
+                "Type": "Pass",
+                "Result": true,
+                "ResultPath": "$.fatal-error",
+                "Next": "FatalErrorComplete"
+              },
+              "FatalErrorComplete": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-CodeBuildInstanceFunction",
+                "Retry": [
+                  {
+                    "ErrorEquals": [ "States.ALL" ],
+                    "IntervalSeconds": 5,
+                    "MaxAttempts": 10
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+      RoleArn:
+        Fn::Sub: ${ClientDockerImageBuilderInvocationStateMachineRole.Arn}
+  
+  #
+  #   Docker Image Repository Cleanup
+  #   
+  #   An ECR repository can't be deleted unless it contains no images. This 
+  #   deletes those images so the stack can be deleted.
+  #
+  
+  DockerImageRepositoryCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-DockerImageRepositoryCleanupFunction
+      Description: Clears an ECR repository upon stack deletion
+      Handler: index.lambda_handler
+      MemorySize: 1024
+      Role:
+        Fn::Sub: ${DockerImageRepositoryCleanupFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import json
+          import boto3
+          import botocore
+          import cfnresponse
+          
+          ecr_client = boto3.client("ecr")
+          
+          def lambda_handler(event, context):
+              print("Event: {}".format(json.dumps(event)))
+              
+              resource_props = event["ResourceProperties"]
+              
+              if event["RequestType"] == "Delete":
+                  
+                  repository_name = resource_props["EcrRepositoryName"]
+                  
+                  response_iterator = ecr_client.get_paginator("list_images").paginate(
+                      repositoryName = repository_name
+                  )
+                  
+                  try:
+                      for each_response in response_iterator:
+                          image_id_list = []
+                      
+                          for each_image_dict in each_response["imageIds"]:
+                              image_id_list.append({
+                                  "imageDigest": each_image_dict["imageDigest"]
+                              })
+                      
+                          if len(image_id_list) == 0:
+                              continue
+                      
+                          delete_response = ecr_client.batch_delete_image(
+                              repositoryName = repository_name,
+                              imageIds = image_id_list
+                          )
+                      
+                          if len(delete_response.get("failures", [])) > 0:
+                              raise Exception("Failure occurred in deleting one or more ECR images.")
+                              
+                  except botocore.exceptions.ClientError as e:
+                      if e.response['Error']['Code'] == 'AccessDeniedException':
+                          print("Access denied. Assuming no images need deleting.")
+                          pass
+                      else:
+                          raise
+                  
+              
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, None)
+              
+      Runtime: python3.6
+      Timeout: 300
+
+  DockerImageRepositoryCleanupFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: RoleActions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - Fn::Sub: ${DockerImageRepositoryCleanupFunctionLogGroup.Arn}
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                  - ecr:BatchDeleteImage
+                Resource:
+                  Fn::Sub: arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ClientDockerImageRepository}
+  
+  DockerImageRepositoryCleanupFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-DockerImageRepositoryCleanupFunction
+      RetentionInDays:
+        Ref: LogRetentionDays
+  
+  DockerImageRepositoryCleanupInvocation:
+    Type: Custom::DockerImageRepositoryCleanup
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${DockerImageRepositoryCleanupFunction.Arn}
+      EcrRepositoryName:
+        Ref: ClientDockerImageRepository
+  
+  #
+  #   Stack Global Prefix Generator
+  #   
+  #   For proper IAM restrictions, it helps to have a unique prefix. For 
+  #   example:
+  #     arn:sqs:us-east-1:000011112222:MyUniquePrefix-*
+  #   
+  #   Normally I'd use the stack name, but it can be up to 128 characters. 
+  #   That means I risk exceeding the 80 character limits for an SQS queue 
+  #   name (for example) if I just use that.
+  #   
+  #   This function just generates a unique global prefix that can be used 
+  #   by all resources to indicate "this resource belongs to this stack / 
+  #   project deployment".
+  #
+  
+  ProjectGlobalPrefixGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Generates a short sufficiently-random string for stack resources.
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role:
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunctionRole.Arn}
+      Code:
+        ZipFile: |-
+          import random
+          import string
+          import cfnresponse
+          
+          # The zbase32 alphabet.
+          prefix_characters = "ybndrfg8ejkmcpqxot1uwisza345h769"
+          
+          def lambda_handler(event, context):
+              response_dict = {
+                  "Prefix": random.choice(string.ascii_lowercase) + ''.join(random.choice(prefix_characters) for _ in range(5))
+              }
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, response_dict, None)
+      Runtime: python3.6
+      Timeout: 300
+
+  ProjectGlobalPrefixGeneratorFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  
+  ProjectGlobalPrefix:
+    Type: Custom::ProjectGlobalPrefixGeneration
+    Properties:
+      ServiceToken:
+        Fn::Sub: ${ProjectGlobalPrefixGeneratorFunction.Arn}
+  
+Outputs:
+  LogGroupURL:
+    Value:
+      Fn::Sub: https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logStream:group=${ClientLogGroup}
