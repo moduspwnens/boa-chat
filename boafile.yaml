@@ -1,0 +1,45 @@
+---
+S3DeploymentSourceBucketPrefix: webchat-
+CloudFormationStackName: webchat-dev
+
+BuildCacheHashesDirectory: build/build-hashes
+
+BuildStepGroups:
+  
+  - Name: Prepare Static Web Content
+    IfChangesInPath: web-static
+    Steps:
+      - Action: RunCommand
+        Directory: web-static
+        Command: npm install
+      - Action: RunCommand
+        Directory: web-static
+        Command: gulp install
+      - Action: RunCommand
+        Command: /bin/bash scripts/build-web-zip.sh build/artifacts
+  
+  - Name: Copy CloudFormation Template
+    IfChangesInPath: serverless-web-chat-api.yaml
+    Steps:
+      - Action: RunCommand
+        Command: mkdir -p build/artifacts
+      - Action: RunCommand
+        Command: cp serverless-web-chat-api.yaml build/artifacts/
+  
+  - Name: Preprocess Swagger Input
+    IfChangesInPath: swagger-base.yaml
+    Steps:
+      - Action: PreprocessSwaggerInput
+        InputFile: swagger-base.yaml
+        OutputFile: build/artifacts/swagger-apigateway.yaml
+  
+  - Name: Build Lambda Functions
+    Steps:
+      - Action: BuildLocalPythonPipModules
+        InputDirectory: boa-nimbus/lambda-pip-modules
+        OutputDirectory: build/local-pip-packages
+      - Action: BuildPythonLambdaFunctions
+        InputDirectory: boa-nimbus/lambda
+        OutputDirectory: build/artifacts/lambda
+        PipCacheDirectory: build/pip-cache
+        LocalPythonPackagesDirectory: build/local-pip-packages

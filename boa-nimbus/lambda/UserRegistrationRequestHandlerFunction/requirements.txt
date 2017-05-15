@@ -8,5 +8,5 @@ s3transfer==0.1.9
 six==1.10.0
 dnspython==1.15.0
 pyutil==2.0.0
-boa-nimbus/lambda-pip-modules/apigateway-helpers
-boa-nimbus/lambda-pip-modules/cognito-helpers
+apigateway-helpers
+cognito-helpers

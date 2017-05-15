@@ -3,7 +3,7 @@ from __future__ import print_function
 import setuptools
 
 setuptools.setup(
-    name="project-local",
+    name="zbase32-python3",
     version="0.1",
     author="Benn Linger",
     author_email="benn@linger.com",

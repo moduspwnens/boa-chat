@@ -2,8 +2,12 @@
 
 # Run with project root as cwd.
 
+OUTPUT_DIR="$1"
+if [ -z "$OUTPUT_DIR" ]; then
+    OUTPUT_DIR="boa-nimbus/s3"
+fi
+
 ZIP_NAME="web-static.zip"
-OUTPUT_DIR="boa-nimbus/s3"
 SOURCE_DIR="web-static/www"
 
 PREVIOUS_PWD=$(pwd)

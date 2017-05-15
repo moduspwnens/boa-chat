@@ -7,4 +7,4 @@ python-dateutil==2.5.3
 s3transfer==0.1.9
 six==1.10.0
 requests==2.12.4
-boa-nimbus/lambda-pip-modules/apigateway-helpers
+apigateway-helpers
