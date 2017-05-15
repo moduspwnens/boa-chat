@@ -3,7 +3,7 @@ version: 0.1
 phases:
   install:
     commands:
-      - pip install --upgrade git+git://github.com/moduspwnens/boa-nimbus.git
+      - pip install --upgrade git+git://github.com/moduspwnens/boa-nimbus.git@609abc7c705dc849b9223893a29b71155fbe47d1
       - pip install --upgrade scripts/preprocess-swagger-input
   
   pre_build:
