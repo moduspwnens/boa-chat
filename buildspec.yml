@@ -1,11 +1,6 @@
 version: 0.1
 
 phases:
-  install:
-    commands:
-      - pip install --upgrade git+git://github.com/moduspwnens/boa-nimbus.git@609abc7c705dc849b9223893a29b71155fbe47d1
-      - pip install --upgrade scripts/preprocess-swagger-input
-  
   pre_build:
     commands:
       - echo '{ "allow_root":true }' >> /root/.bowerrc
@@ -14,29 +9,15 @@ phases:
     commands:
       - echo Build started on `date`
       
-      # Build static web content.
-      - cd web-static && npm install && bower install && gulp install
-      - /bin/bash scripts/build-web-zip.sh
-      
-      # Add API Gateway Swagger extensions to base definition.
-      - preprocess-swagger-input process --input-swagger-file swagger-base.yaml --output-swagger-file boa-nimbus/s3/swagger-apigateway.yaml
-      
-      # Build Lambda function packages.
-      - boa-nimbus build --no-use-docker
-      
-      # Restructure output directory.
-      - mkdir -p output/lambda
-      - mv boa-nimbus/s3/swagger-apigateway.yaml output
-      - mv boa-nimbus/s3/web-static.zip output
-      - mv build/boa-nimbus/lambda/*.zip output/lambda/
-      - mv serverless-web-chat-api.yaml output
+      # Perform build.
+      - LC_ALL=en_US.utf-8 LANG=en_US.utf-8 boa-nimbus build --no-use-docker
       
       # Move output directory.
-      - mv output /tmp/
+      - mv build/artifacts /tmp/
       - rm -rf *
       - rm -rf .git
       - rm -rf .gitignore
-      - mv /tmp/output/* .
+      - mv /tmp/artifacts/* .
   
   post_build:
     commands:

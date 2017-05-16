@@ -1,7 +1,4 @@
 ---
-S3DeploymentSourceBucketPrefix: webchat-
-CloudFormationStackName: webchat-dev
-
 BuildCacheHashesDirectory: build/build-hashes
 
 BuildStepGroups:
@@ -12,6 +9,9 @@ BuildStepGroups:
       - Action: RunCommand
         Directory: web-static
         Command: npm install
+      - Action: RunCommand
+        Directory: web-static
+        Command: bower install
       - Action: RunCommand
         Directory: web-static
         Command: gulp install
@@ -43,3 +43,25 @@ BuildStepGroups:
         OutputDirectory: build/artifacts/lambda
         PipCacheDirectory: build/pip-cache
         LocalPythonPackagesDirectory: build/local-pip-packages
+
+DeployStepGroups:
+  
+  - Name: Development Deployment
+    Steps:
+      - Action: CreateBucketIfNotExists
+        BucketNamePrefix: webchat-
+      - Action: UploadDirectoryContentsToBucket
+        BucketNamePrefix: webchat-
+        Directory: build/artifacts
+        UploadOnlyIfNotExists:
+          - web-static.zip
+      - Action: CreateOrUpdateCloudFormationStack
+        SourceBucketNamePrefix: webchat-
+        StackName: webchat-dev
+        TemplatePath: serverless-web-chat-api.yaml
+      - Action: UpdateLambdaFunctionSources
+        BucketNamePrefix: webchat-
+        LambdaPackageRelativeDirectory: build/artifacts
+        StackName: webchat-dev
+        TemplatePath: serverless-web-chat-api.yaml
+        
