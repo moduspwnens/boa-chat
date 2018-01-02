@@ -12,7 +12,6 @@ app.controller('profileController', function($scope, $http, $state, $uibModal, $
   }
   
   $scope.emailAddress = loginObject["user"]["email-address"];
-  $scope.apiKey = loginObject["user"]["api-key"];
   
   var avatarUrl = undefined;
   
@@ -20,34 +19,5 @@ app.controller('profileController', function($scope, $http, $state, $uibModal, $
   avatarUrl += "s=80";
   
   $scope.userProfileImageUrl = avatarUrl;
-  
-  
-  
-  $scope.resetApiKeyButtonClicked = function() {
-    
-    if ($scope.apiKeyResetInProgress) {
-      return false;
-    }
-    
-    $scope.apiKeyChangeSuccessful = false;
-    $scope.apiKeyResetInProgress = true;
-    
-    webchatService.resetApiKey()
-      .then(function(newApiKey) {
-        $scope.showApiKey = false;
-        $scope.apiKeyChangeSuccessful = true;
-        $scope.apiKeyResetInProgress = false;
-        $scope.apiKey = newApiKey;
-      })
-      .catch(function(errorReason) {
-        $scope.apiKeyResetInProgress = false;
-        if (errorReason !== "Other") {
-          errorModalDefaultAlert(errorReason);
-        }
-        else {
-          errorModalDefaultAlert("An unexpected error occurred.");
-        }
-      })
-  }
   
 });

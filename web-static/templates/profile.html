@@ -36,28 +36,6 @@
                 </a>
               </span>
             </div>
-            
-            <div class="user-info-part-divider"></div>
-            
-            <div class="user-info-part-wrapper">
-              <span class="part-value">
-                <span ng-show="showApiKey">
-                  <span ng-bind="apiKey"></span>
-                </span>
-                <span ng-hide="showApiKey">
-                  <span ng-show="apiKeyChangeSuccessful">Changed!</span>
-                  <a ng-click="showApiKey = true">
-                    Show
-                  </a>
-                </span>
-              </span>
-              <span class="part-key">
-                API Key
-                <a ng-click="resetApiKeyButtonClicked()" title="Reset API Key">
-                  <span class="glyphicon glyphicon-refresh api-key-reset-button" ng-class="{'spinning': apiKeyResetInProgress}"></span>
-                </a>
-              </span>
-            </div>
           </div>
         </div>
       </div>

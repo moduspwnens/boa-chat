@@ -84,7 +84,6 @@ paths:
             $ref: '#/definitions/NewRoomResponse'
       security:
         - sigv4: []
-        - api_key: []
   
   /room/{room-id}/message:
     get:
@@ -111,7 +110,6 @@ paths:
               placeholder: true
       security:
         - sigv4: []
-        - api_key: []
         
     post:
       summary: Post a new message to a chat room
@@ -152,7 +150,6 @@ paths:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
-        - api_key: []
 
   /room/{room-id}/session:
     post:
@@ -183,7 +180,6 @@ paths:
             $ref: '#/definitions/NewRoomSessionResponse'
       security:
         - sigv4: []
-        - api_key: []
   
   /room/{room-id}/session/{session-id}/message:
     get:
@@ -242,7 +238,6 @@ paths:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
-        - api_key: []
       x-amazon-apigateway-integration:
         credentials: arn:aws:iam::000000000000:role/${stageVariables.WebChatApiRoomMessagePollerRole}
         responses:
@@ -345,7 +340,6 @@ paths:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
-        - api_key: []
       x-amazon-apigateway-integration:
         credentials: arn:aws:iam::000000000000:role/${stageVariables.WebChatApiRoomMessageAcknowledgerRole}
         responses:
@@ -430,7 +424,6 @@ paths:
             
       security:
         - sigv4: []
-        - api_key: []
   
   /user/forgot:
     post:
@@ -535,33 +528,12 @@ paths:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
-        - api_key: []
-  
-  /user/api-key:
-    put:
-      summary: Reset a user's API key
-      x-boa-lambda-resource-name: UserApiKeyResetHandlerFunction
-      tags:
-        - user
-      produces:
-        - application/json
-      responses:
-        '200':
-          description: Success
-          examples:
-            application/json:
-              api-key: kn6eaex93b8ajprzx6hyrt9erwp9o6
-          schema:
-            $ref: '#/definitions/ApiKeyResetResponse'
-      security:
-        - sigv4: []
-        - api_key: []
   
   /user/login:
     post:
       summary: Log in with an e-mail address and password
       description: |+
-        Returns basic user details, an API key, and temporary credentials.
+        Returns basic user details and temporary credentials.
         
         Note that the e-mail address used to log in must already be confirmed.
       x-boa-lambda-resource-name: UserLoginHandlerFunction
@@ -591,7 +563,6 @@ paths:
               user:
                 email-address: webchatuser1@example.com
                 user-id: us-east-1:a08b99db-da0e-4282-9b5a-459419d457a6
-                api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
           schema:
             $ref: '#/definitions/UserCredentialsRetrievalResponse'
         '400':
@@ -638,7 +609,6 @@ paths:
               user:
                 email-address: webchatuser1@example.com
                 user-id: us-east-1:a08b99db-da0e-4282-9b5a-459419d457a6
-                api-key: dm8pumm81pdxugc8wos9s49kjr6wgo
           schema:
             $ref: '#/definitions/UserCredentialsRetrievalResponse'
         '400':
@@ -648,8 +618,6 @@ paths:
               message: The refresh token received is expired.
           schema:
             $ref: '#/definitions/DefaultErrorResponse'
-      security:
-        - api_key: []
 
   /user/register:
     post:
@@ -761,7 +729,6 @@ paths:
             $ref: '#/definitions/DefaultErrorResponse'
       security:
         - sigv4: []
-        - api_key: []
   
   /user/{user-id}/avatar:
     get:
@@ -832,15 +799,6 @@ definitions:
         description: An array of receipt handles received from a previous chat room session poll
         items:
           $ref: '#/definitions/ChatMessageReceiptHandle'
-  
-  ApiKeyResetResponse:
-    type: object
-    required:
-      - api-key
-    properties:
-      api-key:
-        type: string
-        description: API key to use in x-api-key header for authenticated requests
   
   AwsV4SignatureSettings:
     type: object
@@ -1088,9 +1046,6 @@ definitions:
       user-id:
         type: string
         description: User's permanent id as will be included in posted messages
-      api-key:
-        type: string
-        description: API key to use in x-api-key header for authenticated requests
   
   UserCredentialRefreshRequest:
     type: object
@@ -1157,11 +1112,6 @@ definitions:
           confirm the new e-mail address
 
 securityDefinitions:
-  
-  api_key:
-    type: apiKey
-    name: x-api-key
-    in: header
   
   sigv4:
     type: apiKey

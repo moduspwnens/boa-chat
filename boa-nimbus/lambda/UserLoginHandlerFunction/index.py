@@ -5,8 +5,6 @@ successful.
 
 """
 
-from __future__ import print_function
-
 import os
 import json
 import copy
@@ -23,7 +21,7 @@ cognito_idp_client = boto3.client("cognito-idp")
 cognito_identity_client = boto3.client("cognito-identity")
 cognito_sync_client = boto3.client("cognito-sync")
 apig_client = boto3.client("apigateway")
-lambda_client = boto3.client("lambda")
+
 
 def lambda_handler(event, context):
     
@@ -47,7 +45,6 @@ def lambda_handler(event, context):
     user_pool_client_secret = os.environ["COGNITO_USER_POOL_CLIENT_SECRET"]
     user_profile_dataset_name = os.environ["COGNITO_USER_PROFILE_DATASET_NAME"]
     identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
-    api_key_creator_function_arn = os.environ["API_KEY_CREATOR_FUNCTION_ARN"]
     
     email_address = event["request-body"].get("email-address", "")
     identity_id = event["request-body"].get("user-id", "")
@@ -151,9 +148,6 @@ def lambda_handler(event, context):
     
     identity_id = response["IdentityId"]
     
-    user_api_key_id = None
-    user_api_key_value = None
-    
     key_sync_count_map = {}
     
     response = cognito_sync_client.list_records(
@@ -166,29 +160,6 @@ def lambda_handler(event, context):
         key_sync_count_map[each_record["Key"]] = each_record.get("SyncCount", 0)
     
     sync_session_token = response["SyncSessionToken"]
-    
-    for each_record in response.get("Records", []):
-        if each_record["Key"] == "api-key-id":
-            user_api_key_id = each_record["Value"]
-        elif each_record["Key"] == "api-key-value":
-            user_api_key_value = each_record["Value"]
-    
-    if user_api_key_value is None:
-        invoke_response = lambda_client.invoke(
-            FunctionName = api_key_creator_function_arn,
-            Payload = json.dumps({
-                "identity-id": identity_id
-            })
-        )
-        response_object = json.loads(invoke_response["Payload"].read())
-        
-        if "api-key-id" not in response_object:
-            print(json.dumps(response_object))
-            raise Exception("Invalid API Key creator response.")
-        
-        user_api_key_id = response_object["api-key-id"]
-        user_api_key_value = response_object["api-key-value"]
-        
         
     records_to_replace = {
         "user-id": user_id,
@@ -244,7 +215,6 @@ def lambda_handler(event, context):
     
     return {
         "user": {
-            "api-key": user_api_key_value,
             "user-id": identity_id,
             "email-address": user_email
         },

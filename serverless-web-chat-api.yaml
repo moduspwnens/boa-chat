@@ -143,7 +143,7 @@ Mappings:
       
       # This is the bucket I host that contains prebuilt Lambda packages and 
       # S3 artifacts for quick deployments.
-      DefaultS3SourceBucket: moduspwnens-boa-chat-0-2-2
+      DefaultS3SourceBucket: moduspwnens-boa-chat-0-2-3
       
       # Static variables
       CognitoIdentityUserProfileDatasetName: user-profile
@@ -336,16 +336,6 @@ Resources:
                 - StageName
       RetentionInDays:
         Ref: LogRetentionDays
-  
-  WebChatApiBasicUsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    Properties:
-      UsagePlanName:
-        Fn::Sub: webchat-${WebChatApi}-basic
-      Description: Default usage plan for web chat API
-      Throttle:
-        BurstLimit: 100
-        RateLimit: 10
   
   WebChatApiRoomMessagePollerRole:
     Type: AWS::IAM::Role
@@ -630,8 +620,6 @@ Resources:
         Variables:
           API_DEFINITION_KEY:
             Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
-          API_KEY_CREATOR_FUNCTION_ARN:
-            Fn::Sub: ${ApiKeyCreatorFunction.Arn}
           COGNITO_IDENTITY_POOL_ID:
             Fn::Sub: ${CognitoIdentityPool.Id}
           COGNITO_USER_POOL_ID:
@@ -697,11 +685,6 @@ Resources:
                           - StaticVariables
                           - Main
                           - CognitoIdentityUserProfileDatasetName
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  Fn::Sub: ${ApiKeyCreatorFunction.Arn}
   
   UserLoginHandlerFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -881,84 +864,7 @@ Resources:
   
   
   
-  #  
-  #   User API Key Reset Handler
-  #  
-    
-  UserApiKeyResetHandlerFunction:
-    Type: AWS::Lambda::Function
-    Metadata:
-      PreWarming: true
-    Properties:
-      FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-UserApiKeyResetHandlerFunction
-      Description: Resets a user's API key.
-      Handler: index.proxy_lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - ApiOccasional
-      Role:
-        Fn::Sub: ${UserApiKeyResetHandlerFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${S3ArtifactSource.Bucket}
-        S3Key: lambda/UserApiKeyResetHandlerFunction.zip
-      Environment:
-        Variables:
-          API_DEFINITION_KEY:
-            Fn::Sub: ${SwaggerTemplatePresetInvocation.OutputKey}
-          API_KEY_CREATOR_FUNCTION_ARN:
-            Fn::Sub: ${ApiKeyCreatorFunction.Arn}
-          CORS_ORIGINS:
-            Fn::Sub: ${CorsOriginEscaped.Output}
-          SHARED_BUCKET:
-            Ref: SharedBucket
-      Runtime: python2.7
-      Timeout: 300
-  
-  UserApiKeyResetHandlerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: RoleActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  Fn::Sub: ${UserApiKeyResetHandlerFunctionLogGroup.Arn}
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  Fn::Sub: ${ApiKeyCreatorFunction.Arn}
-  
-  UserApiKeyResetHandlerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-UserApiKeyResetHandlerFunction
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  
-  
-  #  
+  #
   #   User Update Handler
   #  
     
@@ -1755,184 +1661,7 @@ Resources:
       RoleArn:
         Fn::Sub: ${RoomLifecycleStateMachineRole.Arn}
   
-  
-  
-  #
-  #   API Key Creator
-  #   
-  #   Used with a state machine to create a new API key for a user.
-  #
-  
-  ApiKeyCreatorFunction:
-    Type: AWS::Lambda::Function
-    Metadata:
-      PreWarming: true
-    Properties:
-      FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
-      Description: Creates a new API key and assigns it to a user.
-      Handler: index.lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - ApiOccasional
-      Role:
-        Fn::Sub: ${ApiKeyCreatorFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${S3ArtifactSource.Bucket}
-        S3Key: lambda/ApiKeyCreatorFunction.zip
-      Environment:
-        Variables:
-          COGNITO_IDENTITY_POOL_ID:
-            Fn::Sub: ${CognitoIdentityPool.Id}
-          COGNITO_USER_PROFILE_DATASET_NAME:
-            Fn::FindInMap:
-              - StaticVariables
-              - Main
-              - CognitoIdentityUserProfileDatasetName
-          PRECREATED_API_KEY_BUCKET:
-            Fn::Sub: ${ProjectGlobalPrefix.Prefix}-precreated-api-keys
-          STACK_NAME:
-            Ref: AWS::StackName
-          USAGE_PLAN_ID:
-            Ref: WebChatApiBasicUsagePlan
-      Runtime: python2.7
-      Timeout: 300
-  
-  ApiKeyCreatorFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: RoleActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  Fn::Sub: ${ApiKeyCreatorFunctionLogGroup.Arn}
-              - Effect: Allow
-                Action:
-                  - apigateway:POST
-                Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys
-              - Effect: Allow
-                Action:
-                  - apigateway:DELETE
-                Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/apikeys/*
-              - Effect: Allow
-                Action:
-                  - apigateway:POST
-                Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}/keys
-              - Effect: Allow
-                Action:
-                  - cognito-sync:ListRecords
-                Resource:
-                  Fn::Sub: arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*
-              - Effect: Allow
-                Action:
-                  - cognito-sync:UpdateRecords
-                Resource:
-                  Fn::Sub: 
-                    - arn:aws:cognito-sync:${AWS::Region}:${AWS::AccountId}:identitypool/${CognitoIdentityPool.Id}/identity/*/dataset/${CognitoIdentityUserProfileDatasetName}
-                    - CognitoIdentityUserProfileDatasetName:
-                        Fn::FindInMap:
-                          - StaticVariables
-                          - Main
-                          - CognitoIdentityUserProfileDatasetName
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource:
-                  Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys/*
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource:
-                  Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys
-  
-  ApiKeyCreatorFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiKeyCreatorFunction
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  PrecreatedApiKeyBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-precreated-api-keys
-      AccessControl: Private
-      LifecycleConfiguration:
-        Rules:
-          - Id: PurgeOldPreCreatedApiKeys
-            ExpirationInDays: 1
-            Status: Enabled
-            Prefix: available-api-keys/
-          - Id: PurgeClaimedPreCreatedApiKeys
-            ExpirationInDays: 2
-            Status: Enabled
-            Prefix: claimed-api-keys/
-          - Id: PurgeGeneratedPreCreatedApiKeys
-            ExpirationInDays: 2
-            Status: Enabled
-            Prefix: generated-api-keys/
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectRemoved:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: available-api-keys/
-            Function:
-              Fn::Sub: ${ApiKeyCreatorFunction.Arn}
-    DependsOn:
-      - ApiKeyCreatorPrecreatedApiKeyBucketPermission
-  
-  ApiKeyCreatorPrecreatedApiKeyBucketPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName:
-        Fn::Sub: ${ApiKeyCreatorFunction.Arn}
-      Principal: s3.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:s3:::${ProjectGlobalPrefix.Prefix}-precreated-api-keys
-  
-  PrecreatedApiKeyBucketCleanup:
-    Type: Custom::StackCleanupInvocation
-    Properties:
-      ServiceToken:
-        Fn::Sub: ${StackCleanupFunction.Arn}
-      Bucket:
-        Ref: PrecreatedApiKeyBucket
-      BucketContentType: PrecreatedApiKey
+
   
   
   #
@@ -2108,86 +1837,6 @@ Resources:
                   },
                   "stack-id": "${AWS::StackId}"
               }
-    DependsOn:
-      - PrecreatedApiKeyBucketCleanup
-  
-  #
-  #   API Usage Plan Linker
-  #   
-  #   AWS CloudFormation Custom Resource for adding an API Gateway REST API and 
-  #   stage to a usage plan.
-  #
-  
-  ApiUsagePlanLinkerFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName:
-        Fn::Sub: ${ProjectGlobalPrefix.Prefix}-ApiUsagePlanLinkerFunction
-      Description: Links an API Gateway usage plan to a REST API / stage.
-      Handler: index.lambda_handler
-      MemorySize:
-        Fn::FindInMap:
-          - StaticVariables
-          - LambdaMemoryClasses
-          - StackCrudOperation
-      Role:
-        Fn::Sub: ${ApiUsagePlanLinkerFunctionRole.Arn}
-      Code:
-        S3Bucket:
-          Fn::Sub: ${S3ArtifactSource.Bucket}
-        S3Key: lambda/ApiUsagePlanLinkerFunction.zip
-      Runtime: python2.7
-      Timeout: 300
-  
-  ApiUsagePlanLinkerFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: "/"
-      Policies:
-        - PolicyName: RoleActions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  Fn::Sub: ${ApiUsagePlanLinkerFunctionLogGroup.Arn}
-              - Effect: Allow
-                Action:
-                  - apigateway:PATCH
-                Resource:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}::/usageplans/${WebChatApiBasicUsagePlan}
-  
-  ApiUsagePlanLinkerFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${ProjectGlobalPrefix.Prefix}-ApiUsagePlanLinkerFunction
-      RetentionInDays:
-        Ref: LogRetentionDays
-  
-  ApiUsagePlanLinkerInvocation:
-    Type: Custom::ApiUsagePlanLinkerInvocation
-    Properties:
-      ServiceToken:
-        Fn::Sub: ${ApiUsagePlanLinkerFunction.Arn}
-      RestApi:
-        Ref: WebChatApi
-      Stage:
-        Ref: WebChatApiStage
-      UsagePlan:
-        Ref: WebChatApiBasicUsagePlan
   
   
   
@@ -3029,23 +2678,16 @@ Resources:
                   Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:sns/${AWS::Region}/${AWS::AccountId}/${ProjectGlobalPrefix.Prefix}-*
               - Effect: Allow
                 Action:
-                  - s3:GetObject
-                Resource:
-                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}/*
-              - Effect: Allow
-                Action:
                   - s3:DeleteObject
                 Resource:
                   - Fn::Sub: arn:aws:s3:::${SharedBucket}/*
                   - Fn::Sub: arn:aws:s3:::${StaticContentBucket}/*
-                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                 Resource:
                   - Fn::Sub: arn:aws:s3:::${SharedBucket}
                   - Fn::Sub: arn:aws:s3:::${StaticContentBucket}
-                  - Fn::Sub: arn:aws:s3:::${PrecreatedApiKeyBucket}
               - Effect: Allow
                 Action:
                   - apigateway:DELETE
@@ -3290,7 +2932,6 @@ Resources:
       - RoomMessageLogFetcherFunction
       - RoomMessagePosterFunction
       - RoomSessionGeneratorFunction
-      - UserApiKeyResetHandlerFunction
       - UserAvatarRequestHandlerFunction
       - UserChangePasswordHandlerFunction
       - UserForgotPasswordHandlerFunction

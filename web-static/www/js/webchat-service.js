@@ -73,7 +73,6 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         params: {
           "token": token
         },
-        includeApiKey: true,
         sign: true
       })
       .then(function(response) {
@@ -217,7 +216,6 @@ angular.module('webchatService', ['webchatApiEndpoint'])
           "old-password": existingPassword,
           "password": newPassword
         },
-        includeApiKey: true,
         sign: true
       })
       .then(function(response) {
@@ -243,42 +241,12 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         data: {
           "email-address": newEmailAddress
         },
-        includeApiKey: true,
         sign: true
       })
       .then(function(response) {
         resolve(response["data"]["registration-id"]);
       }, function(response) {
         
-        if (response.status == 400) {
-          reject(response["data"]["message"]);
-        }
-        else {
-          reject("Other");
-        }
-      })
-    });
-  }
-  
-  webchatService.resetApiKey = function() {
-    var requestEndpoint = WebChatApiEndpoint + 'user/api-key';
-    return $q(function(resolve, reject) {
-      $http({
-        method: 'PUT',
-        url: requestEndpoint,
-        data: "",
-        includeApiKey: true,
-        sign: true
-      })
-      .then(function(response) {
-        var newApiKey = response["data"]["api-key"];
-        
-        var cookieStoreObject = $cookieStore.get("login");
-        cookieStoreObject["user"]["api-key"] = newApiKey;
-        $cookieStore.put("login", cookieStoreObject);
-        
-        resolve(newApiKey);
-      }, function(response) {
         if (response.status == 400) {
           reject(response["data"]["message"]);
         }
@@ -303,8 +271,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       data: {
         "user-id": userObject["user-id"],
         "refresh-token": credentials["refresh-token"]
-      },
-      includeApiKey: true
+      }
     })
     .then(function(response) {
       
@@ -344,8 +311,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         method: 'POST',
         url: requestEndpoint,
         data: "",
-        sign: true,
-        includeApiKey: true
+        sign: true
       })
       .then(function(response) {
         resolve(response["data"]["id"]);
@@ -374,8 +340,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         method: 'POST',
         url: createRoomSessionEndpoint,
         data: "",
-        sign: true,
-        includeApiKey: true
+        sign: true
       })
       .then(function(response) {
         resolve(response["data"]["id"]);
@@ -408,8 +373,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         method: 'POST',
         url: postNewRoomMessageEndpoint,
         data: postMessageData,
-        sign: true,
-        includeApiKey: true
+        sign: true
       })
       .then(function(response) {
         resolve(response["data"]["message-id"]);
@@ -432,8 +396,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         data: {
           'receipt-handles': receiptHandleArray
         },
-        sign: true,
-        includeApiKey: true
+        sign: true
       })
       .then(function() {
         resolve();
@@ -470,8 +433,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
         method: 'GET',
         url: requestEndpoint,
         params: params,
-        sign: true,
-        includeApiKey: true
+        sign: true
       })
       .then(function(response) {
         resolve(response["data"]);
@@ -527,8 +489,7 @@ angular.module('webchatService', ['webchatApiEndpoint'])
       method: 'GET',
       url: messagesEndpoint,
       timeout: canceler.promise,
-      sign: true,
-      includeApiKey: true
+      sign: true
     })
     .then(function(response) {
       removeCancelerReference();

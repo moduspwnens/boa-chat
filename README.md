@@ -38,7 +38,6 @@ To delete all the resources, simply delete the stack. It's been built to clean u
  * REST API with web-based user interface
  * User registration
  * E-mail address verification
- * Per-user request throttling, rate limiting, and request tracking
  * Chat room message history logs stored durably on S3
  * All authenticated API requests are cryptographically signed, encrypted, and utilize timestamps for replay protection
  * API credentials are always temporary and last only one hour

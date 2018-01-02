@@ -65,7 +65,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   var newMessagesReceived = function(messageArray, unsent = false) {
     
     var heightBefore = roomEventsWrapperElement.clientHeight;
-    console.log("Before: ", heightBefore);
+    //console.log("Before: ", heightBefore);
     
     var mostRecentEventReceived = false;
     
@@ -155,7 +155,7 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
     var heightAfter = roomEventsWrapperElement.clientHeight;
     
     
-    console.log("After: ", heightAfter);
+    //console.log("After: ", heightAfter);
     
     if (scrollLockEnabled && mostRecentEventReceived) {
       scrollToBottom();
