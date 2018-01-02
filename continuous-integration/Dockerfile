@@ -12,4 +12,4 @@ RUN curl --silent --location https://rpm.nodesource.com/setup_6.x | bash - && yu
 RUN npm install -g grunt grunt-cli gulp bower
 RUN virtualenv /venv
 RUN python3.6 -m venv /venv3
-RUN pip3 install --upgrade git+git://github.com/moduspwnens/boa-nimbus.git@v2.0.0
+RUN pip3 install --upgrade git+git://github.com/moduspwnens/boa-nimbus.git@v2.0.8

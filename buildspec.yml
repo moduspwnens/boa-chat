@@ -1,4 +1,9 @@
-version: 0.1
+version: 0.2
+
+env:
+  variables:
+    LC_ALL: en_US.utf-8
+    LANG: en_US.utf-8
 
 phases:
   pre_build:
@@ -10,7 +15,7 @@ phases:
       - echo Build started on `date`
       
       # Perform build.
-      - LC_ALL=en_US.utf-8 LANG=en_US.utf-8 boa-nimbus build --no-use-docker
+      - boa-nimbus build --no-use-docker
       
       # Move output directory.
       - mv build/artifacts /tmp/
