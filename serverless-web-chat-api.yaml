@@ -3032,7 +3032,7 @@ Resources:
     Properties:
       FunctionName:
         Fn::Sub: ${ProjectGlobalPrefix.Prefix}-S3StaticWebContentDeployerFunction
-      Description: Links an API Gateway usage plan to a REST API / stage.
+      Description: Unzips and uploads a static web content ZIP file's contents to S3.
       Handler: index.lambda_handler
       MemorySize:
         Fn::FindInMap:
