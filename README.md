@@ -12,7 +12,7 @@ Note that I will rebuild the demo environment periodically, which will clear all
 
 It only takes a few clicks. Just log into your AWS account (with appropriate permissions) and click this button:
 
-[![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.2.2/serverless-web-chat-api.yaml&stackName=boa-chat)
+[![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.2.3/serverless-web-chat-api.yaml&stackName=boa-chat)
 
 Simply check the box for *I acknowledge that AWS CloudFormation might create IAM resources.* and then click **Create**. 
 
@@ -109,7 +109,7 @@ The infrastructure creates no long-term credentials or secrets, so there are no 
 
 The process is very similar to the quick deployment. Just log into your AWS account (with appropriate permissions) and click this button:
 
-[![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.2.2/continuous-integration.yaml&stackName=boa-chat-ci)
+[![Launch Stack](/launch-stack-button.png?raw=true "Launch Stack")](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://s3.amazonaws.com/bennlinger-public-site/boa-chat/0.2.3/continuous-integration.yaml&stackName=boa-chat-ci)
 
 Simply check the box for *I acknowledge that AWS CloudFormation might create IAM resources.* and then click **Create**. 
 
