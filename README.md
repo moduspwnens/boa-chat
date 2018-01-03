@@ -18,7 +18,7 @@ Simply check the box for *I acknowledge that AWS CloudFormation might create IAM
 
 The stack is now being created. It typically takes 5-7 minutes to finish. Use the refresh button (⟳) to check on it periodically. Once it reaches a **CREATE_COMPLETE** state, it's ready to go! Simply select the stack, click the *Outputs* tab, and click the link next to the one called **WebChatApiHome**.
 
-This application has no region restrictions, although it does require [Step Functions](https://aws.amazon.com/step-functions/). These are [only available](https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/) in US East (Virginia), US West (Oregon), and EU (Ireland) at the time of writing.
+This application has no region restrictions.
 
 ### Destroy
 
