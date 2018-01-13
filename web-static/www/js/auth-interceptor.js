@@ -141,7 +141,7 @@ angular
           deferred.resolve(signRequestWithConfig(config));
         })
         .catch(function() {
-          deferred.reject(...arguments);
+          deferred.reject.apply(null, arguments);
         })
     }
     else {

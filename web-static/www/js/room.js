@@ -62,7 +62,11 @@ app.controller('roomController', function($scope, $http, $stateParams, $cookieSt
   
   var mostRecentTimestampReceived = 0;
   
-  var newMessagesReceived = function(messageArray, unsent = false) {
+  var newMessagesReceived = function(messageArray, unsent) {
+    
+    if (unsent == null || unsent == undefined) {
+      unsent = false;
+    }
     
     var heightBefore = roomEventsWrapperElement.clientHeight;
     //console.log("Before: ", heightBefore);

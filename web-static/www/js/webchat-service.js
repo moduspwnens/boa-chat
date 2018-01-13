@@ -545,7 +545,11 @@ angular.module('webchatService', ['webchatApiEndpoint'])
     })
   }
   
-  webchatService.watchForRoomSessionMessages = function(roomId, sessionId, messagesReceivedCallback, concurrentRequestCount = 3) {
+  webchatService.watchForRoomSessionMessages = function(roomId, sessionId, messagesReceivedCallback, concurrentRequestCount) {
+    
+    if (concurrentRequestCount == null || concurrentRequestCount == undefined) {
+      concurrentRequestCount = 3;
+    }
     
     var sessionUrl = WebChatApiEndpoint + 'room/' + roomId + '/session/' + sessionId;
     
