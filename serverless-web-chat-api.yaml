@@ -1149,6 +1149,12 @@ Resources:
                   - states:StartExecution
                 Resource:
                   Fn::Sub: ${RoomLifecycleStateMachine.StateMachineArn}
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - Fn::Sub: ${SNSFailureFeedbackRole.Arn}
+                  - Fn::Sub: ${SNSSuccessFeedbackRole.Arn}
   
   RoomGeneratorFunctionLogGroup:
     Type: AWS::Logs::LogGroup
