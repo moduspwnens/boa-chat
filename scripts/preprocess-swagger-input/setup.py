@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 requires = [
     "click==6.6",
-    "PyYAML==3.12"
+    "PyYAML==5.4"
 ]
 
 setup_options = dict(
